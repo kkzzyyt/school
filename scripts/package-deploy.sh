@@ -3,7 +3,6 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 OUTPUT_DIR="$PROJECT_ROOT/releases"
 SKIP_CHECKS=false
 
@@ -58,6 +57,12 @@ done
   exit 1
 }
 
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+[[ "$PROJECT_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || {
+  echo "项目目录名只能包含字母、数字、点、下划线和连字符：$PROJECT_NAME" >&2
+  exit 1
+}
+
 if [[ "$SKIP_CHECKS" == false ]]; then
   echo "[1/4] 运行 ESLint"
   (cd "$PROJECT_ROOT" && npm run lint)
@@ -109,6 +114,7 @@ tar_excludes=(
   '--exclude=*service-account*.json'
   '--exclude=*serviceAccount*.json'
   '--exclude=*secret*.json'
+  '--exclude=*/src/generated/prisma'
   '--exclude=*.log'
   '--exclude=*.tsbuildinfo'
   '--exclude=.DS_Store'
@@ -131,12 +137,12 @@ package_entries=(
 )
 
 echo "[4/4] 生成发布包"
-COPYFILE_DISABLE=1 tar --no-xattrs -czf "$ARCHIVE_PATH" \
+LC_ALL=C COPYFILE_DISABLE=1 tar --no-xattrs -czf "$ARCHIVE_PATH" \
   "${tar_excludes[@]}" \
   -C "$(dirname "$PROJECT_ROOT")" \
   "${package_entries[@]}"
 
-ARCHIVE_CONTENTS="$(tar -tzf "$ARCHIVE_PATH")"
+ARCHIVE_CONTENTS="$(LC_ALL=C tar -tzf "$ARCHIVE_PATH")"
 for secret_pattern in \
   '(^|/)\.env[^/]*$' \
   '(^|/)\.(npmrc|yarnrc|yarnrc\.yml|pnpmrc)$' \
@@ -178,4 +184,4 @@ echo "发布包：$ARCHIVE_PATH"
 echo "校验文件：$CHECKSUM_PATH"
 echo "大小：$ARCHIVE_SIZE"
 echo
-echo "上传到宝塔后，先校验 SHA-256，再解压并在 Linux 服务器执行 npm ci 和 npm run build。"
+echo "可直接运行 npm run deploy 发布；手工上传到服务器时，请先校验 SHA-256，再解压并执行 npm ci 和 npm run build。"

@@ -55,6 +55,35 @@ npm run dev
 
 浏览器访问 [http://localhost:3000](http://localhost:3000)。
 
+### 5. 部署到自有 Node.js 服务器
+
+项目提供基于 SSH、PM2 和 release 符号链接的部署脚本，适用于宝塔或普通 Linux 主机。服务器需要准备 Node.js/npm、PM2、可访问的 MySQL，以及由反向代理/TLS 暴露的域名。
+
+```bash
+cp deploy.env.example deploy.env
+# 编辑 deploy.env，至少填写 DEPLOY_TARGET，并在服务器创建 DEPLOY_ENV_PATH 指向的 .env
+npm run deploy
+```
+
+发布前会运行本地生产构建、ESLint、类型检查和单元测试；服务器上会重新执行 `npm ci`、`npm run build`、Prisma 迁移和 `pm2` 启动，并请求 `/api/health` 验证新版本。成功版本位于 `<DEPLOY_PATH>/.deploy/releases/`，`<DEPLOY_PATH>/current` 始终指向当前版本，健康检查失败会恢复旧版本。
+
+默认允许 SSH 交互式密码登录；使用密钥自动化时可加 `--batch-mode`。如果 SSH 需要通过本机 SOCKS5 代理，可设置代理命令：
+
+```bash
+DEPLOY_PROXY_COMMAND='nc -x 127.0.0.1:7897 -X 5 %h %p' npm run deploy
+```
+
+常用选项：
+
+```bash
+npm run deploy -- --dry-run --skip-build       # 检查 SSH 并生成包，不上传、不发布
+npm run deploy -- --skip-checks                # 跳过本地 lint、类型检查和单元测试
+npm run deploy -- --skip-migrations            # 不在服务器执行 Prisma 生产迁移
+npm run deploy -- --batch-mode                 # 仅使用 SSH 密钥，不提示输入密码
+```
+
+运行时 `.env`、SSH 私钥和数据库凭据不会进入发布包；`deploy.env` 已被 Git 忽略。首次部署前请确认服务器上的 `.env` 已配置正确，并在反向代理中只将公网流量转发到 PM2 监听的本机端口。
+
 ## 常用命令
 
 ```bash
@@ -66,6 +95,8 @@ npm run typecheck       # TypeScript 类型检查
 npm test                # 单元测试
 npm run test:coverage   # 覆盖率报告（阈值 80%）
 npm run test:e2e        # Playwright 关键流程测试
+npm run test:package    # 发布包内容和秘密文件排除测试
+npm run test:deploy     # 使用伪造 SSH/PM2 的部署流程测试
 npm run db:generate     # 生成 Prisma Client
 npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
 npm run db:deploy       # 应用已提交迁移（初始化/生产推荐）

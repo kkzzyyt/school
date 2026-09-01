@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 TEMP_OUTPUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/school-package-test.XXXXXX")"
 SECRET_FIXTURE_DIR="$PROJECT_ROOT/src/.package-deploy-test-secrets"
 SECRET_FIXTURE_CREATED=false
@@ -41,21 +42,21 @@ fi
 
 "$PROJECT_ROOT/scripts/package-deploy.sh" --skip-checks --output-dir "$TEMP_OUTPUT_DIR" >/dev/null
 
-archives=("$TEMP_OUTPUT_DIR"/school-deploy-*.tar.gz)
+archives=("$TEMP_OUTPUT_DIR/${PROJECT_NAME}-deploy-"*.tar.gz)
 ARCHIVE_PATH="${archives[0]}"
 CHECKSUM_PATH="$ARCHIVE_PATH.sha256"
 
 [[ -f "$ARCHIVE_PATH" ]] || { echo "未生成发布压缩包" >&2; exit 1; }
 [[ -f "$CHECKSUM_PATH" ]] || { echo "未生成 SHA-256 校验文件" >&2; exit 1; }
 
-ARCHIVE_CONTENTS="$(tar -tzf "$ARCHIVE_PATH")"
+ARCHIVE_CONTENTS="$(LC_ALL=C tar -tzf "$ARCHIVE_PATH")"
 
 for required_path in \
-  "school/package.json" \
-  "school/package-lock.json" \
-  "school/src/app/layout.tsx" \
-  "school/prisma/schema.prisma" \
-  "school/prisma/migrations/20260901000000_init/migration.sql"; do
+  "$PROJECT_NAME/package.json" \
+  "$PROJECT_NAME/package-lock.json" \
+  "$PROJECT_NAME/src/app/layout.tsx" \
+  "$PROJECT_NAME/prisma/schema.prisma" \
+  "$PROJECT_NAME/prisma/migrations/20260901000000_init/migration.sql"; do
   if ! grep -Fxq "$required_path" <<<"$ARCHIVE_CONTENTS"; then
     echo "发布包缺少 $required_path" >&2
     exit 1
@@ -63,14 +64,15 @@ for required_path in \
 done
 
 for forbidden_pattern in \
-  '^school/\.env$' \
-  '^school/\.env\.local$' \
-  '^school/node_modules/' \
-  '^school/\.next/' \
-  '^school/releases/' \
-  '^school/test-results/' \
-  '^school/playwright-report/' \
-  '^school/coverage/' \
+  "^${PROJECT_NAME//./\\.}/src/generated/prisma/" \
+  "^${PROJECT_NAME//./\\.}/\\.env$" \
+  "^${PROJECT_NAME//./\\.}/\\.env\\.local$" \
+  "^${PROJECT_NAME//./\\.}/node_modules/" \
+  "^${PROJECT_NAME//./\\.}/\\.next/" \
+  "^${PROJECT_NAME//./\\.}/releases/" \
+  "^${PROJECT_NAME//./\\.}/test-results/" \
+  "^${PROJECT_NAME//./\\.}/playwright-report/" \
+  "^${PROJECT_NAME//./\\.}/coverage/" \
   '/\.env[^/]*$' \
   '/\.npmrc$' \
   '\.pem$' \
