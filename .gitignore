@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/releases/
 
 # next.js
 /.next/
@@ -19,6 +22,9 @@
 
 # production
 /build
+
+# generated code
+/src/generated/prisma/
 
 # misc
 .DS_Store
@@ -32,6 +38,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel

@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 班主任工作台
 
-## Getting Started
+面向高中班主任的一站式班级日常管理系统。首版包含登录、工作台、座次表、值日表、成绩分析、花名册、班委名单、家长通讯录和课程表，所有业务数据持久化到 MySQL。
 
-First, run the development server:
+## 技术架构
+
+- Next.js 16 + React 19 + TypeScript：React 前端与 Node.js Route Handlers
+- Ant Design 6：通用 UI 与中文界面
+- MySQL 8.4 + Prisma ORM 7：关系数据、迁移和事务
+- Argon2id + HttpOnly Cookie：密码与服务端会话认证
+- Vitest + Testing Library + Playwright：单元、组件和端到端测试
+
+架构、数据模型和接口契约以 [Spec 索引](./docs/specs/README.md) 为基线。需求变更应先更新 Spec 和验收用例。
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+npm install
+cp .env.example .env
+```
+
+### 2. 启动 MySQL
+
+推荐使用 Docker：
+
+```bash
+docker compose up -d
+```
+
+默认把容器的 MySQL 映射到本机 `3307`，避免与已有的 `3306` 冲突。若使用本机 MySQL，请先创建数据库和账号，再修改 `.env` 中的 `DATABASE_URL`。
+
+### 3. 初始化数据
+
+```bash
+npm run db:deploy
+npm run db:seed
+```
+
+种子数据包含一个完整的高二班级、24 名虚构学生、家长联系人、座次、值日、班委、课程表、考试成绩和工作台待办。
+
+演示登录：
+
+```text
+管理员：admin / admin123
+班主任：teacher / Teacher@123
+```
+
+### 4. 启动应用
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+浏览器访问 [http://localhost:3000](http://localhost:3000)。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 常用命令
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev             # 开发服务器
+npm run build           # 生产构建
+npm run start           # 启动生产构建
+npm run lint            # ESLint
+npm run typecheck       # TypeScript 类型检查
+npm test                # 单元测试
+npm run test:coverage   # 覆盖率报告（阈值 80%）
+npm run test:e2e        # Playwright 关键流程测试
+npm run db:generate     # 生成 Prisma Client
+npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
+npm run db:deploy       # 应用已提交迁移（初始化/生产推荐）
+npm run db:seed         # 重置并写入演示数据
+npm run db:studio       # Prisma 数据浏览器
+```
 
-## Learn More
+首次运行 E2E 前安装 Chromium：
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx playwright install chromium
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 目录结构
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+docs/specs/                  产品、架构、数据模型、API 与验收 Spec
+prisma/
+  migrations/               MySQL 初始化迁移
+  schema.prisma             领域数据模型
+  seed.ts                   可重复执行的虚构演示数据
+src/
+  app/                      页面和 REST Route Handlers
+  components/               布局与通用 UI
+  domain/                   无框架依赖的领域规则
+  generated/prisma/         生成的类型安全数据库客户端
+  hooks/                    前端数据获取 Hook
+  lib/                      浏览器 API 客户端
+  server/                   认证、校验、服务和数据库基础设施
+e2e/                        Playwright 用户旅程
+```
 
-## Deploy on Vercel
+## 安全说明
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- 密码使用 Argon2id 哈希；数据库不保存明文密码。
+- 登录令牌由 32 字节随机数生成，浏览器仅通过 HttpOnly Cookie 持有；数据库只保存 SHA-256 哈希。
+- 业务 API 从已验证的会话推导 `classId`，不信任客户端提交的班级标识。
+- 家长电话和学生地址只由有班级权限的会话读取。
+- `.env`、真实学生信息和数据库凭据不得提交到版本库。
+- 演示账号只用于本地初始化，部署后必须修改默认密码。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 当前边界
+
+首版不包含学生/家长自助端、消息通知、请假审批、文件导入导出和排课算法。后续演进方向记录在 [架构 Spec](./docs/specs/02-architecture.md)。
