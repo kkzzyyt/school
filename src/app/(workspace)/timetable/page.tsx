@@ -78,6 +78,10 @@ export default function TimetablePage() {
     finally { setSaving(false); }
   }
 
+  const editingEntry = editingCell
+    ? entries.find((entry) => entry.weekday === editingCell.weekday && entry.period === editingCell.period)
+    : undefined;
+
   return (
     <>
       <PageHeading kicker="WEEKLY TIMETABLE" title="班级课程安排" description="按周查看 8 节课安排，点击任意节次即可编辑课程、教师和教室。" action={<Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={() => void saveTimetable()}>保存课表</Button>} />
@@ -110,7 +114,12 @@ export default function TimetablePage() {
         onCancel={closeCell}
         onOk={() => void applyCell()}
         okText="应用安排"
-        footer={(_, { OkBtn, CancelBtn }) => <><Button danger onClick={clearCell}>清空节次</Button><span style={{ flex: 1 }} /><CancelBtn /><OkBtn /></>}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <div className="timetable-modal-footer">
+            {editingEntry && <Button danger onClick={clearCell}>清空节次</Button>}
+            <div className="timetable-modal-actions"><CancelBtn /><OkBtn /></div>
+          </div>
+        )}
         destroyOnHidden
       >
         <Form form={form} layout="vertical" requiredMark={false} style={{ marginTop: 18 }}>

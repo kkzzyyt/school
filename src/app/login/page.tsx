@@ -36,6 +36,7 @@ export default function LoginPage() {
       await apiRequest("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ username: values.username, password: values.password }),
+        redirectOnUnauthorized: false,
       });
       if (values.remember) {
         window.localStorage.setItem(REMEMBERED_ACCOUNT_KEY, values.username);
@@ -57,7 +58,6 @@ export default function LoginPage() {
         <div className="login-brand">
           <div className="login-logo"><BookOutlined /></div>
           <h1 id="login-title">智教办公系统</h1>
-          <p>效能版｜高效管理，成就教学</p>
         </div>
 
         {error && <Alert showIcon type="error" title={error} style={{ marginBottom: 20 }} />}
@@ -68,8 +68,8 @@ export default function LoginPage() {
           onFinish={handleLogin}
           requiredMark={false}
         >
-          <Form.Item name="username" label="教工号/账号" rules={[{ required: true, message: "请输入教工号或账号" }]}>
-            <Input size="large" prefix={<UserOutlined />} placeholder="请输入教工号/账号" autoComplete="username" />
+          <Form.Item name="username" label="账号" rules={[{ required: true, message: "请输入账号" }]}>
+            <Input size="large" prefix={<UserOutlined />} placeholder="请输入账号" autoComplete="username" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
             <Input.Password size="large" prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="current-password" />
@@ -78,14 +78,12 @@ export default function LoginPage() {
             <Form.Item name="remember" valuePropName="checked" noStyle>
               <Checkbox>记住账号</Checkbox>
             </Form.Item>
-            <Button type="link" onClick={() => void message.info("请联系学校管理员重置密码")}>忘记密码？</Button>
+            <Button type="link" onClick={() => void message.info("请联系管理员重置密码")}>忘记密码？</Button>
           </div>
           <Button type="primary" htmlType="submit" size="large" block loading={loading} style={{ height: 46 }}>
             立即登录 <ArrowRightOutlined />
           </Button>
         </Form>
-
-        <div className="login-security">安全连接</div>
       </section>
     </main>
   );

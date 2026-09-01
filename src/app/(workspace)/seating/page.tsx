@@ -5,6 +5,11 @@ import { Alert, App, Button, Card, InputNumber, Select, Skeleton, Space, Tag } f
 import { useMemo, useState } from "react";
 
 import { PageHeading } from "@/components/layout/PageHeading";
+import {
+  DEFAULT_SEATING_COLUMNS,
+  DEFAULT_SEATING_ROWS,
+  isDefaultSeatingAisleColumn,
+} from "@/domain/seating";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
 
@@ -15,8 +20,8 @@ interface SeatingData { rows: number; columns: number; students: Student[]; assi
 export default function SeatingPage() {
   const { message } = App.useApp();
   const { data, loading, error, refresh } = useApiData<SeatingData>("/api/seating");
-  const [rows, setRows] = useState(6);
-  const [columns, setColumns] = useState(8);
+  const [rows, setRows] = useState(DEFAULT_SEATING_ROWS);
+  const [columns, setColumns] = useState(DEFAULT_SEATING_COLUMNS);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [sourceData, setSourceData] = useState<SeatingData | null>(null);
   const [saving, setSaving] = useState(false);
@@ -30,6 +35,15 @@ export default function SeatingPage() {
 
   const studentById = useMemo(() => new Map(data?.students.map((student) => [student.id, student]) ?? []), [data]);
   const assignedCount = assignments.filter((item) => item.row <= rows && item.column <= columns).length;
+  const gridTemplateColumns = useMemo(
+    () => Array.from(
+      { length: columns },
+      (_, index) => isDefaultSeatingAisleColumn(index + 1, columns)
+        ? "42px"
+        : "minmax(88px, 1fr)",
+    ).join(" "),
+    [columns],
+  );
 
   function changeSeat(row: number, column: number, studentId?: string) {
     setAssignments((current) => {
@@ -70,10 +84,17 @@ export default function SeatingPage() {
         {loading || !data ? <Skeleton active paragraph={{ rows: 12 }} /> : (
           <div style={{ overflowX: "auto", padding: "6px 4px 20px" }}>
             <div className="blackboard">讲　台</div>
-            <div className="seat-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(88px, 1fr))` }}>
+            <div className="seat-grid" style={{ gridTemplateColumns }}>
               {Array.from({ length: rows * columns }, (_, index) => {
                 const row = Math.floor(index / columns) + 1;
                 const column = (index % columns) + 1;
+                if (isDefaultSeatingAisleColumn(column, columns)) {
+                  return (
+                    <div className="seat-aisle" aria-hidden="true" key={`${row}-${column}`}>
+                      {row === 1 && <span>过道</span>}
+                    </div>
+                  );
+                }
                 const assignment = assignments.find((item) => item.row === row && item.column === column);
                 const student = assignment ? studentById.get(assignment.studentId) : undefined;
                 return (

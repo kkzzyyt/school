@@ -13,6 +13,7 @@
   --success: #087f5b;
   --warning: #d97706;
   --danger: #c5221f;
+  --page-section-gap: 24px;
 }
 
 * {
@@ -207,7 +208,8 @@ select {
 }
 
 .global-search {
-  width: min(360px, 100%);
+  width: min(280px, 100%);
+  max-width: 280px;
   border-color: transparent;
   border-radius: 999px !important;
   background: var(--surface-low);
@@ -249,6 +251,27 @@ select {
   max-width: 1500px;
   margin: 0 auto;
   padding: 40px 48px 56px;
+}
+
+.workspace-page-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--page-section-gap);
+}
+
+.workspace-page-stack > .page-heading,
+.workspace-page-stack > .contacts-toolbar {
+  margin-bottom: 0;
+}
+
+.workspace-page-stack > .surface-card,
+.workspace-page-stack > .ant-alert {
+  margin-block: 0 !important;
+}
+
+.workspace-page-stack > .ant-row {
+  margin-top: 0 !important;
 }
 
 .page-heading {
@@ -1177,6 +1200,31 @@ select {
   box-shadow: 0 3px 10px rgba(11, 87, 208, 0.1);
 }
 
+.seat-aisle {
+  display: flex;
+  min-height: 82px;
+  align-items: flex-start;
+  justify-content: center;
+  border-right: 1px dashed var(--line-strong);
+  border-left: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 8px,
+    rgba(15, 23, 42, 0.025) 8px,
+    rgba(15, 23, 42, 0.025) 16px
+  );
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.seat-aisle span {
+  padding-top: 8px;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+}
+
 .seat-name {
   font-weight: 700;
 }
@@ -1243,6 +1291,26 @@ select {
   margin-top: 5px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.timetable-modal-footer,
+.timetable-modal-actions {
+  display: flex;
+  align-items: center;
+}
+
+.timetable-modal-footer {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.timetable-modal-actions {
+  gap: 8px;
+  margin-left: auto;
+}
+
+.timetable-modal-actions .ant-btn + .ant-btn {
+  margin-inline-start: 0;
 }
 
 .mobile-navigation .ant-drawer-content {
@@ -1321,6 +1389,10 @@ select {
 
   .workspace-content {
     padding: 26px 16px 40px;
+  }
+
+  .workspace-page-stack {
+    gap: 20px;
   }
 
   .page-heading {

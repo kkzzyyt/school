@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/login");
-  await page.getByLabel("教工号/账号").fill("teacher");
+  await page.getByRole("textbox", { name: "账号" }).fill("teacher");
   await page.getByLabel("密码").fill("Teacher@123");
   await page.getByRole("button", { name: "立即登录" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -24,4 +24,19 @@ test("移动端可以打开工作区导航", async ({ page }) => {
   await page.getByRole("button", { name: "打开导航菜单" }).click();
   await expect(page.getByRole("menuitem", { name: "成绩分析" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "家长通讯录" })).toBeVisible();
+});
+
+test("工作区页面保留统一区块间距并收紧全局搜索框", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await login(page);
+
+  const pageStack = page.locator(".workspace-page-stack");
+  await expect(pageStack).toBeVisible();
+
+  const pageGap = await pageStack.evaluate((element) => Number.parseFloat(getComputedStyle(element).rowGap));
+  expect(pageGap).toBeGreaterThanOrEqual(24);
+
+  const searchBox = await page.locator(".global-search").boundingBox();
+  expect(searchBox).not.toBeNull();
+  expect(searchBox!.width).toBeLessThanOrEqual(300);
 });

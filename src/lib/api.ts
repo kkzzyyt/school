@@ -11,19 +11,24 @@ export class ApiClientError extends Error {
   }
 }
 
-export async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
+export interface ApiRequestOptions extends RequestInit {
+  redirectOnUnauthorized?: boolean;
+}
+
+export async function apiRequest<T>(url: string, options?: ApiRequestOptions): Promise<T> {
+  const { redirectOnUnauthorized = true, ...requestOptions } = options ?? {};
   const response = await fetch(url, {
-    ...options,
+    ...requestOptions,
     headers: {
-      ...(options?.body ? { "Content-Type": "application/json" } : {}),
-      ...options?.headers,
+      ...(requestOptions.body ? { "Content-Type": "application/json" } : {}),
+      ...requestOptions.headers,
     },
   });
   const payload = (await response.json()) as { success: true; data: T } | ApiFailure;
 
   if (!response.ok || !payload.success) {
     const failure = payload as ApiFailure;
-    if (response.status === 401 && typeof window !== "undefined") {
+    if (response.status === 401 && redirectOnUnauthorized && typeof window !== "undefined") {
       window.location.replace("/login");
     }
     throw new ApiClientError(

@@ -168,7 +168,9 @@ export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
             </Dropdown>
           </div>
         </header>
-        <Content className="workspace-content">{children}</Content>
+        <Content className="workspace-content">
+          <div className="workspace-page-stack">{children}</div>
+        </Content>
       </Layout>
 
       <Drawer

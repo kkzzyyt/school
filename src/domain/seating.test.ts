@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_SEATING_AISLE_COLUMNS,
+  DEFAULT_SEATING_COLUMNS,
+  DEFAULT_SEATING_ROWS,
   SeatingValidationError,
   swapStudentSeats,
   validateSeatingLayout,
 } from "./seating";
+
+describe("default seating dimensions", () => {
+  it("uses the current classroom layout specification", () => {
+    expect({
+      rows: DEFAULT_SEATING_ROWS,
+      columns: DEFAULT_SEATING_COLUMNS,
+      aisleColumns: DEFAULT_SEATING_AISLE_COLUMNS,
+    }).toEqual({ rows: 7, columns: 10, aisleColumns: [3, 8] });
+  });
+});
 
 describe("validateSeatingLayout", () => {
   it("accepts and orders a valid layout by row and column", () => {
@@ -57,6 +70,16 @@ describe("validateSeatingLayout", () => {
         assignments: [{ studentId: "student-a", row: 4, column: 1 }],
       }),
     ).toThrowError(new SeatingValidationError("POSITION_OUT_OF_BOUNDS"));
+  });
+
+  it("rejects assignments placed in a default aisle column", () => {
+    expect(() =>
+      validateSeatingLayout({
+        rows: DEFAULT_SEATING_ROWS,
+        columns: DEFAULT_SEATING_COLUMNS,
+        assignments: [{ studentId: "student-a", row: 1, column: 3 }],
+      }),
+    ).toThrowError(new SeatingValidationError("POSITION_IS_AISLE"));
   });
 
   it("rejects layouts outside supported dimensions", () => {

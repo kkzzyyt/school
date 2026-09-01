@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { validateSeatingLayout } from "@/domain/seating";
+import {
+  DEFAULT_SEATING_COLUMNS,
+  DEFAULT_SEATING_ROWS,
+  validateSeatingLayout,
+} from "@/domain/seating";
 import { ApiError, handleApi } from "@/server/api/errors";
 import { requireAuthContext } from "@/server/auth/context";
 import { assertSameOrigin } from "@/server/auth/origin";
@@ -38,8 +42,8 @@ export async function GET() {
     ]);
 
     return {
-      rows: classroom?.seatRows ?? 6,
-      columns: classroom?.seatColumns ?? 8,
+      rows: classroom?.seatRows ?? DEFAULT_SEATING_ROWS,
+      columns: classroom?.seatColumns ?? DEFAULT_SEATING_COLUMNS,
       students,
       assignments,
     };

@@ -4,6 +4,10 @@ export interface SeatAssignment {
   column: number;
 }
 
+export const DEFAULT_SEATING_ROWS = 7;
+export const DEFAULT_SEATING_COLUMNS = 10;
+export const DEFAULT_SEATING_AISLE_COLUMNS: readonly number[] = [3, 8];
+
 export interface SeatingLayout {
   rows: number;
   columns: number;
@@ -14,7 +18,8 @@ export type SeatingValidationCode =
   | "INVALID_DIMENSIONS"
   | "DUPLICATE_STUDENT"
   | "DUPLICATE_POSITION"
-  | "POSITION_OUT_OF_BOUNDS";
+  | "POSITION_OUT_OF_BOUNDS"
+  | "POSITION_IS_AISLE";
 
 const MIN_SEAT_DIMENSION = 1;
 const MAX_SEAT_DIMENSION = 12;
@@ -24,6 +29,16 @@ export class SeatingValidationError extends Error {
     super(code);
     this.name = "SeatingValidationError";
   }
+}
+
+export function isDefaultSeatingAisleColumn(
+  column: number,
+  columns: number,
+): boolean {
+  return (
+    columns === DEFAULT_SEATING_COLUMNS &&
+    DEFAULT_SEATING_AISLE_COLUMNS.includes(column)
+  );
 }
 
 export function validateSeatingLayout(layout: SeatingLayout): SeatingLayout {
@@ -55,6 +70,10 @@ export function validateSeatingLayout(layout: SeatingLayout): SeatingLayout {
       assignment.column > layout.columns
     ) {
       throw new SeatingValidationError("POSITION_OUT_OF_BOUNDS");
+    }
+
+    if (isDefaultSeatingAisleColumn(assignment.column, layout.columns)) {
+      throw new SeatingValidationError("POSITION_IS_AISLE");
     }
 
     const positionKey = `${assignment.row}:${assignment.column}`;

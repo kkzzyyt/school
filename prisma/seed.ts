@@ -11,6 +11,11 @@ import {
   Semester,
   UserRole,
 } from "../src/generated/prisma/client";
+import {
+  DEFAULT_SEATING_AISLE_COLUMNS,
+  DEFAULT_SEATING_COLUMNS,
+  DEFAULT_SEATING_ROWS,
+} from "../src/domain/seating";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -58,6 +63,11 @@ const courseDefinitions = [
   ["体育", "#ca7256"],
   ["班会", "#9b7a45"],
 ] as const;
+
+const assignableSeatColumns = Array.from(
+  { length: DEFAULT_SEATING_COLUMNS },
+  (_, index) => index + 1,
+).filter((column) => !DEFAULT_SEATING_AISLE_COLUMNS.includes(column));
 
 async function resetDatabase() {
   await prisma.auditLog.deleteMany();
@@ -108,8 +118,8 @@ async function seed() {
       academicYear: "2026-2027",
       semester: Semester.FIRST,
       room: "致远楼 302",
-      seatRows: 6,
-      seatColumns: 8,
+      seatRows: DEFAULT_SEATING_ROWS,
+      seatColumns: DEFAULT_SEATING_COLUMNS,
       memberships: {
         create: [
           {
@@ -159,8 +169,8 @@ async function seed() {
     data: students.map((student, index) => ({
       classId: classroom.id,
       studentId: student.id,
-      row: Math.floor(index / 8) + 1,
-      column: (index % 8) + 1,
+      row: Math.floor(index / assignableSeatColumns.length) + 1,
+      column: assignableSeatColumns[index % assignableSeatColumns.length],
     })),
   });
 
