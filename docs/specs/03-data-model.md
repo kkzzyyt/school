@@ -21,7 +21,7 @@ Classroom ──< WorkItem
 | --- | --- | --- |
 | User | username, passwordHash, displayName, role, status | username 全局唯一 |
 | Session | tokenHash, userId, expiresAt | tokenHash 全局唯一；过期即无效 |
-| Classroom | name, grade, academicYear, semester, seatRows, seatColumns | name + academicYear 唯一 |
+| Classroom | name, grade, academicYear, semester, seatRows, seatColumns, seatingEnvironment | name + academicYear 唯一；教室标记保存左右侧窗户排位和门口排位 |
 | ClassMembership | userId, classId, role | userId + classId 唯一 |
 | Student | classId, studentNo, name, gender, status | classId + studentNo 唯一 |
 | Guardian | studentId, name, relationship, phone, isPrimary | 每名学生最多一个主联系人（应用层维护） |
@@ -56,4 +56,3 @@ Classroom ──< WorkItem
 - 密码只保存 Argon2id 哈希；会话只保存令牌 SHA-256 哈希。
 - 监护人电话、学生地址属于个人信息，只在授权页面和 API 中按需返回。
 - 退出登录立即删除当前会话；过期会话可由每日任务物理清理。
-

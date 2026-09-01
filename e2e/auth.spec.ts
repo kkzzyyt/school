@@ -52,6 +52,7 @@ test("花名册支持搜索学生", async ({ page }) => {
   await page.getByRole("menuitem", { name: "花名册" }).click();
 
   await page.getByPlaceholder("搜索姓名或学号").fill("陈晨");
+  await page.getByPlaceholder("搜索姓名或学号").press("Enter");
   await expect(page.getByText("陈晨", { exact: true })).toBeVisible();
   await expect(page.getByText("林溪", { exact: true })).not.toBeVisible();
 });

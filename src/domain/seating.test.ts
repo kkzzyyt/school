@@ -4,8 +4,11 @@ import {
   DEFAULT_SEATING_AISLE_COLUMNS,
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ROWS,
+  getSeatingAisleColumns,
+  isSeatingAisleColumn,
   SeatingValidationError,
   swapStudentSeats,
+  validateSeatingEnvironment,
   validateSeatingLayout,
 } from "./seating";
 
@@ -86,6 +89,40 @@ describe("validateSeatingLayout", () => {
     expect(() =>
       validateSeatingLayout({ rows: 0, columns: 20, assignments: [] }),
     ).toThrowError(new SeatingValidationError("INVALID_DIMENSIONS"));
+  });
+});
+
+describe("seating aisles", () => {
+  it("keeps the classroom default aisles and scales them for other layouts", () => {
+    expect(getSeatingAisleColumns(10)).toEqual([3, 8]);
+    expect(getSeatingAisleColumns(8)).toEqual([2, 6]);
+    expect(getSeatingAisleColumns(6)).toEqual([3]);
+    expect(isSeatingAisleColumn(8, 10)).toBe(true);
+    expect(isSeatingAisleColumn(7, 10)).toBe(false);
+  });
+});
+
+describe("validateSeatingEnvironment", () => {
+  it("orders window rows and keeps one door per side", () => {
+    expect(validateSeatingEnvironment({
+      left: { windows: [4, 1, 2], doorRow: null },
+      right: { windows: [3], doorRow: 5 },
+    }, 7)).toEqual({
+      left: { windows: [1, 2, 4], doorRow: null },
+      right: { windows: [3], doorRow: 5 },
+    });
+  });
+
+  it.each([
+    { windows: [1, 1], doorRow: null },
+    { windows: [2], doorRow: 2 },
+    { windows: [8], doorRow: null },
+    { windows: [1], doorRow: 0 },
+  ])("rejects invalid side markers: %o", (left) => {
+    expect(() => validateSeatingEnvironment({
+      left,
+      right: { windows: [], doorRow: null },
+    }, 7)).toThrowError(new SeatingValidationError("INVALID_SIDE_FEATURES"));
   });
 });
 

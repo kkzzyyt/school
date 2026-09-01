@@ -8,6 +8,21 @@ export const DEFAULT_SEATING_ROWS = 7;
 export const DEFAULT_SEATING_COLUMNS = 10;
 export const DEFAULT_SEATING_AISLE_COLUMNS: readonly number[] = [3, 8];
 
+export interface SeatingSideLayout {
+  windows: number[];
+  doorRow: number | null;
+}
+
+export interface SeatingEnvironment {
+  left: SeatingSideLayout;
+  right: SeatingSideLayout;
+}
+
+export const DEFAULT_SEATING_ENVIRONMENT: SeatingEnvironment = {
+  left: { windows: [], doorRow: null },
+  right: { windows: [], doorRow: null },
+};
+
 export interface SeatingLayout {
   rows: number;
   columns: number;
@@ -19,7 +34,8 @@ export type SeatingValidationCode =
   | "DUPLICATE_STUDENT"
   | "DUPLICATE_POSITION"
   | "POSITION_OUT_OF_BOUNDS"
-  | "POSITION_IS_AISLE";
+  | "POSITION_IS_AISLE"
+  | "INVALID_SIDE_FEATURES";
 
 const MIN_SEAT_DIMENSION = 1;
 const MAX_SEAT_DIMENSION = 12;
@@ -35,10 +51,61 @@ export function isDefaultSeatingAisleColumn(
   column: number,
   columns: number,
 ): boolean {
-  return (
-    columns === DEFAULT_SEATING_COLUMNS &&
-    DEFAULT_SEATING_AISLE_COLUMNS.includes(column)
-  );
+  return isSeatingAisleColumn(column, columns);
+}
+
+export function getSeatingAisleColumns(columns: number): number[] {
+  if (!Number.isInteger(columns) || columns < MIN_SEAT_DIMENSION) {
+    return [];
+  }
+
+  if (columns === DEFAULT_SEATING_COLUMNS) {
+    return [...DEFAULT_SEATING_AISLE_COLUMNS];
+  }
+
+  if (columns >= 8) {
+    const firstAisle = Math.max(2, Math.round(columns * 0.3));
+    const secondAisle = Math.min(columns - 1, Math.round(columns * 0.8));
+    return firstAisle === secondAisle
+      ? [firstAisle]
+      : [firstAisle, secondAisle];
+  }
+
+  return columns >= 5 ? [Math.ceil(columns / 2)] : [];
+}
+
+export function isSeatingAisleColumn(column: number, columns: number): boolean {
+  return getSeatingAisleColumns(columns).includes(column);
+}
+
+export function validateSeatingEnvironment(
+  environment: SeatingEnvironment,
+  rows: number,
+): SeatingEnvironment {
+  const normalizedSides = [environment.left, environment.right].map((side) => {
+    const windows = [...side.windows].sort((left, right) => left - right);
+    const uniqueWindows = new Set(windows);
+
+    if (
+      uniqueWindows.size !== windows.length ||
+      windows.some((row) => !Number.isInteger(row) || row < 1 || row > rows) ||
+      (side.doorRow !== null &&
+        (!Number.isInteger(side.doorRow) || side.doorRow < 1 || side.doorRow > rows)) ||
+      (side.doorRow !== null && uniqueWindows.has(side.doorRow))
+    ) {
+      throw new SeatingValidationError("INVALID_SIDE_FEATURES");
+    }
+
+    return {
+      windows,
+      doorRow: side.doorRow,
+    };
+  });
+
+  return {
+    left: normalizedSides[0],
+    right: normalizedSides[1],
+  };
 }
 
 export function validateSeatingLayout(layout: SeatingLayout): SeatingLayout {
@@ -72,7 +139,7 @@ export function validateSeatingLayout(layout: SeatingLayout): SeatingLayout {
       throw new SeatingValidationError("POSITION_OUT_OF_BOUNDS");
     }
 
-    if (isDefaultSeatingAisleColumn(assignment.column, layout.columns)) {
+    if (isSeatingAisleColumn(assignment.column, layout.columns)) {
       throw new SeatingValidationError("POSITION_IS_AISLE");
     }
 

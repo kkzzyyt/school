@@ -1,0 +1,752 @@
+.studentsPage {
+  min-width: 0;
+}
+
+.headingAction {
+  flex: 0 0 auto;
+}
+
+.rosterPanel {
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(360px, 0.9fr);
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.searchWrap {
+  min-width: 0;
+}
+
+.searchWrap :global(.ant-input-affix-wrapper) {
+  min-height: 44px;
+  border-radius: 6px;
+}
+
+.filterWrap {
+  min-width: 0;
+}
+
+.filterLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusSegmented {
+  width: 100%;
+}
+
+.statusSegmented :global(.ant-segmented-item-label) {
+  min-height: 34px;
+  padding: 7px 10px;
+  line-height: 20px;
+}
+
+.rosterMeta {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fcfdff;
+}
+
+.rosterCount {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.rosterCount strong {
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.rosterCount span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rosterMetaDetails {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rosterMetaDetails :global(.ant-tag) {
+  margin: 0;
+}
+
+.studentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(286px, 1fr));
+  gap: 14px;
+  padding: 20px;
+  background: var(--surface);
+}
+
+.studentGridRefreshing {
+  opacity: 0.66;
+  transition: opacity 0.2s ease;
+}
+
+.studentCard {
+  display: flex;
+  min-width: 0;
+  min-height: 218px;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(25, 28, 30, 0.06);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.studentCard:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 5px 16px rgba(25, 28, 30, 0.1);
+  transform: translateY(-1px);
+}
+
+.studentCard:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: 0;
+}
+
+.studentCardHeader,
+.studentIdentity,
+.studentNameRow,
+.studentFacts,
+.studentFact,
+.studentContactSummary,
+.studentEditorContactHeading,
+.studentEditorSectionHeading,
+.studentEditorFooter,
+.studentSectionHeading,
+.studentDetailHero,
+.studentDetailNameRow,
+.studentDetailContactName {
+  display: flex;
+  align-items: center;
+}
+
+.studentCardHeader {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.studentIdentity {
+  min-width: 0;
+  gap: 12px;
+}
+
+.studentAvatar,
+.studentDetailAvatar,
+.studentContactAvatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.studentAvatar {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+}
+
+.studentIdentityCopy {
+  min-width: 0;
+}
+
+.studentNameRow {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.studentNameRow h2 {
+  max-width: 150px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studentNameRow :global(.ant-tag) {
+  margin: 0;
+  line-height: 21px;
+}
+
+.studentIdentityCopy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentCardEdit {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  color: #465166;
+}
+
+.studentFacts {
+  display: grid;
+  gap: 9px;
+  margin-top: 22px;
+  padding: 13px 0;
+  border-top: 1px solid #edf0f4;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.studentFact {
+  min-width: 0;
+  gap: 8px;
+  color: #465166;
+  font-size: 12px;
+}
+
+.studentFact :global(.anticon) {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.studentFact span,
+.studentFact a {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studentFact a:hover,
+.studentDetailContactPhone:hover {
+  color: var(--primary);
+}
+
+.mutedText {
+  color: var(--muted);
+}
+
+.studentContactSummary {
+  min-width: 0;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.studentContactIcon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf3fb;
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.studentContactCopy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.studentContactCopy span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.studentContactCopy strong {
+  overflow: hidden;
+  color: #303746;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studentCardArrow {
+  flex: 0 0 auto;
+  color: var(--line-strong);
+  font-size: 11px;
+}
+
+.studentCardLoading {
+  cursor: default;
+}
+
+.studentCardLoading:hover {
+  border-color: var(--line);
+  box-shadow: 0 1px 3px rgba(25, 28, 30, 0.06);
+  transform: none;
+}
+
+.studentListState {
+  min-height: 300px;
+  padding: 70px 20px;
+  background: var(--surface);
+}
+
+.studentDrawer :global(.ant-drawer-header) {
+  border-bottom-color: var(--line);
+}
+
+.studentDrawer :global(.ant-drawer-title) {
+  color: var(--ink);
+}
+
+.studentDrawer :global(.ant-drawer-footer) {
+  border-top-color: var(--line);
+}
+
+.drawerTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.studentDetail {
+  min-height: 100%;
+  background: var(--surface);
+}
+
+.studentDetailHero {
+  gap: 14px;
+  padding: 24px 24px 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.studentDetailAvatar {
+  width: 58px;
+  height: 58px;
+  font-size: 24px;
+}
+
+.studentDetailHeroCopy {
+  min-width: 0;
+}
+
+.studentDetailNameRow {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studentDetailNameRow h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.studentDetailNameRow :global(.ant-tag) {
+  margin: 0;
+}
+
+.studentDetailHeroCopy p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentDetailSection {
+  margin: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.studentSectionHeading {
+  min-height: 32px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.studentSectionHeading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.studentSectionHeading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.studentSectionHeading > div > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
+  margin: 0;
+}
+
+.studentDetailGrid div,
+.studentDetailLongField {
+  min-width: 0;
+}
+
+.studentDetailGrid dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentDetailGrid dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: #303746;
+  font-size: 13px;
+}
+
+.studentDetailGrid dd a {
+  color: var(--primary);
+}
+
+.studentDetailGrid dd :global(.ant-tag) {
+  margin: 0;
+}
+
+.studentDetailLongField {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0f4;
+}
+
+.studentDetailLongField > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentDetailLongField p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: #303746;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.studentDetailContacts {
+  display: grid;
+  gap: 10px;
+}
+
+.studentDetailContact {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #e7ebf1;
+  border-radius: 6px;
+  background: #fcfdff;
+}
+
+.studentContactAvatar {
+  width: 34px;
+  height: 34px;
+  background: #eef1f5;
+  color: #465166;
+  font-size: 13px;
+}
+
+.studentDetailContactCopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.studentDetailContactName {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studentDetailContactName strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.studentDetailContactName > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.studentDetailContactName :global(.ant-tag) {
+  margin: 0;
+}
+
+.studentDetailContactPhone {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.studentDetailContactCopy p {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.studentDetailContact > :global(.ant-btn) {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.studentDetailEmptyContact {
+  padding: 20px 0 8px;
+}
+
+.studentDetailEmptyContact :global(.ant-empty) {
+  margin: 0;
+}
+
+.studentDetailFooter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 24px 28px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.studentEditorForm {
+  padding: 22px 20px 24px;
+}
+
+.studentEditorSection + .studentEditorSection {
+  margin-top: 26px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.studentEditorSectionHeading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.studentEditorSectionHeading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.studentEditorSectionHeading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.studentEditorSectionHeading :global(.ant-tag) {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.studentEditorContactList {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+}
+
+.studentEditorContact {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fcfdff;
+}
+
+.studentEditorContactHeading {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.studentEditorContactHeading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: #303746;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.studentEditorContactHeading :global(.ant-tag) {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.studentEditorContactHeading > :global(.ant-btn) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.studentEditorContact :global(.ant-form-item) {
+  margin-bottom: 15px;
+}
+
+.studentEditorContact :global(.ant-radio-wrapper) {
+  color: #465166;
+  font-size: 12px;
+}
+
+.studentEditorEmptyContacts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.addGuardianButton {
+  width: 100%;
+  margin-top: 12px;
+  border-style: dashed;
+}
+
+.studentEditorFooter {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 880px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .headingAction {
+    width: 100%;
+  }
+
+  .headingAction :global(.ant-btn) {
+    width: 100%;
+    height: 44px;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .rosterMeta {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 9px 14px;
+    padding: 13px 14px;
+  }
+
+  .rosterMetaDetails {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .studentGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .studentCard {
+    min-height: 204px;
+    padding: 16px;
+  }
+
+  .studentDetailHero {
+    padding: 20px 18px;
+  }
+
+  .studentDetailSection {
+    margin: 10px;
+    padding: 16px;
+  }
+
+  .studentDetailFooter {
+    padding-inline: 18px;
+  }
+
+  .studentEditorForm {
+    padding: 18px 16px 22px;
+  }
+}
+
+@media (max-width: 390px) {
+  .studentDetailGrid {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .studentEditorContact {
+    padding: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studentCard,
+  .studentGridRefreshing {
+    transition: none;
+  }
+}

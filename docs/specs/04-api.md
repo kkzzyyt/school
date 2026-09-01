@@ -53,8 +53,8 @@
 
 | Method | Path | 说明 |
 | --- | --- | --- |
-| GET | `/api/seating` | 布局尺寸、学生与当前分配 |
-| PUT | `/api/seating` | `{ rows, columns, assignments[] }` 原子替换 |
+| GET | `/api/seating` | 布局尺寸、学生、当前分配和左右侧教室标记 |
+| PUT | `/api/seating` | `{ rows, columns, assignments[], environment }` 原子替换座次与教室标记 |
 | GET | `/api/duties` | 值日组与成员 |
 | POST | `/api/duties` | 新增值日组 |
 | PATCH | `/api/duties/:id` | 更新组信息和成员 |
@@ -83,4 +83,3 @@
 - 原子替换接口在事务内先验证完整载荷，再执行写入。
 - 更新接口接受 `updatedAt`；与当前值不一致时返回 `409 STALE_WRITE`。
 - POST 创建接口可在后续通过 `Idempotency-Key` 扩展；首版 UI 提交期间禁用按钮防止重复提交。
-

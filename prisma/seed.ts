@@ -120,6 +120,10 @@ async function seed() {
       room: "致远楼 302",
       seatRows: DEFAULT_SEATING_ROWS,
       seatColumns: DEFAULT_SEATING_COLUMNS,
+      seatingEnvironment: {
+        left: { windows: [1, 2, 3, 4, 5, 6], doorRow: null },
+        right: { windows: [], doorRow: 7 },
+      },
       memberships: {
         create: [
           {

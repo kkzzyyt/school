@@ -57,6 +57,18 @@ enum WorkItemPriority {
   HIGH
 }
 
+enum TeacherStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TimetablePeriodType {
+  CLASS
+  MORNING_STUDY
+  LUNCH_BREAK
+  EVENING_STUDY
+}
+
 model User {
   id           String       @id @default(cuid())
   username     String       @unique @db.VarChar(50)
@@ -93,6 +105,7 @@ model Classroom {
   room           String?         @db.VarChar(50)
   seatRows       Int             @default(7)
   seatColumns    Int             @default(10)
+  seatingEnvironment Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   memberships    ClassMembership[]
@@ -100,6 +113,8 @@ model Classroom {
   seats          SeatAssignment[]
   dutyGroups     DutyGroup[]
   committee      CommitteeMember[]
+  teachers       Teacher[]
+  timetablePeriods TimetablePeriod[]
   timetable      TimetableEntry[]
   exams          Exam[]
   workItems      WorkItem[]
@@ -229,20 +244,65 @@ model Course {
   timetable TimetableEntry[]
 }
 
+model Teacher {
+  id               String           @id @default(cuid())
+  classId          String
+  name             String           @db.VarChar(50)
+  title            String?          @db.VarChar(80)
+  phone            String?          @db.VarChar(30)
+  email            String?          @db.VarChar(120)
+  notes            String?          @db.VarChar(255)
+  status           TeacherStatus    @default(ACTIVE)
+  sortOrder        Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  classroom        Classroom        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  timetableEntries TimetableEntry[]
+
+  @@unique([classId, name])
+  @@index([classId, status, sortOrder])
+}
+
+model TimetablePeriod {
+  id        String              @id @default(cuid())
+  classId   String
+  period    Int
+  name      String              @db.VarChar(50)
+  type      TimetablePeriodType @default(CLASS)
+  startTime String              @db.Char(5)
+  endTime   String              @db.Char(5)
+  sortOrder Int                 @default(0)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  classroom Classroom           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  entries   TimetableEntry[]
+
+  @@unique([classId, period])
+  @@unique([classId, sortOrder])
+  @@index([classId, type])
+}
+
 model TimetableEntry {
   id          String    @id @default(cuid())
   classId     String
   courseId    String
   weekday     Int
   period      Int
+  periodId    String?
+  teacherId   String?
   teacherName String?   @db.VarChar(50)
   room        String?   @db.VarChar(50)
   updatedAt   DateTime  @updatedAt
   classroom   Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
   course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  periodSlot  TimetablePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  teacher     Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
 
   @@unique([classId, weekday, period])
+  @@unique([classId, weekday, periodId])
   @@index([courseId])
+  @@index([periodId])
+  @@index([teacherId])
 }
 
 model Subject {

@@ -1,0 +1,809 @@
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.headingActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.headingActions > button {
+  white-space: nowrap;
+}
+
+.saveButton {
+  min-width: 112px;
+}
+
+.statusStrip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.statusLead,
+.statusText,
+.statusMeta,
+.summaryMetrics,
+.metric,
+.legend,
+.legendItem,
+.boardMeta,
+.boardHint,
+.viewControlGroup,
+.dayButton,
+.courseCardHeader,
+.courseMeta,
+.courseEditHint,
+.restCell {
+  display: flex;
+  align-items: center;
+}
+
+.statusLead {
+  min-width: 0;
+  gap: 11px;
+}
+
+.statusIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e3f5ed;
+  color: var(--success);
+}
+
+.statusIconDirty {
+  background: #fff1d6;
+  color: #ad6500;
+}
+
+.statusText {
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.statusTitle {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusDescription {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.statusMeta {
+  flex: 0 0 auto;
+  gap: 16px;
+}
+
+.summaryMetrics {
+  gap: 16px;
+}
+
+.metric {
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.metricValue {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.metricDivider {
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+}
+
+.legend {
+  flex: 0 0 auto;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legendItem {
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+}
+
+.legendRegular {
+  background: #3f75c8;
+}
+
+.legendSpecial {
+  background: #c97725;
+}
+
+.legendRest {
+  background: #aab3bf;
+}
+
+.viewPanel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controlsRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.viewControlGroup {
+  min-width: 0;
+  gap: 10px;
+}
+
+.viewLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dayPicker {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dayButton {
+  min-width: 0;
+  min-height: 52px;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.dayButton:hover {
+  border-color: var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.dayButtonActive {
+  border-color: #9db9e9;
+  background: #eaf1fd;
+  color: var(--primary);
+}
+
+.dayNumber {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-high);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dayButtonActive .dayNumber {
+  background: var(--primary);
+  color: white;
+}
+
+.dayText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dayToday {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.boardSection {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.boardMeta {
+  min-height: 62px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-low);
+}
+
+.boardTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.boardSubtitle {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.boardHint {
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.weekScroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.weekGrid {
+  display: grid;
+  min-width: 980px;
+  grid-template-columns: 150px repeat(5, minmax(150px, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.weekHeader,
+.weekSlotLabel,
+.dropCell {
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.weekHeader {
+  display: flex;
+  min-height: 62px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--surface-low);
+  color: #3d4655;
+}
+
+.weekHeader strong {
+  font-size: 14px;
+}
+
+.weekHeader small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.weekCorner {
+  align-items: flex-start;
+}
+
+.weekSlotLabel {
+  display: flex;
+  min-height: 94px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 14px;
+  background: #fbfcfe;
+}
+
+.weekSlotLabel strong {
+  color: #374151;
+  font-size: 13px;
+}
+
+.weekSlotLabel span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.dayBoard {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.dayRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 126px minmax(0, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+
+.dayRow:last-child {
+  border-bottom: 0;
+}
+
+.slotLabel {
+  display: flex;
+  min-height: 96px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.slotLabelTitle {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.slotLabelTime {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.slotLabelKind {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.slotKindRegular {
+  --slot-accent: #3f75c8;
+}
+
+.slotKindEarly {
+  --slot-accent: #bc6a2b;
+}
+
+.slotKindLunch {
+  --slot-accent: #8d98a8;
+}
+
+.slotKindEvening {
+  --slot-accent: #7160a6;
+}
+
+.slotLabel .slotLabelKind,
+.weekSlotLabel .slotLabelKind {
+  background: color-mix(in srgb, var(--slot-accent) 12%, white);
+  color: var(--slot-accent);
+}
+
+.dropCell {
+  display: flex;
+  min-width: 0;
+  min-height: 94px;
+  align-items: stretch;
+  padding: 8px;
+  background: var(--paper);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dropCellOver {
+  background: #edf5ff;
+  box-shadow: inset 0 0 0 2px #8db2e9;
+}
+
+.dropCellDragging {
+  background: #fafcff;
+}
+
+.dropCellDisabled {
+  background: #f7f8fa;
+}
+
+.courseCard,
+.emptyCell {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.courseCard {
+  position: relative;
+  display: flex;
+  min-height: 78px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 11px 12px 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--course-color) 30%, white);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--course-color) 9%, white);
+  color: var(--ink);
+  cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.courseCard::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--course-color);
+  content: "";
+}
+
+.courseCard:hover {
+  border-color: color-mix(in srgb, var(--course-color) 58%, white);
+  box-shadow: 0 4px 12px rgba(25, 28, 30, 0.09);
+  transform: translateY(-1px);
+}
+
+.courseCard:active {
+  cursor: grabbing;
+}
+
+.courseCardHeader {
+  min-width: 0;
+  gap: 7px;
+}
+
+.courseColor {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--course-color);
+}
+
+.courseName {
+  min-width: 0;
+  overflow: hidden;
+  color: #252a34;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dragIcon {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.courseMeta {
+  min-width: 0;
+  gap: 5px;
+  overflow: hidden;
+  color: #586273;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.courseMeta .anticon {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.courseEditHint {
+  gap: 4px;
+  margin-top: auto;
+  color: var(--primary);
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.courseCard:hover .courseEditHint,
+.courseCard:focus-visible .courseEditHint {
+  opacity: 1;
+}
+
+.emptyCell {
+  display: flex;
+  min-height: 78px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px dashed #cbd3df;
+  border-radius: 6px;
+  background: #fcfdff;
+  color: #8b95a5;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.emptyCell:hover {
+  border-color: #87a9df;
+  background: #f4f8ff;
+  color: var(--primary);
+}
+
+.restCell {
+  min-height: 78px;
+  justify-content: center;
+  gap: 6px;
+  color: #8b95a5;
+  font-size: 12px;
+}
+
+.restCell .anticon {
+  font-size: 15px;
+}
+
+.slotKindEarly .slotLabelTitle,
+.slotKindEvening .slotLabelTitle {
+  color: var(--slot-accent);
+}
+
+.slotKindLunch .slotLabelTitle {
+  color: #687486;
+}
+
+.loading {
+  min-height: 520px;
+  padding: 24px;
+  background: var(--paper);
+}
+
+.emptyState {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  padding: 32px;
+  color: var(--muted);
+}
+
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 900px) {
+  .statusStrip {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .statusMeta {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .headingActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+
+  .headingActions > button {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .statusStrip {
+    padding: 14px;
+  }
+
+  .statusMeta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .summaryMetrics {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .metricDivider {
+    display: none;
+  }
+
+  .legend {
+    gap: 9px;
+  }
+
+  .controlsRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .viewControlGroup {
+    justify-content: space-between;
+  }
+
+  .dayButton {
+    min-height: 48px;
+    gap: 4px;
+    padding: 6px 3px;
+  }
+
+  .dayNumber {
+    width: 23px;
+    height: 23px;
+    flex-basis: 23px;
+    font-size: 11px;
+  }
+
+  .dayText {
+    font-size: 12px;
+  }
+
+  .boardMeta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+    padding: 13px 14px;
+  }
+
+  .boardHint {
+    font-size: 11px;
+  }
+
+  .dayRow {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .slotLabel {
+    min-height: 88px;
+    padding: 10px 9px;
+  }
+
+  .slotLabelTitle {
+    font-size: 12px;
+  }
+
+  .slotLabelTime {
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  .slotLabelKind {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  .dropCell {
+    min-height: 88px;
+    padding: 7px;
+  }
+
+  .courseCard {
+    min-height: 74px;
+    padding: 9px 9px 8px;
+  }
+
+  .courseName {
+    font-size: 13px;
+  }
+
+  .courseMeta {
+    font-size: 10px;
+  }
+
+  .courseEditHint {
+    display: none;
+  }
+
+  .emptyCell,
+  .restCell {
+    min-height: 74px;
+    font-size: 11px;
+  }
+
+  .modalFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .modalActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 390px) {
+  .dayText {
+    display: none;
+  }
+
+  .dayButton {
+    gap: 0;
+  }
+
+  .dayRow {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .slotLabel {
+    padding-inline: 7px;
+  }
+
+  .dropCell {
+    padding: 6px;
+  }
+
+  .courseCard {
+    padding-inline: 8px;
+  }
+
+  .courseMeta .anticon {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dayButton,
+  .courseCard,
+  .emptyCell,
+  .courseEditHint {
+    transition: none;
+  }
+}

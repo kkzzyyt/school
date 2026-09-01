@@ -15,7 +15,11 @@ test("花名册内的全局搜索会同步页面筛选条件", async ({ page }) 
   await page.getByPlaceholder("搜索学生、班级...").fill("陈晨");
   await page.getByPlaceholder("搜索学生、班级...").press("Enter");
 
-  await expect(page.getByPlaceholder("搜索姓名或学号")).toHaveValue("陈晨");
+  const rosterSearch = page
+    .locator("section")
+    .filter({ hasText: "学籍状态" })
+    .getByRole("searchbox", { name: "搜索姓名或学号" });
+  await expect(rosterSearch).toHaveValue("陈晨");
   await expect(page.getByText("陈晨", { exact: true })).toBeVisible();
   await expect(page.getByText("林溪", { exact: true })).not.toBeVisible();
 });
@@ -57,6 +61,7 @@ test("课程编辑弹窗正确区分清空与编辑操作", async ({ page }) => 
 test("座位和课程格具有唯一可访问名称", async ({ page }) => {
   await login(page);
   await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
   await expect(page.getByRole("combobox", { name: "1排1座学生" })).toBeVisible();
   await expect(page.locator(".seat-aisle")).toHaveCount(14);
   await expect(page.getByRole("combobox", { name: "1排3座学生" })).toHaveCount(0);
