@@ -105,6 +105,7 @@ chmod +x "$FAKE_BIN/chown"
 cat > "$FAKE_BIN/prisma" <<'SCRIPT'
 #!/usr/bin/env bash
 set -Eeuo pipefail
+[[ -n "${DATABASE_URL:-}" ]] || { printf '%s\n' 'DATABASE_URL 未从运行时 .env 导出' >&2; exit 78; }
 printf 'prisma %s\n' "$*" >> "$DEPLOY_TEST_COMMAND_LOG"
 if [[ "${DEPLOY_TEST_PRISMA_FAIL:-false}" == true ]]; then
   exit 77

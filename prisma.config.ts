@@ -1,4 +1,6 @@
-import "dotenv/config";
+if (!process.env.DATABASE_URL) {
+  await import("dotenv/config");
+}
 
 import { defineConfig, env } from "prisma/config";
 

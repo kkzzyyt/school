@@ -203,6 +203,11 @@ ln -s "$ENV_PATH" "$RELEASE_DIR/.env"
 chown -R -h "$SERVICE_USER:$SERVICE_GROUP" "$RELEASE_DIR"
 
 echo '执行 Prisma 生产迁移'
+set -a
+# shellcheck disable=SC1090
+. "$ENV_PATH"
+set +a
+: "${DATABASE_URL:?运行时 .env 缺少 DATABASE_URL}"
 (cd "$RELEASE_DIR" && "$PRISMA_BIN" migrate deploy)
 
 if [[ "$SERVICE_NEEDS_CONFIG" == true ]]; then
