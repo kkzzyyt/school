@@ -474,11 +474,9 @@ test("座位布局、过道与教室标记使用独立交互", async ({ page }) 
   await expect(page.locator(".room-side-marker")).toHaveCount(14);
   await page.locator('[data-side="left"][data-marker-row="1"]').click({ force: true });
   await expect(page.locator('[data-side="left"][data-marker-row="1"]')).toContainText("窗户");
-  await page.locator('[data-fixed-side="LEFT"][data-fixed-position="1"] button[aria-label*="饮水机"]').click({ force: true });
-  await expect(page.locator('[data-fixed-side="LEFT"][data-fixed-position="1"] .room-fixed-facility-selected')).toHaveCount(1);
 });
 
-test("座次图将前后侧作为固定边界并把设施固定在左右侧", async ({ page }) => {
+test("座次图不再渲染饮水机和空调设计", async ({ page }) => {
   await login(page);
   await page.route("**/api/seating", async (route) => {
     if (route.request().method() !== "GET") {
@@ -515,65 +513,10 @@ test("座次图将前后侧作为固定边界并把设施固定在左右侧", as
   await expect(page.locator(".room-front")).toContainText("固定");
   await expect(page.locator(".room-back")).toContainText("后方");
   await expect(page.locator(".room-back")).toContainText("固定");
-  await expect(page.locator('[data-fixed-side="LEFT"][data-fixed-position="2"] .room-fixed-facility-waterDispenser')).toBeVisible();
-  await expect(page.locator('[data-fixed-side="FRONT"][data-fixed-position="3"] .room-fixed-facility-airConditioner')).toBeVisible();
-
-  const alignment = await page.evaluate(() => {
-    const leftSeat = document.querySelector('[data-seat-row="2"][data-seat-column="1"]')?.getBoundingClientRect();
-    const frontSeat = document.querySelector('[data-seat-row="1"][data-seat-column="3"]')?.getBoundingClientRect();
-    const leftFacility = document.querySelector('[data-fixed-side="LEFT"][data-fixed-position="2"]')?.getBoundingClientRect();
-    const frontFacility = document.querySelector('[data-fixed-side="FRONT"][data-fixed-position="3"]')?.getBoundingClientRect();
-    return {
-      leftDelta: Math.abs(
-        ((leftFacility?.top ?? 0) + (leftFacility?.height ?? 0) / 2)
-        - ((leftSeat?.top ?? 0) + (leftSeat?.height ?? 0) / 2),
-      ),
-      frontDelta: Math.abs(
-        ((frontFacility?.left ?? 0) + (frontFacility?.width ?? 0) / 2)
-        - ((frontSeat?.left ?? 0) + (frontSeat?.width ?? 0) / 2),
-      ),
-    };
-  });
-  expect(alignment.leftDelta).toBeLessThanOrEqual(1);
-  expect(alignment.frontDelta).toBeLessThanOrEqual(1);
-});
-
-test("固定设施可以在左右前后槽位间使用同一套切换逻辑", async ({ page }) => {
-  await login(page);
-  await page.route("**/api/seating", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.continue();
-      return;
-    }
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        data: {
-          rows: 3,
-          columns: 4,
-          students: [],
-          assignments: [],
-          environment: {
-            aisleAfterColumns: [2],
-            left: { windows: [], doorRows: [] },
-            right: { windows: [], doorRows: [] },
-            rear: { waterDispenser: null, airConditioner: null },
-            fixedFacilities: { waterDispenser: null, airConditioner: null },
-          },
-        },
-      }),
-    });
-  });
-  await page.goto("/seating");
-  await page.getByRole("button", { name: "编辑座次" }).click();
-
-  await page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] button[aria-label*="饮水机"]').click({ force: true });
-  await expect(page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] .room-fixed-facility-selected')).toHaveCount(1);
-  await page.locator('[data-fixed-side="BACK"][data-fixed-position="3"] button[aria-label*="饮水机"]').click({ force: true });
-  await expect(page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] .room-fixed-facility-selected')).toHaveCount(0);
-  await expect(page.locator('[data-fixed-side="BACK"][data-fixed-position="3"] .room-fixed-facility-selected')).toHaveCount(1);
+  await expect(page.locator(".room-fixed-facility")).toHaveCount(0);
+  await expect(page.getByText("左右固定", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("饮水机", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("空调", { exact: true })).toHaveCount(0);
 });
 
 test("座次页顶部配置区域在桌面端保持单行", async ({ page }) => {

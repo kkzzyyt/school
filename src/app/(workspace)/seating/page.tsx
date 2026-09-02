@@ -1,10 +1,8 @@
 "use client";
 
 import {
-  CloudOutlined,
   CloseOutlined,
   ColumnWidthOutlined,
-  CoffeeOutlined,
   DragOutlined,
   EditOutlined,
   EyeInvisibleOutlined,
@@ -49,13 +47,8 @@ import {
   DEFAULT_SEATING_SIDE_MARKER_ROWS,
   MAX_DOORS_PER_SIDE,
   createDefaultSeatingEnvironment,
-  createFixedFacilitiesFromLegacyRear,
   getSeatingAisleAfterColumns,
-  getSeatingGridTrackForColumn,
   isSeatingAisleAfterColumn,
-  type SeatingFixedFacilities,
-  type SeatingFixedFacilityPlacement,
-  type SeatingFixedSide,
   type SeatingEnvironment,
   type SeatingSideLayout,
 } from "@/domain/seating";
@@ -109,20 +102,9 @@ type EditorAction =
 
 type SideKey = "left" | "right";
 type SideFeature = "WINDOW" | "DOOR";
-type RearFacility = "waterDispenser" | "airConditioner";
 
 const sideLabels: Record<SideKey, string> = { left: "左侧", right: "右侧" };
 const featureLabels: Record<SideFeature, string> = { WINDOW: "窗户", DOOR: "门口" };
-const fixedSideLabels: Record<SeatingFixedSide, string> = {
-  LEFT: "左侧",
-  RIGHT: "右侧",
-  FRONT: "前侧",
-  BACK: "后侧",
-};
-const rearFacilityLabels: Record<RearFacility, string> = {
-  waterDispenser: "饮水机",
-  airConditioner: "空调",
-};
 const maxHistoryLength = 30;
 
 function sortAssignments(assignments: Assignment[]) {
@@ -135,43 +117,7 @@ function studentDisplayLabel(student: Student) {
   return `${student.name} · ${student.studentNo.slice(-4)}`;
 }
 
-function fixedFacilitiesFor(
-  environment: SeatingEnvironment,
-  rows: number,
-  columns: number,
-): SeatingFixedFacilities {
-  return environment.fixedFacilities ?? createFixedFacilitiesFromLegacyRear(environment.rear, rows, columns);
-}
-
-function cloneFixedFacilities(
-  facilities: SeatingFixedFacilities,
-  rows: number,
-  columns: number,
-): SeatingFixedFacilities {
-  const clonePlacement = (placement: SeatingFixedFacilityPlacement | null) => {
-    if (!placement) return null;
-    const maxPosition = placement.side === "LEFT" || placement.side === "RIGHT" ? rows : columns;
-    return {
-      side: placement.side,
-      position: Math.min(Math.max(placement.position, 1), Math.max(maxPosition, 1)),
-    };
-  };
-  return {
-    waterDispenser: clonePlacement(facilities.waterDispenser),
-    airConditioner: clonePlacement(facilities.airConditioner),
-  };
-}
-
-function cloneEnvironment(
-  environment: SeatingEnvironment,
-  rows = DEFAULT_SEATING_ROWS,
-  columns = DEFAULT_SEATING_COLUMNS,
-): SeatingEnvironment {
-  const fixedFacilities = cloneFixedFacilities(
-    fixedFacilitiesFor(environment, rows, columns),
-    rows,
-    columns,
-  );
+function cloneEnvironment(environment: SeatingEnvironment): SeatingEnvironment {
   return {
     aisleAfterColumns: [...new Set(environment.aisleAfterColumns)].sort((left, right) => left - right),
     left: {
@@ -183,12 +129,13 @@ function cloneEnvironment(
       doorRows: [...environment.right.doorRows].sort((left, right) => left - right),
     },
     rear: { ...environment.rear },
-    fixedFacilities,
+    // Preserve legacy payloads without exposing them to the seating editor.
+    ...(environment.fixedFacilities ? { fixedFacilities: environment.fixedFacilities } : {}),
   };
 }
 
 function pendingDimensionsFor(draft: SeatingDraft) {
-  const environment = cloneEnvironment(draft.environment, draft.rows, draft.columns);
+  const environment = cloneEnvironment(draft.environment);
   return {
     rows: draft.rows,
     columns: draft.columns,
@@ -217,28 +164,10 @@ function sameSideLayout(left: SeatingSideLayout, right: SeatingSideLayout) {
     && sameNumberList(left.windows, right.windows);
 }
 
-function fixedFacilitiesEqual(left: SeatingFixedFacilities, right: SeatingFixedFacilities) {
-  return left.waterDispenser?.side === right.waterDispenser?.side
-    && left.waterDispenser?.position === right.waterDispenser?.position
-    && left.airConditioner?.side === right.airConditioner?.side
-    && left.airConditioner?.position === right.airConditioner?.position;
-}
-
-function environmentsEqual(
-  left: SeatingEnvironment,
-  right: SeatingEnvironment,
-  rows: number,
-  columns: number,
-) {
+function environmentsEqual(left: SeatingEnvironment, right: SeatingEnvironment) {
   return sameNumberList(left.aisleAfterColumns, right.aisleAfterColumns)
     && sameSideLayout(left.left, right.left)
-    && sameSideLayout(left.right, right.right)
-    && left.rear.waterDispenser === right.rear.waterDispenser
-    && left.rear.airConditioner === right.rear.airConditioner
-    && fixedFacilitiesEqual(
-      cloneFixedFacilities(fixedFacilitiesFor(left, rows, columns), rows, columns),
-      cloneFixedFacilities(fixedFacilitiesFor(right, rows, columns), rows, columns),
-    );
+    && sameSideLayout(left.right, right.right);
 }
 
 function toDraft(data: SeatingData): SeatingDraft {
@@ -247,7 +176,7 @@ function toDraft(data: SeatingData): SeatingDraft {
     rows: data.rows,
     columns: data.columns,
     assignments: sortAssignments(data.assignments),
-    environment: cloneEnvironment(environment, data.rows, data.columns),
+    environment: cloneEnvironment(environment),
   };
 }
 
@@ -471,16 +400,11 @@ export default function SeatingPage() {
   const availableSeatCount = draft
     ? draft.rows * draft.columns - assignedCount
     : 0;
-  const fixedFacilities = draft
-    ? fixedFacilitiesFor(draft.environment, draft.rows, draft.columns)
-    : null;
   const environmentFeatureCount = draft
     ? draft.environment.left.windows.length
       + draft.environment.right.windows.length
       + draft.environment.left.doorRows.length
       + draft.environment.right.doorRows.length
-      + Number(Boolean(fixedFacilities?.waterDispenser))
-      + Number(Boolean(fixedFacilities?.airConditioner))
     : 0;
   const isDirty = Boolean(draft && savedDraft && !draftsEqual(draft, savedDraft));
 
@@ -537,7 +461,7 @@ export default function SeatingPage() {
       draft: {
         ...nextDraft,
         assignments: sortAssignments(nextDraft.assignments),
-        environment: cloneEnvironment(nextDraft.environment, nextDraft.rows, nextDraft.columns),
+        environment: cloneEnvironment(nextDraft.environment),
       },
     });
   }
@@ -767,7 +691,7 @@ export default function SeatingPage() {
 
   function setSideFeature(side: SideKey, row: number, feature: SideFeature | null) {
     if (!isEditing || !draft) return;
-    const environment = cloneEnvironment(draft.environment, draft.rows, draft.columns);
+    const environment = cloneEnvironment(draft.environment);
     const currentSide = environment[side];
     const nextSide: SeatingSideLayout = {
       windows: currentSide.windows.filter((item) => item !== row),
@@ -804,36 +728,10 @@ export default function SeatingPage() {
     setSideFeature(side, row, null);
   }
 
-  function setFixedFacilityPosition(
-    facility: RearFacility,
-    side: SeatingFixedSide,
-    position: number,
-  ) {
-    if (!isEditing || !draft) return;
-    const environment = cloneEnvironment(draft.environment, draft.rows, draft.columns);
-    const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
-    const fixedFacilities = fixedFacilitiesFor(environment, draft.rows, draft.columns);
-    environment.fixedFacilities = fixedFacilities;
-    const currentPlacement = fixedFacilities[facility];
-    const otherPlacement = fixedFacilities[otherFacility];
-    if (
-      (!currentPlacement || currentPlacement.side !== side || currentPlacement.position !== position)
-      && otherPlacement?.side === side
-      && otherPlacement.position === position
-    ) {
-      message.warning(`${fixedSideLabels[side]}第 ${position} 个位置已设置${rearFacilityLabels[otherFacility]}`);
-      return;
-    }
-    fixedFacilities[facility] = currentPlacement?.side === side && currentPlacement.position === position
-      ? null
-      : { side, position };
-    commitDraft({ ...draft, environment });
-  }
-
   function updatePendingDimensions(next: Partial<Pick<PendingDimensions, "rows" | "columns">>) {
     const nextRows = next.rows ?? pendingDimensions.rows;
     const nextColumns = next.columns ?? pendingDimensions.columns;
-    const environment = cloneEnvironment(pendingDimensions.environment, nextRows, nextColumns);
+    const environment = cloneEnvironment(pendingDimensions.environment);
     dispatch({
       type: "setPendingDimensions",
       dimensions: {
@@ -859,11 +757,11 @@ export default function SeatingPage() {
     if (!isEditing || !draft) return;
     const nextRows = pendingDimensions.rows;
     const nextColumns = pendingDimensions.columns;
-    const nextEnvironment = cloneEnvironment(pendingDimensions.environment, nextRows, nextColumns);
+    const nextEnvironment = cloneEnvironment(pendingDimensions.environment);
     if (
       nextRows === draft.rows
       && nextColumns === draft.columns
-      && environmentsEqual(nextEnvironment, draft.environment, nextRows, nextColumns)
+      && environmentsEqual(nextEnvironment, draft.environment)
     ) {
       setLayoutSettingsModalOpen(false);
       return;
@@ -913,11 +811,7 @@ export default function SeatingPage() {
   }
 
   function updatePendingAisles(values: readonly unknown[]) {
-    const environment = cloneEnvironment(
-      pendingDimensions.environment,
-      pendingDimensions.rows,
-      pendingDimensions.columns,
-    );
+    const environment = cloneEnvironment(pendingDimensions.environment);
     const outOfRangeAisles = environment.aisleAfterColumns.filter(
       (column) => column >= pendingDimensions.columns,
     );
@@ -936,11 +830,7 @@ export default function SeatingPage() {
 
   function applyAisleSettings() {
     if (!isEditing || !draft) return;
-    const environment = cloneEnvironment(
-      pendingDimensions.environment,
-      pendingDimensions.rows,
-      pendingDimensions.columns,
-    );
+    const environment = cloneEnvironment(pendingDimensions.environment);
     if (sameNumberList(environment.aisleAfterColumns, draft.environment.aisleAfterColumns)) {
       setAisleSettingsModalOpen(false);
       return;
@@ -982,113 +872,11 @@ export default function SeatingPage() {
     }
   }
 
-  function renderFixedFacilitySlot(
-    side: SeatingFixedSide,
-    position: number,
-    track?: number,
-  ) {
-    if (!draft) return null;
-    const facilities = Object.keys(rearFacilityLabels) as RearFacility[];
-    const fixedFacilities = fixedFacilitiesFor(draft.environment, draft.rows, draft.columns);
-    const placedFacilities = facilities.filter((facility) => {
-      const placement = fixedFacilities[facility];
-      return placement?.side === side && placement.position === position;
-    });
-    if (!isEditing && placedFacilities.length === 0) return null;
-    const unit = side === "LEFT" || side === "RIGHT" ? "排" : "列";
-    const slotLabel = `${fixedSideLabels[side]}第 ${position}${unit}`;
-
-    return (
-      <div
-        className="room-fixed-facility-slot"
-        key={`${side}-${position}`}
-        style={track ? { gridColumn: track } : undefined}
-        data-fixed-side={side}
-        data-fixed-position={position}
-        data-side-facility-position={side}
-        aria-label={`${slotLabel}固定设施`}
-      >
-        {facilities.map((facility) => {
-          const placement = fixedFacilities[facility];
-          const isPlaced = placement?.side === side && placement.position === position;
-          const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
-          const otherPlacement = fixedFacilities[otherFacility];
-          const isOccupiedByOther = !isPlaced
-            && otherPlacement?.side === side
-            && otherPlacement.position === position;
-          const FacilityIcon = facility === "waterDispenser" ? CoffeeOutlined : CloudOutlined;
-          const actionLabel = isPlaced
-            ? `移除${slotLabel}${rearFacilityLabels[facility]}`
-            : `将${rearFacilityLabels[facility]}固定在${slotLabel}`;
-          if (!isEditing && !isPlaced) return null;
-          return isEditing ? (
-            <Tooltip title={isOccupiedByOther ? `${slotLabel}已有${rearFacilityLabels[otherFacility]}` : actionLabel} key={facility}>
-              <button
-                type="button"
-                className={`room-fixed-facility room-fixed-facility-control ${isPlaced ? "room-fixed-facility-selected" : ""} room-fixed-facility-${facility}`}
-                data-side-facility={facility}
-                aria-label={isOccupiedByOther ? `${actionLabel}，该位置已有${rearFacilityLabels[otherFacility]}` : actionLabel}
-                aria-pressed={isPlaced}
-                disabled={isOccupiedByOther}
-                title={isOccupiedByOther ? `${slotLabel}已有${rearFacilityLabels[otherFacility]}` : actionLabel}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setFixedFacilityPosition(facility, side, position);
-                }}
-              >
-                <FacilityIcon />
-                <span className="room-fixed-facility-name">{rearFacilityLabels[facility]}</span>
-              </button>
-            </Tooltip>
-          ) : (
-            <span
-              className={`room-fixed-facility room-fixed-facility-${facility}`}
-              key={facility}
-              title={`${slotLabel}固定${rearFacilityLabels[facility]}`}
-              aria-label={`${slotLabel}固定${rearFacilityLabels[facility]}`}
-            >
-              <FacilityIcon />
-              <span className="room-fixed-facility-name">{rearFacilityLabels[facility]}</span>
-            </span>
-          );
-        })}
-      </div>
-    );
-  }
-
-  function renderFixedFacilityTrack(side: SeatingFixedSide) {
-    if (!draft) return null;
-    const count = side === "LEFT" || side === "RIGHT" ? draft.rows : draft.columns;
-    const isHorizontal = side === "FRONT" || side === "BACK";
-    const fixedFacilities = fixedFacilitiesFor(draft.environment, draft.rows, draft.columns);
-    const hasPlacedFacility = (Object.keys(rearFacilityLabels) as RearFacility[]).some((facility) => {
-      return fixedFacilities[facility]?.side === side;
-    });
-    if (!isEditing && !hasPlacedFacility) return null;
-    return (
-      <div
-        className={`room-fixed-facility-track room-fixed-facility-track-${side.toLowerCase()}`}
-        style={isHorizontal ? { gridTemplateColumns: seatGridTemplate } : undefined}
-        aria-label={`${fixedSideLabels[side]}固定设施`}
-      >
-        {Array.from({ length: count }, (_, index) => {
-          const position = index + 1;
-          const track = isHorizontal
-            ? getSeatingGridTrackForColumn(position, aisleAfterColumns)
-            : undefined;
-          return renderFixedFacilitySlot(side, position, track);
-        })}
-      </div>
-    );
-  }
-
   function renderSideRail(side: SideKey) {
     if (!draft) return null;
     return (
       <div className="room-side-column">
-        <div className="room-side-column-heading">
-          <span className="room-column-label">{sideLabels[side]}</span>
-        </div>
+        <div className="room-column-label">{sideLabels[side]}</div>
         <div
           className="room-side-track"
           style={{ gridTemplateRows: `repeat(${DEFAULT_SEATING_SIDE_MARKER_ROWS}, minmax(96px, 1fr))` }}
@@ -1103,35 +891,34 @@ export default function SeatingPage() {
                 <span>{feature ? featureLabels[feature] : `第 ${row} 排`}</span>
               </>
             );
+
+            if (!isEditing) {
+              return (
+                <div
+                  key={`${side}-${row}`}
+                  className={`${markerClass} room-side-marker-static`}
+                  data-side={side}
+                  data-marker-row={row}
+                  aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
+                >
+                  {markerContent}
+                </div>
+              );
+            }
+
             return (
-              <div
+              <button
+                type="button"
                 key={`${side}-${row}`}
-                className={`${markerClass} ${isEditing ? "" : "room-side-marker-static"}`}
+                className={markerClass}
                 data-side={side}
                 data-marker-row={row}
-                aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
-                onClick={isEditing ? (event) => {
-                  if (event.target === event.currentTarget) cycleSideFeature(side, row);
-                } : undefined}
+                aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}。点击切换标记`}
+                title={feature === null ? "添加窗户" : feature === "WINDOW" ? "改为门口" : "移除门口"}
+                onClick={() => cycleSideFeature(side, row)}
               >
-                {isEditing ? (
-                  <button
-                    type="button"
-                    className="room-side-marker-toggle"
-                    aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}。点击切换标记`}
-                    title={feature === null ? "添加窗户" : feature === "WINDOW" ? "改为门口" : "移除门口"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      cycleSideFeature(side, row);
-                    }}
-                  >
-                    {markerContent}
-                  </button>
-                ) : (
-                  <div className="room-side-marker-toggle">{markerContent}</div>
-                )}
-                {renderFixedFacilitySlot(side === "left" ? "LEFT" : "RIGHT", row)}
-              </div>
+                {markerContent}
+              </button>
             );
           })}
         </div>
@@ -1147,12 +934,9 @@ export default function SeatingPage() {
           <strong>后方</strong>
           <small>固定</small>
         </div>
-        <div className="room-back-center">
-          <div className="room-back-boundary">
-            <span className="room-back-boundary-line" aria-hidden="true" />
-            <span>后侧固定</span>
-          </div>
-          {renderFixedFacilityTrack("BACK")}
+        <div className="room-back-boundary">
+          <span className="room-back-boundary-line" aria-hidden="true" />
+          <span>后侧固定</span>
         </div>
         <span className="room-end-hint">教室后墙</span>
       </div>
@@ -1413,7 +1197,7 @@ export default function SeatingPage() {
                   <div className="seating-legend">
                   <span>{isEditing ? <DragOutlined /> : <EyeInvisibleOutlined />}{isEditing ? "拖放编辑" : "只读查看"}</span>
                   <span><ColumnWidthOutlined />过道 {aisleAfterColumns.length}</span>
-                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span><span><CoffeeOutlined />左右固定</span></>}
+                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span></>}
                   </div>
                 </div>
               </div>
@@ -1424,7 +1208,6 @@ export default function SeatingPage() {
                     <span className="room-end-label"><strong>前方</strong><small>固定</small></span>
                     <div className="blackboard"><strong>讲台</strong><small>BLACKBOARD</small></div>
                     <span className="room-end-hint">面向讲台</span>
-                    {renderFixedFacilityTrack("FRONT")}
                   </div>
                   <div className={`room-layout ${showLeftSide ? "" : "room-layout-no-left"} ${showRightSide ? "" : "room-layout-no-right"}`}>
                     {showLeftSide && renderSideRail("left")}
