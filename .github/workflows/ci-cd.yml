@@ -130,6 +130,19 @@ jobs:
             -o UpdateHostKeys=no
             -i "$RUNNER_TEMP/school-deploy.key"
           )
+          scp_opts=(
+            -P "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ConnectTimeout=10
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$RUNNER_TEMP/school-known_hosts"
+            -o GlobalKnownHostsFile=/dev/null
+            -o UpdateHostKeys=no
+            -i "$RUNNER_TEMP/school-deploy.key"
+          )
           mapfile -t archives < <(find artifact -maxdepth 1 -type f -name '*.tar.gz' -print)
           (( ${#archives[@]} == 1 )) || { printf '%s\n' 'deployment artifact count is not 1' >&2; exit 1; }
           archive="${archives[0]}"
@@ -141,7 +154,7 @@ jobs:
           remote_archive="$incoming/$archive_name"
           remote_checksum="$remote_archive.sha256"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" "mkdir -p '$incoming'"
-          scp "${ssh_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
+          scp "${scp_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" bash -s -- \
             "$DEPLOY_PATH" \
             "$remote_archive" \

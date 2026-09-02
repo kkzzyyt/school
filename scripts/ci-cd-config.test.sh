@@ -35,5 +35,11 @@ done
 
 grep -Fq "github.event_name == 'push'" "$WORKFLOW" || fail '生产部署未限制在 push 事件'
 grep -Fq "github.ref == 'refs/heads/main'" "$WORKFLOW" || fail '生产部署未限制在 main 分支'
+grep -Fq 'scp_opts=(' "$WORKFLOW" || fail 'scp 未使用独立的参数数组'
+grep -Fq -- '-P "$DEPLOY_PORT"' "$WORKFLOW" || fail 'scp 未使用大写 -P 指定端口'
+grep -Fq 'scp "${scp_opts[@]}"' "$WORKFLOW" || fail '上传命令未使用 scp 参数数组'
+if grep -Fq 'scp "${ssh_opts[@]}"' "$WORKFLOW"; then
+  fail 'scp 错误复用了 ssh 参数数组'
+fi
 
 printf '%s\n' 'CI/CD 配置测试通过'
