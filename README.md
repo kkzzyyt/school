@@ -141,6 +141,7 @@ npm run test:coverage   # 覆盖率报告（阈值 80%）
 npm run test:e2e        # Playwright 关键流程测试
 npm run test:package    # 发布包内容和秘密文件排除测试
 npm run test:package:standalone # CI standalone 发布包测试
+npm run test:standalone:runtime # standalone 构建产物运行时冒烟测试
 npm run test:deploy     # 使用伪造 SSH/PM2 的部署流程测试
 npm run test:deploy:systemd # systemd 远端构建和切换测试
 npm run test:deploy:standalone # standalone 远端切换和回滚测试

@@ -15,6 +15,10 @@ const DATABASE_TIMEOUT_DEFAULTS = {
 export function withDatabaseTimeouts(databaseUrl: string): string {
   try {
     const url = new URL(databaseUrl);
+    // Prisma connection URLs use mysql:, while the MariaDB Node driver accepts mariadb:.
+    if (url.protocol === "mysql:") {
+      url.protocol = "mariadb:";
+    }
     for (const [name, value] of Object.entries(DATABASE_TIMEOUT_DEFAULTS)) {
       if (!url.searchParams.has(name)) {
         url.searchParams.set(name, value);

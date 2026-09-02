@@ -57,6 +57,9 @@ jobs:
       - name: Build standalone artifact
         run: npm run build
 
+      - name: Smoke test standalone runtime
+        run: npm run test:standalone:runtime
+
       - name: Package standalone artifact
         run: |
           set -Eeuo pipefail

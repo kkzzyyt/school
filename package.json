@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "test:package": "bash scripts/package-deploy.test.sh",
     "test:package:standalone": "bash scripts/package-standalone-deploy.test.sh",
+    "test:standalone:runtime": "bash scripts/standalone-runtime-smoke-test.sh",
     "test:ci:config": "bash scripts/ci-cd-config.test.sh",
     "test:deploy": "bash scripts/deploy.test.sh",
     "test:deploy:systemd": "bash scripts/remote-deploy-systemd.test.sh",

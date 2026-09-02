@@ -21,6 +21,7 @@ describe("withDatabaseTimeouts", () => {
       withDatabaseTimeouts("mysql://school:password@example.test:3306/school?ssl=true"),
     );
 
+    expect(url.protocol).toBe("mariadb:");
     expect(url.searchParams.get("ssl")).toBe("true");
     expect(url.searchParams.get("connectTimeout")).toBe("1000");
     expect(url.searchParams.get("acquireTimeout")).toBe("2000");
@@ -37,6 +38,14 @@ describe("withDatabaseTimeouts", () => {
     expect(url.searchParams.get("connectTimeout")).toBe("4000");
     expect(url.searchParams.get("acquireTimeout")).toBe("5000");
     expect(url.searchParams.get("queryTimeout")).toBe("6000");
+  });
+
+  it("keeps an adapter-native MariaDB URL on the MariaDB protocol", () => {
+    const url = new URL(
+      withDatabaseTimeouts("mariadb://school:password@example.test/school"),
+    );
+
+    expect(url.protocol).toBe("mariadb:");
   });
 
   it("leaves a malformed connection string unchanged for the adapter to report", () => {

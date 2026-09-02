@@ -23,6 +23,7 @@ for required_text in \
   'npm run typecheck' \
   'npm run test:coverage' \
   'npm run build' \
+  'npm run test:standalone:runtime' \
   'npm run package:standalone' \
   'actions/upload-artifact@v4' \
   'actions/download-artifact@v4' \
@@ -43,5 +44,12 @@ fi
 if grep -Fq 'sleep 600' "$WORKFLOW"; then
   fail '生产部署仍包含 10 分钟延迟'
 fi
+
+build_step_line="$(grep -n -m 1 'name: Build standalone artifact' "$WORKFLOW" | cut -d: -f1)"
+smoke_step_line="$(grep -n -m 1 'name: Smoke test standalone runtime' "$WORKFLOW" | cut -d: -f1)"
+package_step_line="$(grep -n -m 1 'name: Package standalone artifact' "$WORKFLOW" | cut -d: -f1)"
+(( build_step_line < smoke_step_line && smoke_step_line < package_step_line )) || {
+  fail 'standalone 运行时冒烟测试必须位于构建后、打包前'
+}
 
 printf '%s\n' 'CI/CD 配置测试通过'

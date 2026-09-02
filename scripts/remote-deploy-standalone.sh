@@ -258,14 +258,28 @@ echo '启动 systemd 服务'
 systemctl start "$SERVICE_NAME"
 echo "等待健康检查：$HEALTHCHECK_URL"
 healthy=false
-for attempt in $(seq 1 30); do
+last_healthcheck_status='无响应'
+for (( attempt = 1; attempt <= 30; attempt += 1 )); do
   http_status="$(curl -fsS --max-time 3 --output /dev/null --write-out '%{http_code}' -- "$HEALTHCHECK_URL" 2>/dev/null || true)"
+  if [[ "$http_status" =~ ^[0-9]{3}$ ]]; then
+    last_healthcheck_status="$http_status"
+  fi
   if [[ "$http_status" == 200 ]]; then
     healthy=true
     break
   fi
   sleep 1
 done
-[[ "$healthy" == true ]] || die "健康检查失败：$HEALTHCHECK_URL"
+if [[ "$healthy" != true ]]; then
+  service_active_state="$(systemctl show "$SERVICE_NAME" -p ActiveState --value 2>/dev/null || true)"
+  service_sub_state="$(systemctl show "$SERVICE_NAME" -p SubState --value 2>/dev/null || true)"
+  service_main_status="$(systemctl show "$SERVICE_NAME" -p ExecMainStatus --value 2>/dev/null || true)"
+  printf '健康检查最终状态：HTTP %s；systemd ActiveState=%s SubState=%s ExecMainStatus=%s\n' \
+    "$last_healthcheck_status" \
+    "${service_active_state:-unknown}" \
+    "${service_sub_state:-unknown}" \
+    "${service_main_status:-unknown}" >&2
+  die "健康检查失败：$HEALTHCHECK_URL"
+fi
 
 echo "standalone 远程发布成功：$RELEASE_ID"

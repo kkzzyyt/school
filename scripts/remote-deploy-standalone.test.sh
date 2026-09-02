@@ -25,6 +25,7 @@ FAIL_ENV="$FAIL_ROOT/.deploy/runtime.env"
 FAIL_INCOMING="$FAIL_ROOT/.deploy/incoming"
 FAIL_STATE_FILE="$TEST_ROOT/failure-service-active"
 FAIL_LOG="$TEST_ROOT/failure-commands.log"
+FAIL_OUTPUT="$TEST_ROOT/failure-output.log"
 
 cleanup() {
   rm -rf "$TEST_ROOT"
@@ -102,6 +103,9 @@ printf 'systemctl %s\n' "$*" >> "$DEPLOY_TEST_COMMAND_LOG"
       *" -p Group "*) printf '%s\n' "${DEPLOY_TEST_GROUP:?}" ;;
       *" -p WorkingDirectory "*) printf '%s\n' "${DEPLOY_TEST_WORKDIR:?}" ;;
       *" -p ExecStart "*) printf '%s\n' "${DEPLOY_TEST_EXEC_START:?}" ;;
+      *" -p ActiveState "*) printf '%s\n' active ;;
+      *" -p SubState "*) printf '%s\n' running ;;
+      *" -p ExecMainStatus "*) printf '%s\n' 0 ;;
       *) exit 2 ;;
     esac
     ;;
@@ -245,10 +249,14 @@ bash "$PROJECT_ROOT/scripts/remote-deploy-standalone.sh" \
   "$FAIL_APP" \
   http://127.0.0.1:3000/api/health \
   3 \
-  "$FAKE_PRISMA_BIN" >/dev/null 2>&1
+  "$FAKE_PRISMA_BIN" >"$FAIL_OUTPUT" 2>&1
 failure_exit_code=$?
 set -e
 (( failure_exit_code != 0 )) || fail '健康检查失败时 standalone 发布不应成功'
+grep -Fq '健康检查最终状态：HTTP 503；systemd ActiveState=active SubState=running ExecMainStatus=0' "$FAIL_OUTPUT" || {
+  cat "$FAIL_OUTPUT" >&2
+  fail '健康检查失败时未输出安全的诊断状态'
+}
 assert_file "$FAIL_APP/old.txt"
 [[ ! -e "$FAIL_ROOT/.deploy/releases/failed-release" ]] || fail '失败 release 未清理'
 [[ ! -e "$FAIL_ROOT/.deploy/rollback-failed-release" ]] || fail '旧目录未恢复到应用目录'
