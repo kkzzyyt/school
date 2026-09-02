@@ -104,7 +104,7 @@ model Classroom {
   semester       Semester
   room           String?         @db.VarChar(50)
   seatRows       Int             @default(7)
-  seatColumns    Int             @default(10)
+  seatColumns    Int             @default(8)
   seatingEnvironment Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt

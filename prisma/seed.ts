@@ -12,7 +12,7 @@ import {
   UserRole,
 } from "../src/generated/prisma/client";
 import {
-  DEFAULT_SEATING_AISLE_COLUMNS,
+  DEFAULT_SEATING_AISLE_AFTER_COLUMNS,
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ROWS,
 } from "../src/domain/seating";
@@ -67,7 +67,7 @@ const courseDefinitions = [
 const assignableSeatColumns = Array.from(
   { length: DEFAULT_SEATING_COLUMNS },
   (_, index) => index + 1,
-).filter((column) => !DEFAULT_SEATING_AISLE_COLUMNS.includes(column));
+);
 
 async function resetDatabase() {
   await prisma.auditLog.deleteMany();
@@ -121,8 +121,10 @@ async function seed() {
       seatRows: DEFAULT_SEATING_ROWS,
       seatColumns: DEFAULT_SEATING_COLUMNS,
       seatingEnvironment: {
-        left: { windows: [1, 2, 3, 4, 5, 6], doorRow: null },
-        right: { windows: [], doorRow: 7 },
+        aisleAfterColumns: [...DEFAULT_SEATING_AISLE_AFTER_COLUMNS],
+        left: { windows: [1, 2, 3, 4, 5, 6], doorRows: [] },
+        right: { windows: [], doorRows: [7] },
+        rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
       },
       memberships: {
         create: [

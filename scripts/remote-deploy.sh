@@ -38,6 +38,7 @@ validate_command() {
   local command_name="$2"
   [[ "$command_name" != *[[:space:]]* ]] || die "$name 不能包含空格"
   if [[ "$command_name" == */* ]]; then
+    [[ "$command_name" == /* ]] || die "$name 路径必须是绝对路径：$command_name"
     [[ -x "$command_name" ]] || die "$name 不可执行：$command_name"
   else
     require_command "$command_name"
@@ -158,19 +159,43 @@ restore_previous_release() {
   fi
 
   if [[ -n "$OLD_TARGET" ]]; then
-    ln -sfn "$OLD_TARGET" "$CURRENT_LINK"
+    if ! ln -sfn "$OLD_TARGET" "$CURRENT_LINK"; then
+      printf 'PM2 恢复失败：无法将 current 从 %s 切回 %s。\n' "$CURRENT_LINK" "$OLD_TARGET" >&2
+      return 1
+    fi
   else
-    rm -f "$CURRENT_LINK"
+    if ! rm -f "$CURRENT_LINK"; then
+      printf 'PM2 恢复失败：无法移除首次发布的 current 链接 %s。\n' "$CURRENT_LINK" >&2
+      return 1
+    fi
   fi
 
   "$PM2_BIN" delete "$APP_NAME" >/dev/null 2>&1 || true
   if [[ "$APP_WAS_RUNNING" == true && -e "$CURRENT_LINK" ]]; then
-    "$PM2_BIN" start "$NPM_BIN" \
+    if ! "$PM2_BIN" start "$NPM_BIN" \
       --name "$APP_NAME" \
       --cwd "$CURRENT_LINK" \
-      -- start -- --hostname 127.0.0.1 --port "$APP_PORT" >/dev/null
-    "$PM2_BIN" save >/dev/null 2>&1 || true
+      -- start -- --hostname 127.0.0.1 --port "$APP_PORT"; then
+      printf 'PM2 恢复失败：无法启动旧 PM2 进程 %s。\n' "$APP_NAME" >&2
+      return 1
+    fi
+    "$PM2_BIN" save >/dev/null 2>&1 || warn "已恢复旧 PM2 进程，但无法保存 PM2 状态"
   fi
+}
+
+handle_signal() {
+  local signal="$1"
+  local status
+
+  case "$signal" in
+    HUP) status=129 ;;
+    INT) status=130 ;;
+    TERM) status=143 ;;
+    *) status=1 ;;
+  esac
+
+  printf '远程发布收到 %s 信号，正在尝试恢复旧 release。\n' "$signal" >&2
+  exit "$status"
 }
 
 prune_old_releases() {
@@ -191,16 +216,24 @@ prune_old_releases() {
 
 cleanup() {
   local status=$?
-  trap - EXIT
+  trap - EXIT HUP INT TERM
   set +e
 
   if (( status != 0 )); then
-    restore_previous_release
-    if [[ -n "$RELEASE_DIR" && -d "$RELEASE_DIR" ]]; then
+    recovery_complete=true
+    if ! restore_previous_release; then
+      recovery_complete=false
+    fi
+    if [[ "$recovery_complete" == true && -n "$RELEASE_DIR" && -d "$RELEASE_DIR" ]]; then
       rm -rf "$RELEASE_DIR"
     fi
     rm -f "$ARCHIVE_PATH" "$CHECKSUM_PATH"
-    printf '远程发布未完成，已尝试恢复旧 release。\n' >&2
+    if [[ "$recovery_complete" == true ]]; then
+      printf '远程发布未完成，已恢复旧 release。\n' >&2
+    else
+      printf '远程发布恢复不完整；已保留 %s 供人工检查。请检查 current 链接和 PM2 进程 %s 后恢复旧 release。\n' \
+        "$RELEASE_DIR" "$APP_NAME" >&2
+    fi
   else
     rm -f "$ARCHIVE_PATH" "$CHECKSUM_PATH"
     prune_old_releases || warn "旧 release 清理失败，可稍后手动清理 $RELEASES_DIR"
@@ -210,6 +243,9 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
+trap 'handle_signal HUP' HUP
+trap 'handle_signal INT' INT
+trap 'handle_signal TERM' TERM
 
 echo "校验发布包"
 cd "$(dirname "$ARCHIVE_PATH")"
@@ -225,6 +261,8 @@ mkdir "$RELEASE_DIR"
 LC_ALL=C tar -xzf "$ARCHIVE_PATH" -C "$RELEASE_DIR" --strip-components=1
 [[ -f "$RELEASE_DIR/package.json" ]] || die "发布包解压后缺少 package.json"
 [[ ! -e "$RELEASE_DIR/.env" && ! -L "$RELEASE_DIR/.env" ]] || die "发布包不应包含 .env"
+[[ ! -e "$RELEASE_DIR/.next" && ! -L "$RELEASE_DIR/.next" ]] || die "发布包不应包含本机构建产物 .next"
+[[ ! -e "$RELEASE_DIR/node_modules" && ! -L "$RELEASE_DIR/node_modules" ]] || die "发布包不应包含 node_modules"
 ln -s "$ENV_PATH" "$RELEASE_DIR/.env"
 
 echo "安装依赖"
@@ -252,8 +290,8 @@ if "$PM2_BIN" describe "$APP_NAME" >/dev/null 2>&1; then
 fi
 
 echo "切换 current 符号链接"
-ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 SWITCHED=true
+ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
 echo "启动 PM2 进程"
 "$PM2_BIN" delete "$APP_NAME" >/dev/null 2>&1 || true
@@ -268,13 +306,23 @@ attempt=1
 healthy=false
 while (( attempt <= 30 )); do
   if [[ "$HEALTHCHECK_COMMAND" == curl ]]; then
-    if curl -fsS --max-time 3 "$HEALTHCHECK_URL" >/dev/null 2>&1; then
+    http_status="$(curl -fsS --max-time 3 --output /dev/null --write-out '%{http_code}' -- "$HEALTHCHECK_URL" 2>/dev/null || true)"
+    if [[ "$http_status" == 200 ]]; then
       healthy=true
       break
     fi
-  elif wget -q -O - --timeout=3 "$HEALTHCHECK_URL" >/dev/null 2>&1; then
-    healthy=true
-    break
+  else
+    wget_output="$(wget -q --server-response --max-redirect=0 -O /dev/null --timeout=3 -- "$HEALTHCHECK_URL" 2>&1 || true)"
+    http_status=""
+    while IFS= read -r header_line; do
+      if [[ "$header_line" =~ HTTP/[0-9.]+[[:space:]]+([0-9]{3}) ]]; then
+        http_status="${BASH_REMATCH[1]}"
+      fi
+    done <<< "$wget_output"
+    if [[ "$http_status" == 200 ]]; then
+      healthy=true
+      break
+    fi
   fi
   sleep 1
   attempt=$((attempt + 1))

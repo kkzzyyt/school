@@ -2,10 +2,8 @@
 
 import {
   AppstoreOutlined,
-  BarChartOutlined,
   BellOutlined,
   BookOutlined,
-  CalendarOutlined,
   DownOutlined,
   IdcardOutlined,
   LogoutOutlined,
@@ -14,13 +12,10 @@ import {
   MenuUnfoldOutlined,
   PhoneOutlined,
   QuestionCircleOutlined,
-  ReadOutlined,
-  SearchOutlined,
   SettingOutlined,
   TeamOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
-import { App, Avatar, Button, Drawer, Dropdown, Input, Layout, Menu, Tooltip } from "antd";
+import { App, Avatar, Button, Drawer, Dropdown, Layout, Menu, Tooltip } from "antd";
 import type { MenuProps } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -32,12 +27,8 @@ const { Sider, Content } = Layout;
 const menuItems: MenuProps["items"] = [
   { key: "/dashboard", icon: <AppstoreOutlined />, label: "工作台" },
   { key: "/seating", icon: <IdcardOutlined />, label: "座次表" },
-  { key: "/duties", icon: <CalendarOutlined />, label: "值日表" },
-  { key: "/grades", icon: <BarChartOutlined />, label: "成绩分析" },
   { key: "/students", icon: <TeamOutlined />, label: "花名册" },
-  { key: "/committee", icon: <UserOutlined />, label: "班委名单" },
   { key: "/contacts", icon: <PhoneOutlined />, label: "家长通讯录" },
-  { key: "/timetable", icon: <ReadOutlined />, label: "课程表" },
 ];
 
 interface WorkspaceShellProps {
@@ -51,7 +42,6 @@ export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const siderWidth = collapsed ? 80 : 248;
 
@@ -69,12 +59,6 @@ export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
   function navigate(path: string) {
     router.push(path);
     setMobileMenuOpen(false);
-  }
-
-  function search() {
-    const normalizedQuery = searchQuery.trim();
-    if (!normalizedQuery) return;
-    navigate(`/students?search=${encodeURIComponent(normalizedQuery)}`);
   }
 
   const navigation = (
@@ -137,15 +121,6 @@ export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
               aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed((value) => !value)}
-            />
-            <Input
-              className="global-search"
-              allowClear
-              prefix={<SearchOutlined />}
-              placeholder="搜索学生、班级..."
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              onPressEnter={search}
             />
           </div>
 

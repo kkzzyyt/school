@@ -21,7 +21,7 @@ Classroom ──< WorkItem
 | --- | --- | --- |
 | User | username, passwordHash, displayName, role, status | username 全局唯一 |
 | Session | tokenHash, userId, expiresAt | tokenHash 全局唯一；过期即无效 |
-| Classroom | name, grade, academicYear, semester, seatRows, seatColumns, seatingEnvironment | name + academicYear 唯一；教室标记保存左右侧窗户排位和门口排位 |
+| Classroom | name, grade, academicYear, semester, seatRows, seatColumns, seatingEnvironment | name + academicYear 唯一；环境 JSON 保存独立过道插入边界、左右侧窗户/最多两处门口和后方饮水机/空调位置 |
 | ClassMembership | userId, classId, role | userId + classId 唯一 |
 | Student | classId, studentNo, name, gender, status | classId + studentNo 唯一 |
 | Guardian | studentId, name, relationship, phone, isPrimary | 每名学生最多一个主联系人（应用层维护） |

@@ -1,20 +1,20 @@
 "use client";
 
 import {
-  ClearOutlined,
-  CloseOutlined,
+  CloudOutlined,
   ColumnWidthOutlined,
+  CoffeeOutlined,
   DragOutlined,
   EditOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
   HolderOutlined,
-  InboxOutlined,
   LoginOutlined,
   PlusOutlined,
   RedoOutlined,
   RollbackOutlined,
   SaveOutlined,
+  SettingOutlined,
   SwapOutlined,
   UndoOutlined,
   WindowsOutlined,
@@ -24,11 +24,10 @@ import {
   App,
   Button,
   Card,
-  Divider,
-  Dropdown,
-  Input,
+  Checkbox,
   InputNumber,
-  Segmented,
+  Modal,
+  Dropdown,
   Select,
   Skeleton,
   Space,
@@ -37,15 +36,19 @@ import {
   Tooltip,
 } from "antd";
 import type { MenuProps } from "antd";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { PageHeading } from "@/components/layout/PageHeading";
 import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
   DEFAULT_SEATING_ROWS,
-  getSeatingAisleColumns,
-  isSeatingAisleColumn,
+  DEFAULT_SEATING_SIDE_MARKER_ROWS,
+  MAX_DOORS_PER_SIDE,
+  createDefaultSeatingEnvironment,
+  getSeatingAisleAfterColumns,
+  isSeatingAisleAfterColumn,
+  type RearFacilityPosition,
   type SeatingEnvironment,
   type SeatingSideLayout,
 } from "@/domain/seating";
@@ -57,6 +60,7 @@ interface Assignment { studentId: string; row: number; column: number }
 interface SeatingData {
   rows: number;
   columns: number;
+  revision: string | null;
   students: Student[];
   assignments: Assignment[];
   environment: SeatingEnvironment;
@@ -69,11 +73,22 @@ interface SeatingDraft {
   environment: SeatingEnvironment;
 }
 
+interface PendingDimensions {
+  rows: number;
+  columns: number;
+  environment: SeatingEnvironment;
+}
+
+interface FloatingPanelPosition {
+  x: number;
+  y: number;
+}
+
 interface EditorState {
   draft: SeatingDraft | null;
   past: SeatingDraft[];
   future: SeatingDraft[];
-  pendingDimensions: { rows: number; columns: number };
+  pendingDimensions: PendingDimensions;
 }
 
 type EditorAction =
@@ -82,15 +97,27 @@ type EditorAction =
   | { type: "undo" }
   | { type: "redo" }
   | { type: "reset"; draft: SeatingDraft }
-  | { type: "setPendingDimensions"; dimensions: { rows: number; columns: number } };
+  | { type: "setPendingDimensions"; dimensions: PendingDimensions };
 
-type StudentFilter = "unassigned" | "all";
-type SideKey = keyof SeatingEnvironment;
+type SideKey = "left" | "right";
 type SideFeature = "WINDOW" | "DOOR";
+type RearFacility = "waterDispenser" | "airConditioner";
 
 const sideLabels: Record<SideKey, string> = { left: "左侧", right: "右侧" };
 const featureLabels: Record<SideFeature, string> = { WINDOW: "窗户", DOOR: "门口" };
+const rearPositionLabels: Record<RearFacilityPosition, string> = {
+  LEFT: "左",
+  CENTER: "中",
+  RIGHT: "右",
+};
+const rearFacilityLabels: Record<RearFacility, string> = {
+  waterDispenser: "饮水机",
+  airConditioner: "空调",
+};
+const rearPositions: RearFacilityPosition[] = ["LEFT", "CENTER", "RIGHT"];
 const maxHistoryLength = 30;
+const inferredFemaleNameSuffixes = new Set(Array.from("婷娜芳静丽娟英霞敏燕倩欣怡妍琳慧婉晴芸菲蕾佳涵洁彤悦菲菡莹柔瑄茹"));
+const inferredMaleNameSuffixes = new Set(Array.from("伟强军磊涛杰勇刚鹏超宇轩浩凯峰东波龙博昊阳晨宸哲豪泽航坤祥恺昱寅松鸣"));
 
 function sortAssignments(assignments: Assignment[]) {
   return [...assignments].sort(
@@ -98,11 +125,69 @@ function sortAssignments(assignments: Assignment[]) {
   );
 }
 
+function studentDisplayLabel(student: Student) {
+  return `${student.name} · ${student.studentNo.slice(-4)}`;
+}
+
 function cloneEnvironment(environment: SeatingEnvironment): SeatingEnvironment {
   return {
-    left: { windows: [...environment.left.windows], doorRow: environment.left.doorRow },
-    right: { windows: [...environment.right.windows], doorRow: environment.right.doorRow },
+    aisleAfterColumns: [...new Set(environment.aisleAfterColumns)].sort((left, right) => left - right),
+    left: {
+      windows: [...environment.left.windows].sort((left, right) => left - right),
+      doorRows: [...environment.left.doorRows].sort((left, right) => left - right),
+    },
+    right: {
+      windows: [...environment.right.windows].sort((left, right) => left - right),
+      doorRows: [...environment.right.doorRows].sort((left, right) => left - right),
+    },
+    rear: { ...environment.rear },
   };
+}
+
+function pendingDimensionsFor(draft: SeatingDraft) {
+  const environment = cloneEnvironment(draft.environment);
+  return {
+    rows: draft.rows,
+    columns: draft.columns,
+    environment,
+  };
+}
+
+function sameNumberList(left: readonly number[], right: readonly number[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function clampFloatingPanelPosition(
+  body: HTMLElement,
+  panel: HTMLElement,
+  position: FloatingPanelPosition,
+): FloatingPanelPosition {
+  const bodyRect = body.getBoundingClientRect();
+  const maxX = Math.max(12, Math.min(
+    body.clientWidth - panel.offsetWidth - 12,
+    window.innerWidth - bodyRect.left - panel.offsetWidth - 12,
+  ));
+  const maxY = Math.max(12, Math.min(
+    body.clientHeight - panel.offsetHeight - 12,
+    window.innerHeight - bodyRect.top - panel.offsetHeight - 12,
+  ));
+  return {
+    x: Math.min(maxX, Math.max(12, position.x)),
+    y: Math.min(maxY, Math.max(12, position.y)),
+  };
+}
+
+function sameSideLayout(left: SeatingSideLayout, right: SeatingSideLayout) {
+  return sameNumberList(left.doorRows, right.doorRows)
+    && sameNumberList(left.windows, right.windows);
+}
+
+function environmentsEqual(left: SeatingEnvironment, right: SeatingEnvironment) {
+  return sameNumberList(left.aisleAfterColumns, right.aisleAfterColumns)
+    && sameSideLayout(left.left, right.left)
+    && sameSideLayout(left.right, right.right)
+    && left.rear.waterDispenser === right.rear.waterDispenser
+    && left.rear.airConditioner === right.rear.airConditioner;
 }
 
 function toDraft(data: SeatingData): SeatingDraft {
@@ -130,7 +215,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         draft: action.draft,
         past: [],
         future: [],
-        pendingDimensions: { rows: action.draft.rows, columns: action.draft.columns },
+        pendingDimensions: pendingDimensionsFor(action.draft),
       };
     case "commit":
       if (!state.draft || draftsEqual(state.draft, action.draft)) return state;
@@ -138,9 +223,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         draft: action.draft,
         past: [...state.past, state.draft].slice(-maxHistoryLength),
         future: [],
-        pendingDimensions: action.draft.rows === state.draft.rows && action.draft.columns === state.draft.columns
-          ? state.pendingDimensions
-          : { rows: action.draft.rows, columns: action.draft.columns },
+        pendingDimensions: pendingDimensionsFor(action.draft),
       };
     case "undo": {
       const previous = state.past.at(-1);
@@ -149,7 +232,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         draft: previous,
         past: state.past.slice(0, -1),
         future: [state.draft, ...state.future].slice(0, maxHistoryLength),
-        pendingDimensions: { rows: previous.rows, columns: previous.columns },
+        pendingDimensions: pendingDimensionsFor(previous),
       };
     }
     case "redo": {
@@ -159,7 +242,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         draft: next,
         past: [...state.past, state.draft].slice(-maxHistoryLength),
         future: state.future.slice(1),
-        pendingDimensions: { rows: next.rows, columns: next.columns },
+        pendingDimensions: pendingDimensionsFor(next),
       };
     }
     case "reset":
@@ -167,7 +250,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         draft: action.draft,
         past: [],
         future: [],
-        pendingDimensions: { rows: action.draft.rows, columns: action.draft.columns },
+        pendingDimensions: pendingDimensionsFor(action.draft),
       };
     case "setPendingDimensions":
       return { ...state, pendingDimensions: action.dimensions };
@@ -177,7 +260,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 function sideFeatureForRow(side: SeatingSideLayout, row: number): SideFeature | null {
-  if (side.doorRow === row) return "DOOR";
+  if (side.doorRows.includes(row)) return "DOOR";
   if (side.windows.includes(row)) return "WINDOW";
   return null;
 }
@@ -188,11 +271,13 @@ function featureIcon(feature: SideFeature | null) {
   return <PlusOutlined />;
 }
 
-function trimSideLayout(side: SeatingSideLayout, rows: number): SeatingSideLayout {
-  return {
-    windows: side.windows.filter((row) => row <= rows),
-    doorRow: side.doorRow && side.doorRow <= rows ? side.doorRow : null,
-  };
+function studentToneClass(student: Student) {
+  if (student.gender === "MALE") return "seat-student-male";
+  if (student.gender === "FEMALE") return "seat-student-female";
+  const suffix = Array.from(student.name).at(-1);
+  if (suffix && inferredFemaleNameSuffixes.has(suffix)) return "seat-student-female";
+  if (suffix && inferredMaleNameSuffixes.has(suffix)) return "seat-student-male";
+  return "seat-student-neutral";
 }
 
 export default function SeatingPage() {
@@ -202,16 +287,34 @@ export default function SeatingPage() {
     draft: null,
     past: [],
     future: [],
-    pendingDimensions: { rows: DEFAULT_SEATING_ROWS, columns: DEFAULT_SEATING_COLUMNS },
+    pendingDimensions: {
+      rows: DEFAULT_SEATING_ROWS,
+      columns: DEFAULT_SEATING_COLUMNS,
+      environment: createDefaultSeatingEnvironment(),
+    },
   });
-  const [studentQuery, setStudentQuery] = useState("");
-  const [studentFilter, setStudentFilter] = useState<StudentFilter>("unassigned");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [draggingStudentId, setDraggingStudentId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showLeftSide, setShowLeftSide] = useState(true);
   const [showRightSide, setShowRightSide] = useState(true);
+  const [studentPoolPosition, setStudentPoolPosition] = useState<FloatingPanelPosition | null>(null);
+  const [draggingStudentPool, setDraggingStudentPool] = useState(false);
+  const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
+  const [aisleSettingsModalOpen, setAisleSettingsModalOpen] = useState(false);
+  const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
+  const workspaceBodyRef = useRef<HTMLDivElement>(null);
+  const studentPoolPanelRef = useRef<HTMLElement>(null);
+  const studentPoolDrag = useRef<{
+    body: HTMLElement;
+    panel: HTMLElement;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const seatLongPressTimer = useRef<number | null>(null);
+  const seatLongPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const suppressNextSeatClick = useRef(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -219,6 +322,31 @@ export default function SeatingPage() {
     const nextDraft = toDraft(data);
     dispatch({ type: "load", draft: nextDraft });
   }, [data]);
+
+  useEffect(() => {
+    if (!isEditing || studentPoolPosition === null) return;
+    const body = workspaceBodyRef.current;
+    const panel = studentPoolPanelRef.current;
+    if (!body || !panel) return;
+
+    const clampPosition = () => {
+      setStudentPoolPosition((current) => {
+        if (!current) return current;
+        const next = clampFloatingPanelPosition(body, panel, current);
+        return next.x === current.x && next.y === current.y ? current : next;
+      });
+    };
+
+    clampPosition();
+    const observer = new ResizeObserver(clampPosition);
+    observer.observe(body);
+    observer.observe(panel);
+    window.addEventListener("resize", clampPosition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", clampPosition);
+    };
+  }, [isEditing, studentPoolPosition]);
 
   const draft = editor.draft;
   const savedDraft = useMemo(() => (data ? toDraft(data) : null), [data]);
@@ -235,47 +363,56 @@ export default function SeatingPage() {
     () => new Map(draft?.assignments.map((assignment) => [assignment.studentId, assignment]) ?? []),
     [draft?.assignments],
   );
-  const aisleColumns = useMemo(
-    () => getSeatingAisleColumns(draft?.columns ?? DEFAULT_SEATING_COLUMNS),
-    [draft?.columns],
+  const aisleAfterColumns = useMemo(
+    () => getSeatingAisleAfterColumns(
+      draft?.columns ?? DEFAULT_SEATING_COLUMNS,
+      draft?.environment.aisleAfterColumns,
+    ),
+    [draft?.columns, draft?.environment.aisleAfterColumns],
+  );
+  const seatGridTemplate = useMemo(
+    () => Array.from({ length: draft?.columns ?? DEFAULT_SEATING_COLUMNS }, (_, index) => {
+      const column = index + 1;
+      return [
+        "minmax(0, 1fr)",
+        ...(aisleAfterColumns.includes(column) ? ["22px"] : []),
+      ];
+    }).flat().join(" "),
+    [aisleAfterColumns, draft?.columns],
   );
   const studentOptions = useMemo(
     () => data?.students.map((student) => ({
       value: student.id,
-      label: `${student.name} · ${student.studentNo.slice(-3)}`,
+      label: studentDisplayLabel(student),
     })) ?? [],
     [data?.students],
   );
-  const filteredStudents = useMemo(() => {
+  const poolStudents = useMemo(() => {
     if (!data || !draft) return [];
-    const normalizedQuery = studentQuery.trim().toLowerCase();
-    return data.students.filter((student) => {
-      const matchesFilter = studentFilter === "all" || !assignmentByStudent.has(student.id);
-      const matchesQuery = !normalizedQuery
-        || student.name.toLowerCase().includes(normalizedQuery)
-        || student.studentNo.toLowerCase().includes(normalizedQuery);
-      return matchesFilter && matchesQuery;
-    });
-  }, [assignmentByStudent, data, draft, studentFilter, studentQuery]);
+    return data.students;
+  }, [data, draft]);
   const assignedCount = draft?.assignments.length ?? 0;
   const studentCount = data?.students.length ?? 0;
   const availableSeatCount = draft
-    ? draft.rows * (draft.columns - aisleColumns.length) - assignedCount
+    ? draft.rows * draft.columns - assignedCount
     : 0;
   const environmentFeatureCount = draft
     ? draft.environment.left.windows.length
       + draft.environment.right.windows.length
-      + Number(draft.environment.left.doorRow !== null)
-      + Number(draft.environment.right.doorRow !== null)
+      + draft.environment.left.doorRows.length
+      + draft.environment.right.doorRows.length
+      + Number(draft.environment.rear.waterDispenser !== null)
+      + Number(draft.environment.rear.airConditioner !== null)
     : 0;
   const isDirty = Boolean(draft && savedDraft && !draftsEqual(draft, savedDraft));
-  const selectedStudent = selectedStudentId ? studentById.get(selectedStudentId) : undefined;
 
   function leaveEditing() {
     if (!isDirty) {
       setIsEditing(false);
+      setStudentPoolPosition(null);
       setSelectedStudentId(null);
       setDropTarget(null);
+      setSeatActionMenuKey(null);
       return;
     }
 
@@ -287,8 +424,10 @@ export default function SeatingPage() {
       onOk: () => {
         if (savedDraft) dispatch({ type: "reset", draft: savedDraft });
         setIsEditing(false);
+        setStudentPoolPosition(null);
         setSelectedStudentId(null);
         setDropTarget(null);
+        setSeatActionMenuKey(null);
       },
     });
   }
@@ -307,11 +446,10 @@ export default function SeatingPage() {
   function selectStudent(studentId: string) {
     if (!isEditing) return;
     setSelectedStudentId((current) => current === studentId ? null : studentId);
-    if (assignmentByStudent.has(studentId)) setStudentFilter("all");
   }
 
   function placeStudent(studentId: string, row: number, column: number) {
-    if (!isEditing || !draft || isSeatingAisleColumn(column, draft.columns)) return;
+    if (!isEditing || !draft) return;
     const source = draft.assignments.find((assignment) => assignment.studentId === studentId);
     const target = assignmentByPosition.get(`${row}-${column}`);
     if (source?.row === row && source.column === column) {
@@ -342,6 +480,7 @@ export default function SeatingPage() {
       ),
     });
     setSelectedStudentId(null);
+    setSeatActionMenuKey(null);
   }
 
   function handleSeatClick(row: number, column: number) {
@@ -358,6 +497,76 @@ export default function SeatingPage() {
     if (!isEditing) return;
     if (studentId) placeStudent(studentId, row, column);
     else clearSeat(row, column);
+  }
+
+  function seatActionMenuItems(currentStudentId: string): NonNullable<MenuProps["items"]> {
+    return [
+      { key: "remove-seat", danger: true, label: "移出座位" },
+      { type: "divider" },
+      ...(data?.students ?? [])
+        .filter((student) => student.id !== currentStudentId)
+        .map((student) => ({ key: student.id, label: studentDisplayLabel(student) })),
+    ];
+  }
+
+  function handleSeatActionMenu(row: number, column: number, key: string) {
+    if (key === "remove-seat") {
+      clearSeat(row, column);
+      return;
+    }
+    changeSeat(row, column, key);
+    setSeatActionMenuKey(null);
+  }
+
+  function clearSeatLongPressTimer() {
+    if (seatLongPressTimer.current !== null) {
+      window.clearTimeout(seatLongPressTimer.current);
+    }
+    seatLongPressTimer.current = null;
+    seatLongPressOrigin.current = null;
+  }
+
+  function startSeatLongPress(event: React.PointerEvent<HTMLButtonElement>, positionKey: string) {
+    if (!isEditing || event.pointerType !== "touch") return;
+    clearSeatLongPressTimer();
+    suppressNextSeatClick.current = false;
+    seatLongPressOrigin.current = { x: event.clientX, y: event.clientY };
+    seatLongPressTimer.current = window.setTimeout(() => {
+      seatLongPressTimer.current = null;
+      seatLongPressOrigin.current = null;
+      suppressNextSeatClick.current = true;
+      setSeatActionMenuKey(positionKey);
+    }, 600);
+  }
+
+  function moveSeatLongPress(event: React.PointerEvent<HTMLButtonElement>) {
+    const origin = seatLongPressOrigin.current;
+    if (!origin || event.pointerType !== "touch") return;
+    if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 12) {
+      clearSeatLongPressTimer();
+    }
+  }
+
+  function endSeatLongPress() {
+    clearSeatLongPressTimer();
+  }
+
+  function handleSeatStudentClick(event: React.MouseEvent<HTMLButtonElement>, positionKey: string) {
+    if (suppressNextSeatClick.current) {
+      suppressNextSeatClick.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    event.stopPropagation();
+    setSeatActionMenuKey((current) => current === positionKey ? null : positionKey);
+  }
+
+  function handleSeatStudentContextMenu(event: React.MouseEvent<HTMLButtonElement>, positionKey: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    clearSeatLongPressTimer();
+    setSeatActionMenuKey(positionKey);
   }
 
   function startStudentDrag(event: React.DragEvent<HTMLElement>, studentId: string) {
@@ -398,41 +607,167 @@ export default function SeatingPage() {
     setDropTarget(null);
   }
 
+  function startStudentPoolDrag(event: React.PointerEvent<HTMLElement>) {
+    const panel = event.currentTarget.closest<HTMLElement>(".seating-sidebar-floating");
+    const body = event.currentTarget.closest<HTMLElement>(".seating-workspace-body");
+    if (!panel || !body) return;
+
+    const panelRect = panel.getBoundingClientRect();
+    studentPoolDrag.current = {
+      body,
+      panel,
+      offsetX: event.clientX - panelRect.left,
+      offsetY: event.clientY - panelRect.top,
+    };
+    setDraggingStudentPool(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveStudentPool(event: React.PointerEvent<HTMLElement>) {
+    const drag = studentPoolDrag.current;
+    if (!drag) return;
+
+    const bodyRect = drag.body.getBoundingClientRect();
+    setStudentPoolPosition(clampFloatingPanelPosition(drag.body, drag.panel, {
+      x: event.clientX - bodyRect.left - drag.offsetX,
+      y: event.clientY - bodyRect.top - drag.offsetY,
+    }));
+  }
+
+  function endStudentPoolDrag(event: React.PointerEvent<HTMLElement>) {
+    studentPoolDrag.current = null;
+    setDraggingStudentPool(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function moveStudentPoolBy(horizontal: number, vertical: number) {
+    const body = workspaceBodyRef.current;
+    const panel = studentPoolPanelRef.current;
+    if (!body || !panel) return;
+    const bodyRect = body.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const current = studentPoolPosition ?? {
+      x: panelRect.left - bodyRect.left,
+      y: panelRect.top - bodyRect.top,
+    };
+    setStudentPoolPosition(clampFloatingPanelPosition(body, panel, {
+      x: current.x + horizontal,
+      y: current.y + vertical,
+    }));
+  }
+
+  function handleStudentPoolHandleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const step = event.shiftKey ? 24 : 8;
+    const movements: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const movement = movements[event.key];
+    if (!movement) return;
+    event.preventDefault();
+    moveStudentPoolBy(...movement);
+  }
+
   function setSideFeature(side: SideKey, row: number, feature: SideFeature | null) {
     if (!isEditing || !draft) return;
-    const currentSide = draft.environment[side];
+    const environment = cloneEnvironment(draft.environment);
+    const currentSide = environment[side];
     const nextSide: SeatingSideLayout = {
       windows: currentSide.windows.filter((item) => item !== row),
-      doorRow: currentSide.doorRow === row ? null : currentSide.doorRow,
+      doorRows: currentSide.doorRows.filter((item) => item !== row),
     };
     if (feature === "WINDOW") nextSide.windows.push(row);
-    if (feature === "DOOR") nextSide.doorRow = row;
-    commitDraft({
-      ...draft,
-      environment: { ...draft.environment, [side]: nextSide },
+    if (feature === "DOOR") {
+      if (nextSide.doorRows.length >= MAX_DOORS_PER_SIDE) {
+        message.warning(`每侧最多设置 ${MAX_DOORS_PER_SIDE} 个门口`);
+        return;
+      }
+      nextSide.doorRows.push(row);
+    }
+    nextSide.windows.sort((left, right) => left - right);
+    nextSide.doorRows.sort((left, right) => left - right);
+    commitDraft({ ...draft, environment: { ...environment, [side]: nextSide } });
+  }
+
+  function cycleSideFeature(side: SideKey, row: number) {
+    if (!draft) return;
+    const currentFeature = sideFeatureForRow(draft.environment[side], row);
+    if (currentFeature === null) {
+      setSideFeature(side, row, "WINDOW");
+      return;
+    }
+    if (currentFeature === "WINDOW") {
+      if (draft.environment[side].doorRows.length >= MAX_DOORS_PER_SIDE) {
+        message.warning(`每侧最多设置 ${MAX_DOORS_PER_SIDE} 个门口`);
+        return;
+      }
+      setSideFeature(side, row, "DOOR");
+      return;
+    }
+    setSideFeature(side, row, null);
+  }
+
+  function setRearFacilityPosition(facility: RearFacility, position: RearFacilityPosition) {
+    if (!isEditing || !draft) return;
+    const environment = cloneEnvironment(draft.environment);
+    const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
+    if (
+      environment.rear[facility] !== position
+      && environment.rear[otherFacility] === position
+    ) {
+      message.warning(`${rearPositionLabels[position]}侧已设置${rearFacilityLabels[otherFacility]}`);
+      return;
+    }
+    environment.rear[facility] = environment.rear[facility] === position ? null : position;
+    commitDraft({ ...draft, environment });
+  }
+
+  function updatePendingDimensions(next: Partial<Pick<PendingDimensions, "rows" | "columns">>) {
+    const nextColumns = next.columns ?? pendingDimensions.columns;
+    const environment = cloneEnvironment(pendingDimensions.environment);
+    dispatch({
+      type: "setPendingDimensions",
+      dimensions: {
+        rows: next.rows ?? pendingDimensions.rows,
+        columns: nextColumns,
+        environment,
+      },
     });
+  }
+
+  function openLayoutSettings() {
+    if (!draft) return;
+    dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
+    setLayoutSettingsModalOpen(true);
+  }
+
+  function cancelLayoutSettings() {
+    if (draft) dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
+    setLayoutSettingsModalOpen(false);
   }
 
   function applyDimensions() {
     if (!isEditing || !draft) return;
     const nextRows = pendingDimensions.rows;
     const nextColumns = pendingDimensions.columns;
-    if (nextRows === draft.rows && nextColumns === draft.columns) return;
+    const nextEnvironment = cloneEnvironment(pendingDimensions.environment);
+    if (
+      nextRows === draft.rows
+      && nextColumns === draft.columns
+      && environmentsEqual(nextEnvironment, draft.environment)
+    ) {
+      setLayoutSettingsModalOpen(false);
+      return;
+    }
 
-    const nextAisles = getSeatingAisleColumns(nextColumns);
     const displacedAssignments = draft.assignments.filter(
       (assignment) => assignment.row > nextRows
-        || assignment.column > nextColumns
-        || nextAisles.includes(assignment.column),
+        || assignment.column > nextColumns,
     );
-    const nextEnvironment: SeatingEnvironment = {
-      left: trimSideLayout(draft.environment.left, nextRows),
-      right: trimSideLayout(draft.environment.right, nextRows),
-    };
-    const hasTrimmedFeatures = draft.environment.left.windows.length !== nextEnvironment.left.windows.length
-      || draft.environment.right.windows.length !== nextEnvironment.right.windows.length
-      || draft.environment.left.doorRow !== nextEnvironment.left.doorRow
-      || draft.environment.right.doorRow !== nextEnvironment.right.doorRow;
     const apply = () => {
       commitDraft({
         ...draft,
@@ -442,12 +777,12 @@ export default function SeatingPage() {
         environment: nextEnvironment,
       });
       setSelectedStudentId(null);
+      setLayoutSettingsModalOpen(false);
     };
 
-    if (displacedAssignments.length || hasTrimmedFeatures) {
+    if (displacedAssignments.length) {
       const details = [
         displacedAssignments.length ? `${displacedAssignments.length} 位学生将回到待安排` : "",
-        hasTrimmedFeatures ? "超出范围的窗户或门口标记将被移除" : "",
       ].filter(Boolean).join("；");
       modal.confirm({
         title: "确认应用新的座位规格？",
@@ -461,13 +796,58 @@ export default function SeatingPage() {
     apply();
   }
 
+  function openAisleSettings() {
+    if (!draft) return;
+    dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
+    setAisleSettingsModalOpen(true);
+  }
+
+  function cancelAisleSettings() {
+    if (draft) dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
+    setAisleSettingsModalOpen(false);
+  }
+
+  function updatePendingAisles(values: readonly unknown[]) {
+    const environment = cloneEnvironment(pendingDimensions.environment);
+    const outOfRangeAisles = environment.aisleAfterColumns.filter(
+      (column) => column >= pendingDimensions.columns,
+    );
+    const selectedAisles = values.map((value) => Number(value))
+      .filter((column) => Number.isInteger(column) && column >= 1 && column < pendingDimensions.columns);
+    environment.aisleAfterColumns = [...new Set([
+      ...outOfRangeAisles,
+      ...selectedAisles,
+    ])]
+      .sort((left, right) => left - right);
+    dispatch({
+      type: "setPendingDimensions",
+      dimensions: { ...pendingDimensions, environment },
+    });
+  }
+
+  function applyAisleSettings() {
+    if (!isEditing || !draft) return;
+    const environment = cloneEnvironment(pendingDimensions.environment);
+    if (sameNumberList(environment.aisleAfterColumns, draft.environment.aisleAfterColumns)) {
+      setAisleSettingsModalOpen(false);
+      return;
+    }
+    commitDraft({ ...draft, environment });
+    setAisleSettingsModalOpen(false);
+  }
+
   async function saveLayout() {
     if (!draft) return;
+    if (!data?.revision) {
+      message.error("座次版本信息缺失，请刷新页面后再保存");
+      return;
+    }
     setSaving(true);
     try {
       await apiRequest("/api/seating", {
         method: "PUT",
         body: JSON.stringify({
+          revision: data.revision,
           rows: draft.rows,
           columns: draft.columns,
           assignments: draft.assignments,
@@ -476,8 +856,10 @@ export default function SeatingPage() {
       });
       message.success("座次与教室标记已保存");
       setIsEditing(false);
+      setStudentPoolPosition(null);
       setSelectedStudentId(null);
       setDropTarget(null);
+      setSeatActionMenuKey(null);
       await refresh();
     } catch (saveError) {
       message.error((saveError as Error).message);
@@ -488,17 +870,14 @@ export default function SeatingPage() {
 
   function renderSideRail(side: SideKey) {
     if (!draft) return null;
-    const menuItems: MenuProps["items"] = [
-      { key: "WINDOW", icon: <WindowsOutlined />, label: "窗户" },
-      { key: "DOOR", icon: <LoginOutlined />, label: "门口" },
-      { type: "divider" },
-      { key: "NONE", icon: <ClearOutlined />, label: "清除标记" },
-    ];
     return (
       <div className="room-side-column">
         <div className="room-column-label">{sideLabels[side]}</div>
-        <div className="room-side-track" style={{ gridTemplateRows: `repeat(${draft.rows}, minmax(132px, 1fr))` }}>
-          {Array.from({ length: draft.rows }, (_, index) => {
+        <div
+          className="room-side-track"
+          style={{ gridTemplateRows: `repeat(${DEFAULT_SEATING_SIDE_MARKER_ROWS}, minmax(96px, 1fr))` }}
+        >
+          {Array.from({ length: DEFAULT_SEATING_SIDE_MARKER_ROWS }, (_, index) => {
             const row = index + 1;
             const feature = sideFeatureForRow(draft.environment[side], row);
             const markerClass = `room-side-marker ${feature ? `room-side-marker-${feature.toLowerCase()}` : ""}`;
@@ -514,6 +893,8 @@ export default function SeatingPage() {
                 <div
                   key={`${side}-${row}`}
                   className={`${markerClass} room-side-marker-static`}
+                  data-side={side}
+                  data-marker-row={row}
                   aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
                 >
                   {markerContent}
@@ -522,27 +903,75 @@ export default function SeatingPage() {
             }
 
             return (
-              <Dropdown
+              <button
+                type="button"
                 key={`${side}-${row}`}
-                menu={{
-                  items: menuItems,
-                  onClick: ({ key }) => setSideFeature(side, row, key === "NONE" ? null : key as SideFeature),
-                }}
-                trigger={["click"]}
+                className={markerClass}
+                data-side={side}
+                data-marker-row={row}
+                aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}。点击切换标记`}
+                title={feature === null ? "添加窗户" : feature === "WINDOW" ? "改为门口" : "移除门口"}
+                onClick={() => cycleSideFeature(side, row)}
               >
-                <button
-                  type="button"
-                  className={markerClass}
-                  aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
-                  title={`${sideLabels[side]}第 ${row} 排`}
-                >
-                  {markerContent}
-                </button>
-              </Dropdown>
+                {markerContent}
+              </button>
             );
           })}
         </div>
       </div>
+    );
+  }
+
+  function renderRearFacilities() {
+    if (!draft) return null;
+    return (
+      <section className="room-rear" aria-label="后方设施">
+        <div className="room-rear-heading">
+          <span>后方</span>
+          <span>饮水机与空调</span>
+        </div>
+        <div className="room-rear-positions">
+          {rearPositions.map((position) => (
+            <div className="room-rear-position" key={position} data-rear-position={position}>
+              <span className="room-rear-position-label">{rearPositionLabels[position]}</span>
+              <div className="room-rear-facilities">
+                {(Object.keys(rearFacilityLabels) as RearFacility[]).map((facility) => {
+                  const isPlaced = draft.environment.rear[facility] === position;
+                  const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
+                  const isOccupiedByOther = !isPlaced && draft.environment.rear[otherFacility] === position;
+                  const FacilityIcon = facility === "waterDispenser" ? CoffeeOutlined : CloudOutlined;
+                  const actionLabel = isPlaced
+                    ? `移除${rearPositionLabels[position]}侧${rearFacilityLabels[facility]}`
+                    : `将${rearFacilityLabels[facility]}设置在${rearPositionLabels[position]}侧`;
+                  if (!isEditing && !isPlaced) return null;
+                  if (!isEditing) {
+                    return (
+                      <span className={`room-rear-facility room-rear-facility-${facility}`} key={facility}>
+                        <FacilityIcon />
+                        <span>{rearFacilityLabels[facility]}</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <Tooltip title={isOccupiedByOther ? `${rearPositionLabels[position]}侧已有${rearFacilityLabels[otherFacility]}` : actionLabel} key={facility}>
+                      <button
+                        type="button"
+                        className={`room-rear-facility-control ${isPlaced ? "room-rear-facility-selected" : ""} room-rear-facility-${facility}`}
+                        aria-label={isOccupiedByOther ? `${actionLabel}，该位置已有${rearFacilityLabels[otherFacility]}` : actionLabel}
+                        aria-pressed={isPlaced}
+                        onClick={() => setRearFacilityPosition(facility, position)}
+                      >
+                        <FacilityIcon />
+                        <span className="sr-only">{rearFacilityLabels[facility]}</span>
+                      </button>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     );
   }
 
@@ -555,7 +984,7 @@ export default function SeatingPage() {
         action={(
           <Space className="seating-heading-actions">
             {!isEditing ? (
-              <Button type="primary" icon={<EditOutlined />} onClick={() => setIsEditing(true)}>
+              <Button type="primary" icon={<EditOutlined />} onClick={() => { setStudentPoolPosition(null); setIsEditing(true); }}>
                 编辑座次
               </Button>
             ) : (
@@ -633,131 +1062,54 @@ export default function SeatingPage() {
             )}
           </div>
 
-          <div className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}>
-            {isEditing && <aside className="seating-sidebar">
-              <div className="seating-sidebar-section seating-layout-section">
-                <div className="seating-section-heading">
-                  <div>
-                    <h2>布局设置</h2>
-                    <span>调整后点击应用</span>
-                  </div>
-                  <Tag>{draft.rows} × {draft.columns}</Tag>
-                </div>
-                <div className="seating-dimension-fields">
-                  <label>
-                    <span>排数</span>
-                    <InputNumber
-                      min={1}
-                      max={12}
-                      value={pendingDimensions.rows}
-                      onChange={(value) => dispatch({ type: "setPendingDimensions", dimensions: { ...pendingDimensions, rows: value ?? pendingDimensions.rows } })}
-                      controls
-                    />
-                  </label>
-                  <label>
-                    <span>列数</span>
-                    <InputNumber
-                      min={1}
-                      max={12}
-                      value={pendingDimensions.columns}
-                      onChange={(value) => dispatch({ type: "setPendingDimensions", dimensions: { ...pendingDimensions, columns: value ?? pendingDimensions.columns } })}
-                      controls
-                    />
-                  </label>
-                </div>
-                <div className="seating-layout-capacity">
-                  <span>可用座位</span>
-                  <strong>{draft.rows * (draft.columns - aisleColumns.length)} 个</strong>
-                  <small>含 {aisleColumns.length} 条过道</small>
-                </div>
-                <Button
-                  block
-                  icon={<ColumnWidthOutlined />}
-                  disabled={pendingDimensions.rows === draft.rows && pendingDimensions.columns === draft.columns}
-                  onClick={applyDimensions}
+          <div
+            ref={workspaceBodyRef}
+            className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
+          >
+            {isEditing && <aside
+              ref={studentPoolPanelRef}
+              className={`seating-sidebar seating-sidebar-floating ${draggingStudentPool ? "seating-sidebar-floating-dragging" : ""}`}
+              style={studentPoolPosition ? { left: `${studentPoolPosition.x}px`, top: `${studentPoolPosition.y}px` } : undefined}
+              aria-label="待安排学生"
+            >
+              <Tooltip title="拖动学生池">
+                <button
+                  type="button"
+                  className="seating-sidebar-floating-handle"
+                  aria-label="拖动学生池位置"
+                  onPointerDown={startStudentPoolDrag}
+                  onPointerMove={moveStudentPool}
+                  onPointerUp={endStudentPoolDrag}
+                  onPointerCancel={endStudentPoolDrag}
+                  onKeyDown={handleStudentPoolHandleKeyDown}
                 >
-                  应用布局
-                </Button>
-              </div>
-
-              <Divider />
-
-              <div className="seating-sidebar-section seating-environment-section">
-                <div className="seating-section-heading">
-                  <div>
-                    <h2>教室标记</h2>
-                    <span>点击两侧排位设置</span>
-                  </div>
-                  <Tag icon={<WindowsOutlined />}>{environmentFeatureCount}</Tag>
-                </div>
-                <div className="seating-environment-list">
-                  <div><span className="seating-feature-symbol seating-feature-window"><WindowsOutlined /></span><span>窗户</span><strong>{draft.environment.left.windows.length + draft.environment.right.windows.length}</strong></div>
-                  <div><span className="seating-feature-symbol seating-feature-door"><LoginOutlined /></span><span>门口</span><strong>{Number(draft.environment.left.doorRow !== null) + Number(draft.environment.right.doorRow !== null)}</strong></div>
-                </div>
-              </div>
-
-              <Divider />
-
-              <div className="seating-sidebar-section seating-student-pool-section">
-                <div className="seating-section-heading seating-pool-heading">
-                  <div>
-                    <h2>学生池</h2>
-                    <span>{filteredStudents.length} 名学生</span>
-                  </div>
-                  <Tag color={assignedCount === studentCount ? "green" : "orange"}>待安排 {studentCount - assignedCount}</Tag>
-                </div>
-                <Input
-                  allowClear
-                  prefix={<HolderOutlined />}
-                  placeholder="搜索姓名或学号"
-                  value={studentQuery}
-                  onChange={(event) => setStudentQuery(event.target.value)}
-                />
-                <Segmented
-                  block
-                  options={[{ label: "待安排", value: "unassigned" }, { label: "全部学生", value: "all" }]}
-                  value={studentFilter}
-                  onChange={(value) => setStudentFilter(value as StudentFilter)}
-                />
-                {selectedStudent && (
-                  <div className="seating-selection-bar">
-                    <span className="student-avatar student-avatar-selected">{selectedStudent.name.slice(0, 1)}</span>
-                    <span>已选中 <strong>{selectedStudent.name}</strong></span>
-                    <Button type="text" aria-label="取消选择学生" icon={<CloseOutlined />} onClick={() => setSelectedStudentId(null)} />
-                  </div>
-                )}
-                <div
-                  className={`student-pool-list ${draggingStudentId ? "student-pool-list-drop-active" : ""}`}
-                  onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
-                  onDrop={handlePoolDrop}
-                >
-                  {filteredStudents.length ? filteredStudents.map((student) => {
-                    const assignment = assignmentByStudent.get(student.id);
-                    const isSelected = selectedStudentId === student.id;
-                    return (
-                      <button
-                        type="button"
-                        key={student.id}
-                        className={`student-pool-item ${isSelected ? "student-pool-item-selected" : ""} ${draggingStudentId === student.id ? "student-pool-item-dragging" : ""}`}
-                        draggable
-                        aria-pressed={isSelected}
-                        onClick={() => selectStudent(student.id)}
-                        onDragStart={(event) => startStudentDrag(event, student.id)}
-                        onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
-                      >
-                        <span className={`student-avatar ${student.gender === "FEMALE" ? "student-avatar-female" : ""}`}>{student.name.slice(0, 1)}</span>
-                        <span className="student-pool-copy">
-                          <strong>{student.name}</strong>
-                          <small>{student.studentNo}</small>
-                        </span>
-                        <span className="student-pool-location">{assignment ? `${assignment.row}排${assignment.column}座` : "未安排"}</span>
-                        <HolderOutlined className="student-drag-icon" />
-                      </button>
-                    );
-                  }) : (
-                    <div className="student-pool-empty"><InboxOutlined /><span>没有符合条件的学生</span></div>
-                  )}
-                </div>
+                  <HolderOutlined />
+                </button>
+              </Tooltip>
+              <div
+                className={`student-pool-list ${draggingStudentId ? "student-pool-list-drop-active" : ""}`}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
+                onDrop={handlePoolDrop}
+              >
+                {poolStudents.map((student) => {
+                  const isSelected = selectedStudentId === student.id;
+                  return (
+                    <button
+                      type="button"
+                      key={student.id}
+                      className={`student-pool-item ${isSelected ? "student-pool-item-selected" : ""} ${draggingStudentId === student.id ? "student-pool-item-dragging" : ""}`}
+                      aria-label={`${student.name}，拖动到座位`}
+                      draggable
+                      aria-pressed={isSelected}
+                      onClick={() => selectStudent(student.id)}
+                      onDragStart={(event) => startStudentDrag(event, student.id)}
+                      onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                    >
+                      <span className="student-pool-copy"><strong>{student.name}</strong></span>
+                    </button>
+                  );
+                })}
+                {!poolStudents.length && <span className="sr-only">当前没有待安排学生</span>}
               </div>
             </aside>}
 
@@ -765,9 +1117,25 @@ export default function SeatingPage() {
               <div className="seating-canvas-toolbar">
                 <div>
                   <strong>面向讲台</strong>
-                  <span>{draft.rows} 排 · {draft.columns - aisleColumns.length} 个座位/排</span>
+                  <span>{draft.rows} 排 · {draft.columns} 个座位/排</span>
                 </div>
                 <div className="seating-canvas-options">
+                  {isEditing && <Space className="seating-settings-actions">
+                    <Button
+                      className="seating-settings-button"
+                      icon={<SettingOutlined />}
+                      onClick={openLayoutSettings}
+                    >
+                      座位布局
+                    </Button>
+                    <Button
+                      className="seating-settings-button"
+                      icon={<ColumnWidthOutlined />}
+                      onClick={openAisleSettings}
+                    >
+                      过道设置
+                    </Button>
+                  </Space>}
                   <div className="seating-view-controls" aria-label="画布显示选项">
                     <span className="seating-view-controls-label"><EyeOutlined /> 显示侧边</span>
                     <label>
@@ -781,14 +1149,14 @@ export default function SeatingPage() {
                   </div>
                   <div className="seating-legend">
                   <span>{isEditing ? <DragOutlined /> : <EyeInvisibleOutlined />}{isEditing ? "拖放编辑" : "只读查看"}</span>
-                  <span><ColumnWidthOutlined />过道 {aisleColumns.length}</span>
-                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span></>}
+                  <span><ColumnWidthOutlined />过道 {aisleAfterColumns.length}</span>
+                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span><span><CoffeeOutlined />后方设施</span></>}
                   </div>
                 </div>
               </div>
 
               <div className="seating-map-scroll">
-                <div className="seating-map" style={{ minWidth: `${Math.max(980, draft.columns * 144 + 220)}px` }}>
+                <div className="seating-map">
                   <div className="room-front">
                     <span>前方</span>
                     <div className="blackboard"><strong>讲台</strong><small>BLACKBOARD</small></div>
@@ -798,98 +1166,101 @@ export default function SeatingPage() {
                     {showLeftSide && renderSideRail("left")}
                     <div className="room-center-column">
                       <div className="room-column-label">座位区</div>
-                      <div className="seat-grid" style={{ gridTemplateColumns: aisleColumns.length ? Array.from({ length: draft.columns }, (_, index) => aisleColumns.includes(index + 1) ? "34px" : "minmax(144px, 1fr)").join(" ") : `repeat(${draft.columns}, minmax(144px, 1fr))` }}>
-                        {Array.from({ length: draft.rows * draft.columns }, (_, index) => {
-                          const row = Math.floor(index / draft.columns) + 1;
-                          const column = (index % draft.columns) + 1;
-                          if (isSeatingAisleColumn(column, draft.columns)) {
-                            return (
-                              <div className="seat-aisle" aria-hidden="true" key={`${row}-${column}`}>
-                                {row === 1 && <span>过道</span>}
-                              </div>
-                            );
-                          }
-                          const assignment = assignmentByPosition.get(`${row}-${column}`);
-                          const student = assignment ? studentById.get(assignment.studentId) : undefined;
-                          const positionKey = `${row}-${column}`;
-                          const isTarget = dropTarget === positionKey;
+                      <div className="seat-grid" style={{ gridTemplateColumns: seatGridTemplate }}>
+                        {Array.from({ length: draft.rows }, (_, rowIndex) => {
+                          const row = rowIndex + 1;
                           return (
-                            <div
-                              className={`seat-cell ${student ? "seat-cell-filled" : "seat-cell-empty"} ${isEditing ? "seat-cell-editable" : "seat-cell-readonly"} ${isTarget ? "seat-cell-drop-target" : ""}`}
-                              key={positionKey}
-                              onClick={isEditing ? () => handleSeatClick(row, column) : undefined}
-                              onDragEnter={isEditing ? () => setDropTarget(positionKey) : undefined}
-                              onDragOver={isEditing ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(positionKey); } : undefined}
-                              onDragLeave={isEditing ? () => setDropTarget((current) => current === positionKey ? null : current) : undefined}
-                              onDrop={isEditing ? (event) => handleSeatDrop(event, row, column) : undefined}
-                            >
-                              <div className="seat-cell-header"><span>第 {row} 排</span><span>{column} 座</span></div>
-                              {student ? (
-                                <div className="seat-student-row">
-                                  {isEditing ? (
-                                    <button
-                                      type="button"
-                                      className={`seat-student ${selectedStudentId === student.id ? "seat-student-selected" : ""}`}
-                                      draggable
-                                      aria-pressed={selectedStudentId === student.id}
-                                      onClick={(event) => { event.stopPropagation(); selectStudent(student.id); }}
-                                      onDragStart={(event) => startStudentDrag(event, student.id)}
-                                      onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                            <Fragment key={`row-${row}`}>
+                              {Array.from({ length: draft.columns }, (_, columnIndex) => {
+                                const column = columnIndex + 1;
+                                const assignment = assignmentByPosition.get(`${row}-${column}`);
+                                const student = assignment ? studentById.get(assignment.studentId) : undefined;
+                                const positionKey = `${row}-${column}`;
+                                const isTarget = dropTarget === positionKey;
+                                return (
+                                  <Fragment key={positionKey}>
+                                    <div
+                                      className={`seat-cell ${student ? "seat-cell-filled" : "seat-cell-empty"} ${isEditing ? "seat-cell-editable" : "seat-cell-readonly"} ${isTarget ? "seat-cell-drop-target" : ""}`}
+                                      data-seat-row={row}
+                                      data-seat-column={column}
+                                      onClick={isEditing ? () => handleSeatClick(row, column) : undefined}
+                                      onDragEnter={isEditing ? () => setDropTarget(positionKey) : undefined}
+                                      onDragOver={isEditing ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(positionKey); } : undefined}
+                                      onDragLeave={isEditing ? () => setDropTarget((current) => current === positionKey ? null : current) : undefined}
+                                      onDrop={isEditing ? (event) => handleSeatDrop(event, row, column) : undefined}
                                     >
-                                      <span className={`student-avatar ${student.gender === "FEMALE" ? "student-avatar-female" : ""}`}>{student.name.slice(0, 1)}</span>
-                                      <span className="seat-student-copy"><strong title={student.name}>{student.name}</strong><small>{student.studentNo}</small></span>
-                                      <HolderOutlined className="student-drag-icon" />
-                                    </button>
-                                  ) : (
-                                    <div className="seat-student seat-student-readonly">
-                                      <span className={`student-avatar ${student.gender === "FEMALE" ? "student-avatar-female" : ""}`}>{student.name.slice(0, 1)}</span>
-                                      <span className="seat-student-copy"><strong title={student.name}>{student.name}</strong><small>{student.studentNo}</small></span>
+                                      <div className="seat-cell-header"><span>第 {row} 排</span><span>{column} 座</span></div>
+                                      {student ? (
+                                        <div className="seat-student-row">
+                                          {isEditing ? (
+                                            <Dropdown
+                                              trigger={[]}
+                                              open={seatActionMenuKey === positionKey}
+                                              onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
+                                              menu={{
+                                                items: seatActionMenuItems(student.id),
+                                                onClick: ({ key }) => handleSeatActionMenu(row, column, String(key)),
+                                              }}
+                                              classNames={{ root: "seat-replacement-menu" }}
+                                            >
+                                              <button
+                                                type="button"
+                                                className={`seat-student ${studentToneClass(student)} ${selectedStudentId === student.id ? "seat-student-selected" : ""}`}
+                                                draggable
+                                                aria-label={`第 ${row} 排 ${column} 座，${student.name}。打开座位操作`}
+                                                aria-haspopup="menu"
+                                                onClick={(event) => handleSeatStudentClick(event, positionKey)}
+                                                onContextMenu={(event) => handleSeatStudentContextMenu(event, positionKey)}
+                                                onPointerDown={(event) => startSeatLongPress(event, positionKey)}
+                                                onPointerMove={moveSeatLongPress}
+                                                onPointerUp={endSeatLongPress}
+                                                onPointerCancel={endSeatLongPress}
+                                                onPointerLeave={endSeatLongPress}
+                                                onDragStart={(event) => { setSeatActionMenuKey(null); startStudentDrag(event, student.id); }}
+                                                onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                                              >
+                                                <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
+                                              </button>
+                                            </Dropdown>
+                                          ) : (
+                                            <div className={`seat-student seat-student-readonly ${studentToneClass(student)}`} aria-label={`${row}排${column}座，${student.name}`}>
+                                              <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="seat-empty-editor">
+                                          <div className="seat-empty-trigger"><DragOutlined /><span>空座</span></div>
+                                          {isEditing && <Select
+                                            showSearch
+                                            variant="filled"
+                                            aria-label={`${row}排${column}座学生`}
+                                            placeholder="选择学生"
+                                            optionFilterProp="label"
+                                            value={undefined}
+                                            options={studentOptions}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onChange={(value) => changeSeat(row, column, typeof value === "string" ? value : undefined)}
+                                          />}
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                  {isEditing && <Tooltip title="移出座位">
-                                    <Button
-                                      type="text"
-                                      className="seat-clear-button"
-                                      aria-label={`移出${student.name}`}
-                                      icon={<CloseOutlined />}
-                                      onClick={(event) => { event.stopPropagation(); clearSeat(row, column); }}
-                                    />
-                                  </Tooltip>}
-                                </div>
-                              ) : (
-                                <div className="seat-empty-editor">
-                                  <div className="seat-empty-trigger"><DragOutlined /><span>空座</span></div>
-                                  {isEditing && <Select
-                                    showSearch
-                                    variant="filled"
-                                    aria-label={`${row}排${column}座学生`}
-                                    placeholder="选择学生"
-                                    optionFilterProp="label"
-                                    value={undefined}
-                                    options={studentOptions}
-                                    onClick={(event) => event.stopPropagation()}
-                                    onChange={(value) => changeSeat(row, column, typeof value === "string" ? value : undefined)}
-                                  />}
-                                </div>
-                              )}
-                              {student && isEditing && <Select
-                                showSearch
-                                variant="filled"
-                                aria-label={`${row}排${column}座学生`}
-                                placeholder="更换学生"
-                                optionFilterProp="label"
-                                value={undefined}
-                                options={studentOptions}
-                                onClick={(event) => event.stopPropagation()}
-                                onChange={(value) => changeSeat(row, column, typeof value === "string" ? value : undefined)}
-                              />}
-                            </div>
+                                    {isSeatingAisleAfterColumn(column, draft.columns, aisleAfterColumns) && (
+                                      <div className="seat-aisle" aria-hidden="true">
+                                        {row === 1 && <span>过道</span>}
+                                      </div>
+                                    )}
+                                  </Fragment>
+                                );
+                              })}
+                            </Fragment>
                           );
                         })}
                       </div>
                     </div>
                     {showRightSide && renderSideRail("right")}
                   </div>
+                  {renderRearFacilities()}
                 </div>
               </div>
             </section>
@@ -897,10 +1268,103 @@ export default function SeatingPage() {
 
           {isEditing && <div className="seating-workspace-footer">
             <Space size={6}><SwapOutlined /><span>拖动已安排学生到其他座位可直接交换；拖回学生池即可取消安排。</span></Space>
-            <span className="seating-footer-capacity">座位容量 {draft.rows * (draft.columns - aisleColumns.length)} · 当前安排 {assignedCount}</span>
+            <span className="seating-footer-capacity">座位容量 {draft.rows * draft.columns} · 当前安排 {assignedCount}</span>
           </div>}
         </Card>
       )}
+      <Modal
+        className="seating-settings-modal"
+        title="座位布局"
+        open={layoutSettingsModalOpen}
+        width={560}
+        destroyOnHidden
+        onCancel={cancelLayoutSettings}
+        onOk={applyDimensions}
+        okText="应用设置"
+        cancelText="取消"
+      >
+        {draft && (
+          <div className="seating-settings-content">
+            <section className="seating-settings-section">
+              <div className="seating-settings-section-heading">
+                <div>
+                  <h3>座位布局</h3>
+                  <p>调整座位排数与列数，过道设置保持独立。</p>
+                </div>
+                <Tag>{pendingDimensions.rows} × {pendingDimensions.columns}</Tag>
+              </div>
+              <div className="seating-settings-dimensions">
+                <label>
+                  <span>排数</span>
+                  <InputNumber
+                    min={1}
+                    max={12}
+                    value={pendingDimensions.rows}
+                    onChange={(value) => updatePendingDimensions({ rows: value ?? pendingDimensions.rows })}
+                    controls
+                  />
+                </label>
+                <label>
+                  <span>列数</span>
+                  <InputNumber
+                    min={1}
+                    max={12}
+                    value={pendingDimensions.columns}
+                    onChange={(value) => updatePendingDimensions({ columns: value ?? pendingDimensions.columns })}
+                    controls
+                  />
+                </label>
+              </div>
+              <div className="seating-settings-capacity">
+                <span>可用座位</span>
+                <strong>{pendingDimensions.rows * pendingDimensions.columns} 个</strong>
+              </div>
+            </section>
+          </div>
+        )}
+      </Modal>
+      <Modal
+        className="seating-settings-modal"
+        title="过道设置"
+        open={aisleSettingsModalOpen}
+        width={560}
+        destroyOnHidden
+        onCancel={cancelAisleSettings}
+        onOk={applyAisleSettings}
+        okText="应用过道"
+        cancelText="取消"
+      >
+        {draft && (
+          <div className="seating-settings-content">
+            <section className="seating-settings-section">
+              <div className="seating-settings-section-heading">
+                <div>
+                  <h3>过道插入位置</h3>
+                  <p>过道插入在指定座位列之后，不占用座位列。</p>
+                </div>
+                <Tag>{pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条</Tag>
+              </div>
+              <div className="seating-aisle-options">
+                <Checkbox.Group
+                  value={pendingDimensions.environment.aisleAfterColumns.filter(
+                    (column) => column >= 1 && column < pendingDimensions.columns,
+                  )}
+                  options={Array.from({ length: Math.max(pendingDimensions.columns - 1, 0) }, (_, index) => {
+                    const column = index + 1;
+                    return { label: `第 ${column} 列后`, value: column };
+                  })}
+                  onChange={updatePendingAisles}
+                />
+              </div>
+              <div className="seating-settings-capacity">
+                <span>座位容量</span>
+                <strong>{pendingDimensions.rows * pendingDimensions.columns} 个</strong>
+                <small>当前绘制 {pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条过道</small>
+              </div>
+            </section>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

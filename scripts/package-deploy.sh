@@ -114,6 +114,8 @@ tar_excludes=(
   '--exclude=*service-account*.json'
   '--exclude=*serviceAccount*.json'
   '--exclude=*secret*.json'
+  '--exclude=*/.next'
+  '--exclude=*/node_modules'
   '--exclude=*/src/generated/prisma'
   '--exclude=*.log'
   '--exclude=*.tsbuildinfo'
@@ -157,6 +159,12 @@ for secret_pattern in \
   fi
 done
 
+if grep -Eiq '(^|/)(\.next|node_modules)(/|$)' <<<"$ARCHIVE_CONTENTS"; then
+  rm -f "$ARCHIVE_PATH"
+  echo "发布包安全检查失败，源码包不应包含本机构建产物或依赖目录" >&2
+  exit 1
+fi
+
 set +o pipefail
 if gzip -dc "$ARCHIVE_PATH" | grep -aEiq 'LIBARCHIVE\.xattr|SCHILY\.xattr|com\.apple\.'; then
   set -o pipefail
@@ -184,4 +192,4 @@ echo "发布包：$ARCHIVE_PATH"
 echo "校验文件：$CHECKSUM_PATH"
 echo "大小：$ARCHIVE_SIZE"
 echo
-echo "可直接运行 npm run deploy 发布；手工上传到服务器时，请先校验 SHA-256，再解压并执行 npm ci 和 npm run build。"
+echo "这是仅含源码的发布包。服务器会在其 Linux 运行环境中执行 npm ci、npm run build 和生产依赖裁剪。"

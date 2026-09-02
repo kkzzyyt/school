@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_SEATING_AISLE_COLUMNS,
+  DEFAULT_SEATING_AISLE_AFTER_COLUMNS,
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ROWS,
-  getSeatingAisleColumns,
-  isSeatingAisleColumn,
+  getSeatingAisleAfterColumns,
+  isSeatingAisleAfterColumn,
   SeatingValidationError,
   swapStudentSeats,
   validateSeatingEnvironment,
@@ -17,8 +17,8 @@ describe("default seating dimensions", () => {
     expect({
       rows: DEFAULT_SEATING_ROWS,
       columns: DEFAULT_SEATING_COLUMNS,
-      aisleColumns: DEFAULT_SEATING_AISLE_COLUMNS,
-    }).toEqual({ rows: 7, columns: 10, aisleColumns: [3, 8] });
+      aisleAfterColumns: DEFAULT_SEATING_AISLE_AFTER_COLUMNS,
+    }).toEqual({ rows: 7, columns: 8, aisleAfterColumns: [2, 6] });
   });
 });
 
@@ -75,14 +75,12 @@ describe("validateSeatingLayout", () => {
     ).toThrowError(new SeatingValidationError("POSITION_OUT_OF_BOUNDS"));
   });
 
-  it("rejects assignments placed in a default aisle column", () => {
-    expect(() =>
-      validateSeatingLayout({
-        rows: DEFAULT_SEATING_ROWS,
-        columns: DEFAULT_SEATING_COLUMNS,
-        assignments: [{ studentId: "student-a", row: 1, column: 3 }],
-      }),
-    ).toThrowError(new SeatingValidationError("POSITION_IS_AISLE"));
+  it("keeps aisle insertion independent from seat coordinates", () => {
+    expect(validateSeatingLayout({
+      rows: DEFAULT_SEATING_ROWS,
+      columns: DEFAULT_SEATING_COLUMNS,
+      assignments: [{ studentId: "student-a", row: 1, column: 3 }],
+    }).assignments).toEqual([{ studentId: "student-a", row: 1, column: 3 }]);
   });
 
   it("rejects layouts outside supported dimensions", () => {
@@ -93,36 +91,87 @@ describe("validateSeatingLayout", () => {
 });
 
 describe("seating aisles", () => {
-  it("keeps the classroom default aisles and scales them for other layouts", () => {
-    expect(getSeatingAisleColumns(10)).toEqual([3, 8]);
-    expect(getSeatingAisleColumns(8)).toEqual([2, 6]);
-    expect(getSeatingAisleColumns(6)).toEqual([3]);
-    expect(isSeatingAisleColumn(8, 10)).toBe(true);
-    expect(isSeatingAisleColumn(7, 10)).toBe(false);
+  it("inserts default aisles after seat columns without reducing the seat column count", () => {
+    expect(DEFAULT_SEATING_AISLE_AFTER_COLUMNS).toEqual([2, 6]);
+    expect(getSeatingAisleAfterColumns(10)).toEqual([2, 6]);
+    expect(getSeatingAisleAfterColumns(8)).toEqual([2, 6]);
+    expect(getSeatingAisleAfterColumns(6)).toEqual([3]);
+    expect(isSeatingAisleAfterColumn(2, 10)).toBe(true);
+    expect(isSeatingAisleAfterColumn(3, 10)).toBe(false);
+    expect(isSeatingAisleAfterColumn(4, 6, [4])).toBe(true);
+    expect(isSeatingAisleAfterColumn(3, 6, [4])).toBe(false);
   });
 });
 
 describe("validateSeatingEnvironment", () => {
-  it("orders window rows and keeps one door per side", () => {
+  it("orders markers, allows two doors per side, and normalizes rear facilities", () => {
     expect(validateSeatingEnvironment({
-      left: { windows: [4, 1, 2], doorRow: null },
-      right: { windows: [3], doorRow: 5 },
-    }, 7)).toEqual({
-      left: { windows: [1, 2, 4], doorRow: null },
-      right: { windows: [3], doorRow: 5 },
+      aisleAfterColumns: [5, 2],
+      left: { windows: [4, 1], doorRows: [6, 3] },
+      right: { windows: [3], doorRows: [2, 5] },
+      rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
+    }, 2, 6)).toEqual({
+      aisleAfterColumns: [2, 5],
+      left: { windows: [1, 4], doorRows: [3, 6] },
+      right: { windows: [3], doorRows: [2, 5] },
+      rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
+    });
+  });
+
+  it("normalizes the legacy aisle and single-door fields", () => {
+    expect(validateSeatingEnvironment({
+      aisleColumns: [3, 8],
+      left: { windows: [], doorRow: 7 },
+      right: { windows: [], doorRow: null },
+    }, 2, 10)).toEqual({
+      aisleAfterColumns: [2, 6],
+      left: { windows: [], doorRows: [7] },
+      right: { windows: [], doorRows: [] },
+      rear: { waterDispenser: null, airConditioner: null },
     });
   });
 
   it.each([
-    { windows: [1, 1], doorRow: null },
-    { windows: [2], doorRow: 2 },
-    { windows: [8], doorRow: null },
-    { windows: [1], doorRow: 0 },
+    { windows: [1, 1], doorRows: [] },
+    { windows: [2], doorRows: [2] },
+    { windows: [13], doorRows: [] },
+    { windows: [1], doorRows: [0] },
+    { windows: [], doorRows: [1, 2, 3] },
+    { windows: [], doorRows: [1, 1] },
   ])("rejects invalid side markers: %o", (left) => {
     expect(() => validateSeatingEnvironment({
       left,
-      right: { windows: [], doorRow: null },
+      right: { windows: [], doorRows: [] },
     }, 7)).toThrowError(new SeatingValidationError("INVALID_SIDE_FEATURES"));
+  });
+
+  it.each([
+    ["duplicate aisle boundaries", [2, 2]],
+    ["aisle before the first seat", [0]],
+    ["aisle outside the supported seat range", [12]],
+  ])("rejects %s", (_caseName, aisleAfterColumns) => {
+    expect(() => validateSeatingEnvironment({
+      aisleAfterColumns,
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+    }, 7, 8)).toThrowError(new SeatingValidationError("INVALID_AISLE_COLUMNS"));
+  });
+
+  it("rejects rear facilities placed at the same position", () => {
+    expect(() => validateSeatingEnvironment({
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+      rear: { waterDispenser: "CENTER", airConditioner: "CENTER" },
+    }, 7)).toThrowError(new SeatingValidationError("INVALID_REAR_FEATURES"));
+  });
+
+  it("preserves legacy markers beyond the fixed visible side rail", () => {
+    expect(validateSeatingEnvironment({
+      left: { windows: [8], doorRows: [9] },
+      right: { windows: [], doorRows: [] },
+    }, 7, undefined, { allowLegacySideRows: true })).toMatchObject({
+      left: { windows: [8], doorRows: [9] },
+    });
   });
 });
 

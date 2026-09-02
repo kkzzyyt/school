@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeftOutlined,
   BookOutlined,
   CalendarOutlined,
   DeleteOutlined,
@@ -31,7 +30,6 @@ import {
   Tooltip,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { PageHeading } from "@/components/layout/PageHeading";
 import {
@@ -93,7 +91,6 @@ function getTimetableSignature(data: TimetableApiResponse | null): string {
 
 export function TeacherDirectory() {
   const { message, modal } = App.useApp();
-  const router = useRouter();
   const { data, loading, error, refresh } = useApiData<TimetableApiResponse>("/api/timetable");
   const timetable = useMemo<TimetableData | null>(() => data ? normalizeTimetableData(data) : null, [data]);
   const sourceSignature = useMemo(() => getTimetableSignature(data), [data]);
@@ -294,7 +291,6 @@ export function TeacherDirectory() {
         description="集中维护教师资料与课程关联，课表中的任课教师会同步显示在这里。"
         action={(
           <div className={styles.headingActions}>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push("/timetable")}>返回课程表</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新增教师</Button>
           </div>
         )}

@@ -1,15 +1,13 @@
 "use client";
 
 import {
-  ArrowRightOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Col, Empty, Row, Skeleton, Space, Tag, Timeline } from "antd";
+import { Alert, Card, Col, Empty, Row, Skeleton, Space, Tag, Timeline } from "antd";
 import dayjs from "dayjs";
-import { useRouter } from "next/navigation";
 
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useApiData } from "@/hooks/useApiData";
@@ -33,7 +31,6 @@ const priorityColor = {
 } as const;
 
 export default function DashboardPage() {
-  const router = useRouter();
   const { data, loading, error } = useApiData<DashboardData>("/api/dashboard");
   const dateLabel = dayjs().format("M 月 D 日 dddd");
 
@@ -92,7 +89,6 @@ export default function DashboardPage() {
           <Card
             className="surface-card dashboard-schedule"
             title={<Space><CalendarOutlined />今日课程</Space>}
-            extra={<Button type="link" onClick={() => router.push("/timetable")}>完整课表 <ArrowRightOutlined /></Button>}
           >
             {data.today.courses.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="今天没有课程安排" />
@@ -116,7 +112,7 @@ export default function DashboardPage() {
 
           <Row gutter={[18, 18]} style={{ marginTop: 18 }}>
             <Col xs={24} lg={12}>
-              <Card className="surface-card" title="今日值日" extra={<Button type="link" onClick={() => router.push("/duties")}>调整安排</Button>}>
+              <Card className="surface-card" title="今日值日">
                 {data.today.dutyGroups.length === 0 ? (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="今天没有值日安排" />
                 ) : (
@@ -130,7 +126,7 @@ export default function DashboardPage() {
               </Card>
             </Col>
             <Col xs={24} lg={12}>
-              <Card className="surface-card" title="最近考试" extra={<Button type="link" onClick={() => router.push("/grades")}>查看分析</Button>}>
+              <Card className="surface-card" title="最近考试">
                 {data.recentExams.length === 0 ? (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无考试记录" />
                 ) : (
@@ -140,7 +136,6 @@ export default function DashboardPage() {
                         <strong>{exam.name}</strong>
                         <span className="muted">{dayjs(exam.examDate).format("YYYY 年 M 月 D 日")}</span>
                       </div>
-                      <Button type="link" onClick={() => router.push("/grades")}>分析</Button>
                     </div>
                   ))
                 )}

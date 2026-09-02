@@ -24,13 +24,15 @@ DEPLOY_PATH="${DEPLOY_PATH:-/www/wwwroot/school.19soul.cn}"
 DEPLOY_ENV_PATH="${DEPLOY_ENV_PATH:-}"
 DEPLOY_APP_NAME="${DEPLOY_APP_NAME:-school}"
 DEPLOY_APP_PORT="${DEPLOY_APP_PORT:-3000}"
+DEPLOY_RUNTIME="${DEPLOY_RUNTIME:-pm2}"
+DEPLOY_SERVICE="${DEPLOY_SERVICE:-}"
+DEPLOY_APP_PATH="${DEPLOY_APP_PATH:-}"
 DEPLOY_PM2_BIN="${DEPLOY_PM2_BIN:-pm2}"
 DEPLOY_NPM_BIN="${DEPLOY_NPM_BIN:-npm}"
 DEPLOY_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-}"
 DEPLOY_KEEP_RELEASES="${DEPLOY_KEEP_RELEASES:-5}"
 DEPLOY_BATCH_MODE="${DEPLOY_BATCH_MODE:-false}"
 SKIP_CHECKS=false
-SKIP_BUILD=false
 SKIP_MIGRATIONS=false
 DRY_RUN=false
 
@@ -46,19 +48,21 @@ usage() {
   --target <user@host>    直接指定 SSH 目标
   --port <端口>           SSH 端口，默认 22
   --identity <文件>       SSH 私钥文件
-  --known-hosts <文件>    指定 SSH known_hosts 文件
+  --known-hosts <文件>    固定的 SSH known_hosts 文件（必填）
   --proxy-command <命令>  SSH 代理命令，例如 SOCKS5 的 nc 命令
   --path <目录>           远程应用目录，默认 /www/wwwroot/school.19soul.cn
-  --env-path <文件>       远程运行时 .env 文件，默认 <目录>/.env
+  --env-path <文件>       远程运行时 .env；默认 PM2 为 <目录>/.env，systemd 为 <目录>/.deploy/runtime.env
   --app-name <名称>       PM2 进程名，默认 school
   --app-port <端口>       Next.js 本地监听端口，默认 3000
+  --runtime <模式>        远程运行模式：pm2 或 systemd
+  --service <名称>        systemd 服务名（systemd 模式必填）
+  --app-path <目录>       systemd 应用目录，默认 <部署目录>/school
   --pm2 <命令或文件>      PM2 命令或绝对路径，默认 pm2
   --npm <命令或文件>      npm 命令或绝对路径，默认 npm
   --health-url <URL>      远程健康检查 URL
   --keep-releases <数量>  保留 release 数量，默认 5
   --batch-mode            禁止密码交互，仅使用密钥认证
   --skip-checks           跳过 lint、类型检查和单元测试
-  --skip-build            跳过本地生产构建（远程仍会构建）
   --skip-migrations       跳过远程 prisma migrate deploy
   --dry-run               只打包并检查 SSH，不上传或发布
   -h, --help              显示帮助
@@ -93,6 +97,18 @@ validate_no_whitespace() {
   local name="$1"
   local value="$2"
   [[ "$value" != *[[:space:]]* ]] || die "$name 不能包含空格或换行"
+}
+
+validate_canonical_remote_path() {
+  local name="$1"
+  local value="$2"
+
+  [[ "$value" == /* ]] || die "$name 必须是绝对路径"
+  [[ "$value" != *[[:space:]]* ]] || die "$name 不能包含空格或换行"
+  [[ "$value" != *'//'* ]] || die "$name 不能包含连续 /"
+  [[ "$value" != */ ]] || die "$name 不能以 / 结尾"
+  [[ "$value" != *"/./"* && "$value" != */. ]] || die "$name 不能包含 . 路径段"
+  [[ "$value" != *"/../"* && "$value" != */.. ]] || die "$name 不能包含 .."
 }
 
 shell_quote() {
@@ -158,6 +174,21 @@ while [[ $# -gt 0 ]]; do
       DEPLOY_APP_PORT="$2"
       shift 2
       ;;
+    --runtime)
+      [[ $# -ge 2 ]] || die "--runtime 缺少参数"
+      DEPLOY_RUNTIME="$2"
+      shift 2
+      ;;
+    --service)
+      [[ $# -ge 2 ]] || die "--service 缺少参数"
+      DEPLOY_SERVICE="$2"
+      shift 2
+      ;;
+    --app-path)
+      [[ $# -ge 2 ]] || die "--app-path 缺少参数"
+      DEPLOY_APP_PATH="$2"
+      shift 2
+      ;;
     --pm2)
       [[ $# -ge 2 ]] || die "--pm2 缺少参数"
       DEPLOY_PM2_BIN="$2"
@@ -186,10 +217,6 @@ while [[ $# -gt 0 ]]; do
       SKIP_CHECKS=true
       shift
       ;;
-    --skip-build)
-      SKIP_BUILD=true
-      shift
-      ;;
     --skip-migrations)
       SKIP_MIGRATIONS=true
       shift
@@ -209,7 +236,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$DEPLOY_ENV_PATH" ]]; then
-  DEPLOY_ENV_PATH="$DEPLOY_PATH/.env"
+  if [[ "$DEPLOY_RUNTIME" == systemd ]]; then
+    DEPLOY_ENV_PATH="$DEPLOY_PATH/.deploy/runtime.env"
+  else
+    DEPLOY_ENV_PATH="$DEPLOY_PATH/.env"
+  fi
+fi
+if [[ -z "$DEPLOY_APP_PATH" ]]; then
+  DEPLOY_APP_PATH="$DEPLOY_PATH/school"
 fi
 if [[ -z "$DEPLOY_HEALTHCHECK_URL" ]]; then
   DEPLOY_HEALTHCHECK_URL="http://127.0.0.1:$DEPLOY_APP_PORT/api/health"
@@ -225,6 +259,7 @@ for value_pair in \
   "DEPLOY_TARGET=$DEPLOY_TARGET" \
   "DEPLOY_PATH=$DEPLOY_PATH" \
   "DEPLOY_ENV_PATH=$DEPLOY_ENV_PATH" \
+  "DEPLOY_APP_PATH=$DEPLOY_APP_PATH" \
   "DEPLOY_HEALTHCHECK_URL=$DEPLOY_HEALTHCHECK_URL" \
   "DEPLOY_PM2_BIN=$DEPLOY_PM2_BIN" \
   "DEPLOY_NPM_BIN=$DEPLOY_NPM_BIN"; do
@@ -233,10 +268,14 @@ for value_pair in \
   validate_no_whitespace "$value_name" "$value_value"
 done
 
-[[ "$DEPLOY_PATH" == /* ]] || die "DEPLOY_PATH 必须是绝对路径"
-[[ "$DEPLOY_ENV_PATH" == /* ]] || die "DEPLOY_ENV_PATH 必须是绝对路径"
-[[ "$DEPLOY_PATH" != *"/../"* && "$DEPLOY_PATH" != */.. ]] || die "DEPLOY_PATH 不能包含 .."
-[[ "$DEPLOY_ENV_PATH" != *"/../"* && "$DEPLOY_ENV_PATH" != */.. ]] || die "DEPLOY_ENV_PATH 不能包含 .."
+validate_canonical_remote_path "DEPLOY_PATH" "$DEPLOY_PATH"
+validate_canonical_remote_path "DEPLOY_ENV_PATH" "$DEPLOY_ENV_PATH"
+validate_canonical_remote_path "DEPLOY_APP_PATH" "$DEPLOY_APP_PATH"
+[[ "$DEPLOY_RUNTIME" == pm2 || "$DEPLOY_RUNTIME" == systemd ]] || die "DEPLOY_RUNTIME 必须是 pm2 或 systemd"
+if [[ "$DEPLOY_RUNTIME" == systemd ]]; then
+  [[ "$DEPLOY_APP_PATH" == "$DEPLOY_PATH"/* ]] || die "systemd 应用目录必须位于部署目录内"
+  [[ "$DEPLOY_SERVICE" =~ ^[A-Za-z0-9_.@-]+$ ]] || die "DEPLOY_SERVICE 非法"
+fi
 [[ "$DEPLOY_APP_NAME" =~ ^[A-Za-z0-9_-]+$ ]] || die "DEPLOY_APP_NAME 只能包含字母、数字、下划线和连字符"
 [[ "$DEPLOY_PROXY_COMMAND" != *$'\n'* && "$DEPLOY_PROXY_COMMAND" != *$'\r'* ]] || die "DEPLOY_PROXY_COMMAND 不能包含换行"
 [[ "$DEPLOY_BATCH_MODE" == true || "$DEPLOY_BATCH_MODE" == false ]] || die "DEPLOY_BATCH_MODE 必须是 true 或 false"
@@ -254,28 +293,37 @@ require_command scp
 require_command ssh
 
 [[ -f "$PROJECT_ROOT/scripts/package-deploy.sh" ]] || die "找不到 scripts/package-deploy.sh"
-[[ -f "$PROJECT_ROOT/scripts/remote-deploy.sh" ]] || die "找不到 scripts/remote-deploy.sh"
+if [[ "$DEPLOY_RUNTIME" == systemd ]]; then
+  [[ -f "$PROJECT_ROOT/scripts/remote-deploy-systemd.sh" ]] || die "找不到 scripts/remote-deploy-systemd.sh"
+else
+  [[ -f "$PROJECT_ROOT/scripts/remote-deploy.sh" ]] || die "找不到 scripts/remote-deploy.sh"
+fi
 
 if [[ -n "$DEPLOY_IDENTITY_FILE" ]]; then
   [[ -f "$DEPLOY_IDENTITY_FILE" ]] || die "SSH 私钥不存在：$DEPLOY_IDENTITY_FILE"
 fi
-if [[ -n "$DEPLOY_KNOWN_HOSTS_FILE" ]]; then
-  [[ -f "$DEPLOY_KNOWN_HOSTS_FILE" ]] || die "known_hosts 文件不存在：$DEPLOY_KNOWN_HOSTS_FILE"
-fi
+[[ -n "$DEPLOY_KNOWN_HOSTS_FILE" ]] || die "必须通过 DEPLOY_KNOWN_HOSTS_FILE 或 --known-hosts 指定固定的 SSH known_hosts 文件"
+[[ -f "$DEPLOY_KNOWN_HOSTS_FILE" ]] || die "known_hosts 文件不存在：$DEPLOY_KNOWN_HOSTS_FILE"
 
 SSH_OPTIONS=(
   -p "$DEPLOY_PORT"
   -o ConnectTimeout=10
   -o ServerAliveInterval=15
   -o ServerAliveCountMax=3
-  -o StrictHostKeyChecking=accept-new
+  -o StrictHostKeyChecking=yes
+  -o "UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE"
+  -o GlobalKnownHostsFile=/dev/null
+  -o UpdateHostKeys=no
 )
 SCP_OPTIONS=(
   -P "$DEPLOY_PORT"
   -o ConnectTimeout=10
   -o ServerAliveInterval=15
   -o ServerAliveCountMax=3
-  -o StrictHostKeyChecking=accept-new
+  -o StrictHostKeyChecking=yes
+  -o "UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE"
+  -o GlobalKnownHostsFile=/dev/null
+  -o UpdateHostKeys=no
 )
 if [[ "$DEPLOY_BATCH_MODE" == true ]]; then
   SSH_OPTIONS+=(-o BatchMode=yes)
@@ -289,11 +337,6 @@ if [[ -n "$DEPLOY_IDENTITY_FILE" ]]; then
   SSH_OPTIONS+=(-i "$DEPLOY_IDENTITY_FILE")
   SCP_OPTIONS+=(-i "$DEPLOY_IDENTITY_FILE")
 fi
-if [[ -n "$DEPLOY_KNOWN_HOSTS_FILE" ]]; then
-  SSH_OPTIONS+=(-o "UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE")
-  SCP_OPTIONS+=(-o "UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE")
-fi
-
 run_ssh() {
   ssh "${SSH_OPTIONS[@]}" "$DEPLOY_TARGET" "$@"
 }
@@ -304,17 +347,10 @@ cleanup_local() {
 }
 trap cleanup_local EXIT
 
-echo "[1/6] 检查 SSH 连接：$DEPLOY_TARGET"
+echo "[1/5] 检查 SSH 连接：$DEPLOY_TARGET"
 run_ssh "printf '%s\\n' 'SSH connection established'"
 
-if [[ "$SKIP_BUILD" == false ]]; then
-  echo "[2/6] 运行本地生产构建"
-  (cd "$PROJECT_ROOT" && npm run build)
-else
-  echo "[2/6] 已跳过本地生产构建"
-fi
-
-echo "[3/6] 生成发布包"
+echo "[2/5] 生成源码发布包"
 PACKAGE_ARGS=(--output-dir "$TEMP_DIR")
 if [[ "$SKIP_CHECKS" == true ]]; then
   PACKAGE_ARGS+=(--skip-checks)
@@ -338,22 +374,33 @@ REMOTE_ARCHIVE="$REMOTE_INCOMING/$ARCHIVE_NAME"
 REMOTE_CHECKSUM="$REMOTE_ARCHIVE.sha256"
 
 if [[ "$DRY_RUN" == true ]]; then
-  echo "[4/6] dry-run：跳过远程目录创建和发布包上传"
+  echo "[3/5] dry-run：跳过远程目录创建和发布包上传"
   echo "已完成 dry-run：仅检查 SSH、执行本地检查并生成发布包"
   echo "发布包：$ARCHIVE_PATH"
   exit 0
 fi
 
-echo "[4/6] 准备远程目录并上传发布包"
+echo "[3/5] 准备远程目录并上传发布包"
 run_ssh "mkdir -p $(shell_quote "$REMOTE_INCOMING")"
 scp "${SCP_OPTIONS[@]}" "$ARCHIVE_PATH" "$DEPLOY_TARGET:$REMOTE_ARCHIVE"
 scp "${SCP_OPTIONS[@]}" "$CHECKSUM_PATH" "$DEPLOY_TARGET:$REMOTE_CHECKSUM"
 
-echo "[5/6] 远程安装、迁移、构建并切换 release"
-REMOTE_COMMAND="bash -s -- $(shell_quote "$DEPLOY_PATH") $(shell_quote "$REMOTE_ARCHIVE") $(shell_quote "$REMOTE_CHECKSUM") $(shell_quote "$RELEASE_ID") $(shell_quote "$DEPLOY_ENV_PATH") $(shell_quote "$DEPLOY_APP_NAME") $(shell_quote "$DEPLOY_APP_PORT") $(shell_quote "$DEPLOY_KEEP_RELEASES") $(shell_quote "$DEPLOY_PM2_BIN") $(shell_quote "$DEPLOY_NPM_BIN") $(shell_quote "$DEPLOY_HEALTHCHECK_URL") $(shell_quote "$SKIP_MIGRATIONS")"
-run_ssh "$REMOTE_COMMAND" < "$PROJECT_ROOT/scripts/remote-deploy.sh"
+if [[ "$DEPLOY_RUNTIME" == systemd ]]; then
+  echo "[4/5] 在远程 release 中安装、构建、迁移并切换 systemd 服务"
+  REMOTE_COMMAND="bash -s -- $(shell_quote "$DEPLOY_PATH") $(shell_quote "$REMOTE_ARCHIVE") $(shell_quote "$REMOTE_CHECKSUM") $(shell_quote "$RELEASE_ID") $(shell_quote "$DEPLOY_ENV_PATH") $(shell_quote "$DEPLOY_SERVICE") $(shell_quote "$DEPLOY_APP_PATH") $(shell_quote "$DEPLOY_HEALTHCHECK_URL") $(shell_quote "$DEPLOY_KEEP_RELEASES") $(shell_quote "$DEPLOY_NPM_BIN") $(shell_quote "$SKIP_MIGRATIONS")"
+  run_ssh "$REMOTE_COMMAND" < "$PROJECT_ROOT/scripts/remote-deploy-systemd.sh"
+else
+  echo "[4/5] 在远程 release 中安装、构建、迁移并切换 PM2 进程"
+  REMOTE_COMMAND="bash -s -- $(shell_quote "$DEPLOY_PATH") $(shell_quote "$REMOTE_ARCHIVE") $(shell_quote "$REMOTE_CHECKSUM") $(shell_quote "$RELEASE_ID") $(shell_quote "$DEPLOY_ENV_PATH") $(shell_quote "$DEPLOY_APP_NAME") $(shell_quote "$DEPLOY_APP_PORT") $(shell_quote "$DEPLOY_KEEP_RELEASES") $(shell_quote "$DEPLOY_PM2_BIN") $(shell_quote "$DEPLOY_NPM_BIN") $(shell_quote "$DEPLOY_HEALTHCHECK_URL") $(shell_quote "$SKIP_MIGRATIONS")"
+  run_ssh "$REMOTE_COMMAND" < "$PROJECT_ROOT/scripts/remote-deploy.sh"
+fi
 
-echo "[6/6] 部署完成"
+echo "[5/5] 部署完成"
 echo "远程目录：$DEPLOY_PATH"
-echo "PM2 进程：$DEPLOY_APP_NAME"
+echo "运行模式：$DEPLOY_RUNTIME"
+if [[ "$DEPLOY_RUNTIME" == pm2 ]]; then
+  echo "PM2 进程：$DEPLOY_APP_NAME"
+else
+  echo "systemd 服务：$DEPLOY_SERVICE"
+fi
 echo "健康检查：$DEPLOY_HEALTHCHECK_URL"

@@ -53,12 +53,30 @@
 
 | Method | Path | 说明 |
 | --- | --- | --- |
-| GET | `/api/seating` | 布局尺寸、学生、当前分配和左右侧教室标记 |
-| PUT | `/api/seating` | `{ rows, columns, assignments[], environment }` 原子替换座次与教室标记 |
+| GET | `/api/seating` | 布局尺寸、学生、当前分配、教室环境和 `revision`；座位行列不包含过道或左右侧轨道 |
+| PUT | `/api/seating` | `{ revision, rows, columns, assignments[], environment }` 原子替换座次与教室标记 |
 | GET | `/api/duties` | 值日组与成员 |
 | POST | `/api/duties` | 新增值日组 |
 | PATCH | `/api/duties/:id` | 更新组信息和成员 |
 | DELETE | `/api/duties/:id` | 删除值日组 |
+
+`environment` 的完整结构为：
+
+```json
+{
+  "aisleAfterColumns": [2, 6],
+  "left": { "windows": [1, 2], "doorRows": [] },
+  "right": { "windows": [], "doorRows": [7] },
+  "rear": { "waterDispenser": "LEFT", "airConditioner": "RIGHT" }
+}
+```
+
+- `aisleAfterColumns` 表示在第几列座位之后插入过道，不占用也不减少座位列；过道位置独立于排数、列数和左右侧轨道。
+- 默认教室为 `2 | 4 | 2`：8 列座位，在第 2、6 列后插入两条过道。
+- 左右侧轨道固定为 7 个标记位。窗户和门口使用从 `1` 开始的轨道排号；每侧最多两个门口，且同一位置只能设置一种标记。
+- `rear` 的饮水机和空调可定位在 `LEFT`、`CENTER` 或 `RIGHT`，两者不能重叠。
+- 为兼容旧客户端与既有 JSON，服务端会把 `aisleColumns` 和单一 `doorRow` 归一化为 `aisleAfterColumns` 和 `doorRows`；PUT 也可以省略 `environment`。
+- PUT 必须回传 GET 给出的 `revision`。revision 已过期时返回 `409 STALE_WRITE`，不会删除当前座次。
 
 ## 6. 班委和课表
 
@@ -81,5 +99,5 @@
 ## 8. 并发与幂等
 
 - 原子替换接口在事务内先验证完整载荷，再执行写入。
-- 更新接口接受 `updatedAt`；与当前值不一致时返回 `409 STALE_WRITE`。
+- 座次完整替换接口使用 GET 返回的 `revision`；与当前版本不一致时返回 `409 STALE_WRITE`。
 - POST 创建接口可在后续通过 `Idempotency-Key` 扩展；首版 UI 提交期间禁用按钮防止重复提交。

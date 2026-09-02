@@ -12,8 +12,8 @@ test("花名册内的全局搜索会同步页面筛选条件", async ({ page }) 
   await login(page);
   await page.goto("/students");
 
-  await page.getByPlaceholder("搜索学生、班级...").fill("陈晨");
-  await page.getByPlaceholder("搜索学生、班级...").press("Enter");
+  await page.getByPlaceholder("搜索姓名或学号").fill("陈晨");
+  await page.getByPlaceholder("搜索姓名或学号").press("Enter");
 
   const rosterSearch = page
     .locator("section")
@@ -62,9 +62,16 @@ test("座位和课程格具有唯一可访问名称", async ({ page }) => {
   await login(page);
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
-  await expect(page.getByRole("combobox", { name: "1排1座学生" })).toBeVisible();
+  await expect(page.locator(".seating-sidebar-floating")).toBeVisible();
+  const assignedSeats = page.getByRole("button", { name: /第 \d+ 排 \d+ 座，.+。打开座位操作/ });
+  await expect(assignedSeats).not.toHaveCount(0);
+  const assignedSeat = assignedSeats.first();
+  await expect(assignedSeat).toBeVisible();
+  await assignedSeat.click();
+  await expect(page.locator(".ant-dropdown-menu")).toBeVisible();
+  await assignedSeat.click();
   await expect(page.locator(".seat-aisle")).toHaveCount(14);
-  await expect(page.getByRole("combobox", { name: "1排3座学生" })).toHaveCount(0);
+  await expect(page.locator('[data-seat-row="1"][data-seat-column="3"]')).toHaveCount(1);
 
   await page.goto("/timetable");
   await expect(page.getByRole("button", { name: /周一第 1 节/ })).toBeVisible();

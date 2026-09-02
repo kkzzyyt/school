@@ -1,0 +1,2 @@
+ALTER TABLE `Classroom`
+    MODIFY `seatColumns` INTEGER NOT NULL DEFAULT 8;

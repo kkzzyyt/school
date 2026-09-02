@@ -5,23 +5,103 @@ export interface SeatAssignment {
 }
 
 export const DEFAULT_SEATING_ROWS = 7;
-export const DEFAULT_SEATING_COLUMNS = 10;
-export const DEFAULT_SEATING_AISLE_COLUMNS: readonly number[] = [3, 8];
+// Eight seat columns are grouped as 2 | 4 | 2. The two aisles are rendered between them.
+export const DEFAULT_SEATING_COLUMNS = 8;
+export const DEFAULT_SEATING_AISLE_AFTER_COLUMNS: readonly number[] = [2, 6];
+// Retained for consumers compiled against the earlier name. Values now mean insertion boundaries.
+export const DEFAULT_SEATING_AISLE_COLUMNS = DEFAULT_SEATING_AISLE_AFTER_COLUMNS;
+export const DEFAULT_SEATING_SIDE_MARKER_ROWS = 7;
+export const MAX_DOORS_PER_SIDE = 2;
+const MIN_SEAT_DIMENSION = 1;
+const MAX_SEAT_DIMENSION = 12;
 
 export interface SeatingSideLayout {
   windows: number[];
-  doorRow: number | null;
+  doorRows: number[];
+}
+
+export interface SeatingSideLayoutInput {
+  windows: number[];
+  doorRows?: number[];
+  // Legacy storage/API shape. It is normalized to doorRows on every read/write.
+  doorRow?: number | null;
+}
+
+export const rearFacilityPositions = ["LEFT", "CENTER", "RIGHT"] as const;
+export type RearFacilityPosition = (typeof rearFacilityPositions)[number];
+
+export interface SeatingRearLayout {
+  waterDispenser: RearFacilityPosition | null;
+  airConditioner: RearFacilityPosition | null;
+}
+
+export interface SeatingRearLayoutInput {
+  waterDispenser?: RearFacilityPosition | null;
+  airConditioner?: RearFacilityPosition | null;
 }
 
 export interface SeatingEnvironment {
+  aisleAfterColumns: number[];
   left: SeatingSideLayout;
   right: SeatingSideLayout;
+  rear: SeatingRearLayout;
 }
 
-export const DEFAULT_SEATING_ENVIRONMENT: SeatingEnvironment = {
-  left: { windows: [], doorRow: null },
-  right: { windows: [], doorRow: null },
-};
+export interface SeatingEnvironmentInput {
+  aisleAfterColumns?: number[];
+  // Legacy occupied-grid aisle values. They are converted to insertion boundaries.
+  aisleColumns?: number[];
+  left: SeatingSideLayoutInput;
+  right: SeatingSideLayoutInput;
+  rear?: SeatingRearLayoutInput;
+}
+
+export interface SeatingEnvironmentValidationOptions {
+  allowLegacySideRows?: boolean;
+}
+
+export function getSeatingAisleAfterColumns(
+  columns: number,
+  configuredAfterColumns?: readonly number[],
+): number[] {
+  if (configuredAfterColumns) {
+    return [...configuredAfterColumns]
+      .filter((column) => column >= 1 && column < columns)
+      .sort((left, right) => left - right);
+  }
+  if (!Number.isInteger(columns) || columns < MIN_SEAT_DIMENSION) {
+    return [];
+  }
+
+  if (columns === DEFAULT_SEATING_COLUMNS) {
+    return [...DEFAULT_SEATING_AISLE_AFTER_COLUMNS];
+  }
+
+  if (columns >= 8) {
+    const firstAisle = Math.max(1, Math.floor(columns / 4));
+    const secondAisle = Math.min(columns - 1, Math.floor(columns * 0.65));
+    return firstAisle === secondAisle
+      ? [firstAisle]
+      : [firstAisle, secondAisle];
+  }
+
+  return columns >= 2 ? [Math.floor(columns / 2)] : [];
+}
+
+export const getSeatingAisleColumns = getSeatingAisleAfterColumns;
+
+export function createDefaultSeatingEnvironment(
+  columns = DEFAULT_SEATING_COLUMNS,
+): SeatingEnvironment {
+  return {
+    aisleAfterColumns: getSeatingAisleAfterColumns(columns),
+    left: { windows: [], doorRows: [] },
+    right: { windows: [], doorRows: [] },
+    rear: { waterDispenser: null, airConditioner: null },
+  };
+}
+
+export const DEFAULT_SEATING_ENVIRONMENT = createDefaultSeatingEnvironment();
 
 export interface SeatingLayout {
   rows: number;
@@ -35,10 +115,9 @@ export type SeatingValidationCode =
   | "DUPLICATE_POSITION"
   | "POSITION_OUT_OF_BOUNDS"
   | "POSITION_IS_AISLE"
-  | "INVALID_SIDE_FEATURES";
-
-const MIN_SEAT_DIMENSION = 1;
-const MAX_SEAT_DIMENSION = 12;
+  | "INVALID_AISLE_COLUMNS"
+  | "INVALID_SIDE_FEATURES"
+  | "INVALID_REAR_FEATURES";
 
 export class SeatingValidationError extends Error {
   constructor(public readonly code: SeatingValidationCode) {
@@ -47,64 +126,106 @@ export class SeatingValidationError extends Error {
   }
 }
 
-export function isDefaultSeatingAisleColumn(
+export function isDefaultSeatingAisleAfterColumn(
   column: number,
   columns: number,
 ): boolean {
-  return isSeatingAisleColumn(column, columns);
+  return isSeatingAisleAfterColumn(column, columns);
 }
 
-export function getSeatingAisleColumns(columns: number): number[] {
-  if (!Number.isInteger(columns) || columns < MIN_SEAT_DIMENSION) {
-    return [];
-  }
+export const isDefaultSeatingAisleColumn = isDefaultSeatingAisleAfterColumn;
 
-  if (columns === DEFAULT_SEATING_COLUMNS) {
-    return [...DEFAULT_SEATING_AISLE_COLUMNS];
-  }
-
-  if (columns >= 8) {
-    const firstAisle = Math.max(2, Math.round(columns * 0.3));
-    const secondAisle = Math.min(columns - 1, Math.round(columns * 0.8));
-    return firstAisle === secondAisle
-      ? [firstAisle]
-      : [firstAisle, secondAisle];
-  }
-
-  return columns >= 5 ? [Math.ceil(columns / 2)] : [];
+export function isSeatingAisleAfterColumn(
+  column: number,
+  columns: number,
+  configuredAfterColumns?: readonly number[],
+): boolean {
+  return getSeatingAisleAfterColumns(columns, configuredAfterColumns).includes(column);
 }
 
-export function isSeatingAisleColumn(column: number, columns: number): boolean {
-  return getSeatingAisleColumns(columns).includes(column);
+export const isSeatingAisleColumn = isSeatingAisleAfterColumn;
+
+function isRearFacilityPosition(value: unknown): value is RearFacilityPosition {
+  return typeof value === "string" && rearFacilityPositions.includes(value as RearFacilityPosition);
+}
+
+function normalizeLegacyAisleColumns(columns: readonly number[]): number[] {
+  const sortedColumns = [...columns].sort((left, right) => left - right);
+  if (
+    new Set(sortedColumns).size !== sortedColumns.length
+    || sortedColumns.some((column) => !Number.isInteger(column) || column < 2)
+  ) {
+    throw new SeatingValidationError("INVALID_AISLE_COLUMNS");
+  }
+
+  return sortedColumns.map((column, index) => column - index - 1);
 }
 
 export function validateSeatingEnvironment(
-  environment: SeatingEnvironment,
-  rows: number,
+  environment: SeatingEnvironmentInput,
+  _rows: number,
+  _columns?: number,
+  options: SeatingEnvironmentValidationOptions = {},
 ): SeatingEnvironment {
+  const aisleAfterColumns = [...(
+    environment.aisleAfterColumns
+    ?? (environment.aisleColumns ? normalizeLegacyAisleColumns(environment.aisleColumns) : [])
+  )].sort((left, right) => left - right);
+  if (
+    new Set(aisleAfterColumns).size !== aisleAfterColumns.length
+    || aisleAfterColumns.some((column) => (
+      !Number.isInteger(column) || column < 1 || column >= MAX_SEAT_DIMENSION
+    ))
+  ) {
+    throw new SeatingValidationError("INVALID_AISLE_COLUMNS");
+  }
+
   const normalizedSides = [environment.left, environment.right].map((side) => {
+    const maxSideMarkerRow = options.allowLegacySideRows
+      ? MAX_SEAT_DIMENSION
+      : DEFAULT_SEATING_SIDE_MARKER_ROWS;
     const windows = [...side.windows].sort((left, right) => left - right);
     const uniqueWindows = new Set(windows);
+    const doorRows = [...(
+      side.doorRows
+      ?? (side.doorRow === null || side.doorRow === undefined ? [] : [side.doorRow])
+    )].sort((left, right) => left - right);
+    const uniqueDoorRows = new Set(doorRows);
 
     if (
       uniqueWindows.size !== windows.length ||
-      windows.some((row) => !Number.isInteger(row) || row < 1 || row > rows) ||
-      (side.doorRow !== null &&
-        (!Number.isInteger(side.doorRow) || side.doorRow < 1 || side.doorRow > rows)) ||
-      (side.doorRow !== null && uniqueWindows.has(side.doorRow))
+      windows.some((row) => !Number.isInteger(row) || row < 1 || row > maxSideMarkerRow) ||
+      doorRows.length > MAX_DOORS_PER_SIDE ||
+      uniqueDoorRows.size !== doorRows.length ||
+      doorRows.some((row) => !Number.isInteger(row) || row < 1 || row > maxSideMarkerRow) ||
+      doorRows.some((row) => uniqueWindows.has(row))
     ) {
       throw new SeatingValidationError("INVALID_SIDE_FEATURES");
     }
 
     return {
       windows,
-      doorRow: side.doorRow,
+      doorRows,
     };
   });
 
+  const rear: SeatingRearLayout = {
+    waterDispenser: environment.rear?.waterDispenser ?? null,
+    airConditioner: environment.rear?.airConditioner ?? null,
+  };
+  if (
+    (rear.waterDispenser !== null && !isRearFacilityPosition(rear.waterDispenser))
+    || (rear.airConditioner !== null && !isRearFacilityPosition(rear.airConditioner))
+    || (rear.waterDispenser !== null && rear.waterDispenser === rear.airConditioner)
+  ) {
+    throw new SeatingValidationError("INVALID_REAR_FEATURES");
+  }
+
   return {
+    aisleAfterColumns,
     left: normalizedSides[0],
     right: normalizedSides[1],
+    rear,
   };
 }
 
@@ -137,10 +258,6 @@ export function validateSeatingLayout(layout: SeatingLayout): SeatingLayout {
       assignment.column > layout.columns
     ) {
       throw new SeatingValidationError("POSITION_OUT_OF_BOUNDS");
-    }
-
-    if (isSeatingAisleColumn(assignment.column, layout.columns)) {
-      throw new SeatingValidationError("POSITION_IS_AISLE");
     }
 
     const positionKey = `${assignment.row}:${assignment.column}`;

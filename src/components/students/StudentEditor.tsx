@@ -132,14 +132,19 @@ export function StudentEditor({ student, open, onClose, onSaved }: StudentEditor
 
   return (
     <Drawer
-      className={styles.studentDrawer}
-      title={student ? `编辑学生 · ${student.name}` : "新增学生"}
+      className={styles.studentEditorDrawer}
+      title={(
+        <div className={styles.studentEditorTitle}>
+          <span>学生资料</span>
+          <strong>{student ? `编辑 ${student.name}` : "新增学生"}</strong>
+        </div>
+      )}
       placement="right"
       size="min(100vw, 720px)"
       open={open}
       onClose={() => closeEditor()}
       destroyOnHidden
-      styles={{ body: { padding: 0 }, footer: { padding: "12px 20px" } }}
+      styles={{ body: { padding: 0 }, footer: { padding: "12px 24px" } }}
       footer={(
         <div className={styles.studentEditorFooter}>
           <Button onClick={() => closeEditor()} disabled={saving}>取消</Button>

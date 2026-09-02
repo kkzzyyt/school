@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "test:package": "bash scripts/package-deploy.test.sh",
     "test:deploy": "bash scripts/deploy.test.sh",
+    "test:deploy:systemd": "bash scripts/remote-deploy-systemd.test.sh",
     "package:deploy": "bash scripts/package-deploy.sh",
     "deploy": "bash scripts/deploy.sh",
     "db:generate": "prisma generate",
