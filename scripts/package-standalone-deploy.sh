@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for required_command in cp date du find git gzip grep mkdir mktemp rm shasum stat tar; do
+for required_command in cp date du env find git gzip grep mkdir mktemp node rm shasum stat tar; do
   command -v "$required_command" >/dev/null 2>&1 || {
     printf '缺少命令：%s\n' "$required_command" >&2
     exit 1
@@ -101,6 +101,12 @@ trap cleanup EXIT
 
 mkdir -p "$STAGING_APP/.next"
 cp -a "$PROJECT_ROOT/.next/standalone" "$STAGING_APP/.next/standalone"
+STANDALONE_PACKAGE_JSON="$STAGING_APP/.next/standalone/package.json"
+[[ -f "$STANDALONE_PACKAGE_JSON" ]] || { printf '%s\n' 'standalone 产物缺少 package.json' >&2; exit 1; }
+if ! env -u NODE_PATH node -e 'const { createRequire } = require("node:module"); createRequire(process.argv[1])("@prisma/adapter-mariadb");' "$STANDALONE_PACKAGE_JSON"; then
+  printf '%s\n' 'standalone 产物缺少可加载的 Prisma 运行时依赖' >&2
+  exit 1
+fi
 mkdir -p "$STAGING_APP/.next/standalone/.next/static" "$STAGING_APP/.next/standalone/public"
 cp -a "$PROJECT_ROOT/.next/static" "$STAGING_APP/.next/static"
 cp -a "$PROJECT_ROOT/public" "$STAGING_APP/public"

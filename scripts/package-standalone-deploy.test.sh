@@ -8,6 +8,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/school-standalone-package-test.XXXXXX")"
 OUTPUT_DIR="$TEST_ROOT/output"
 CREATED_NEXT=false
 FIXTURE_PUBLIC_FILE="$PROJECT_ROOT/public/.standalone-package-test-fixture"
+MISSING_RUNTIME_OUTPUT="$TEST_ROOT/missing-prisma-runtime.out"
 
 cleanup() {
   rm -rf "$TEST_ROOT"
@@ -26,8 +27,29 @@ fi
 mkdir -p "$PROJECT_ROOT/.next/standalone/.next" "$PROJECT_ROOT/.next/static/chunks" "$PROJECT_ROOT/public"
 CREATED_NEXT=true
 printf '%s\n' 'test server' > "$PROJECT_ROOT/.next/standalone/server.js"
+printf '%s\n' '{"name":"school-standalone-test"}' > "$PROJECT_ROOT/.next/standalone/package.json"
 printf '%s\n' 'test static' > "$PROJECT_ROOT/.next/static/chunks/app.js"
 printf '%s\n' 'test public' > "$FIXTURE_PUBLIC_FILE"
+
+if NODE_PATH="$PROJECT_ROOT/node_modules" "$PROJECT_ROOT/scripts/package-standalone-deploy.sh" \
+  --skip-checks \
+  --output-dir "$OUTPUT_DIR" >"$MISSING_RUNTIME_OUTPUT" 2>&1; then
+  printf '%s\n' '发布脚本不应接受缺少 Prisma 运行时依赖的 standalone 产物' >&2
+  exit 1
+fi
+grep -Fq 'Prisma 运行时依赖' "$MISSING_RUNTIME_OUTPUT" || {
+  sed -n '1,120p' "$MISSING_RUNTIME_OUTPUT" >&2
+  printf '%s\n' '发布脚本未报告 Prisma 运行时依赖缺失' >&2
+  exit 1
+}
+
+mkdir -p \
+  "$PROJECT_ROOT/.next/standalone/node_modules/@prisma/adapter-mariadb" \
+  "$PROJECT_ROOT/.next/standalone/node_modules/mariadb"
+printf '%s\n' '{"name":"@prisma/adapter-mariadb","main":"index.js"}' > "$PROJECT_ROOT/.next/standalone/node_modules/@prisma/adapter-mariadb/package.json"
+printf '%s\n' 'require("mariadb"); module.exports = {};' > "$PROJECT_ROOT/.next/standalone/node_modules/@prisma/adapter-mariadb/index.js"
+printf '%s\n' '{"name":"mariadb","main":"index.js"}' > "$PROJECT_ROOT/.next/standalone/node_modules/mariadb/package.json"
+printf '%s\n' 'module.exports = {};' > "$PROJECT_ROOT/.next/standalone/node_modules/mariadb/index.js"
 
 "$PROJECT_ROOT/scripts/package-standalone-deploy.sh" \
   --skip-checks \
@@ -42,6 +64,8 @@ CHECKSUM_PATH="$ARCHIVE_PATH.sha256"
 CONTENTS="$(tar -tzf "$ARCHIVE_PATH")"
 for required_path in \
   "$PROJECT_NAME/.next/standalone/server.js" \
+  "$PROJECT_NAME/.next/standalone/node_modules/@prisma/adapter-mariadb/index.js" \
+  "$PROJECT_NAME/.next/standalone/node_modules/mariadb/index.js" \
   "$PROJECT_NAME/.next/standalone/.next/static/chunks/app.js" \
   "$PROJECT_NAME/.next/standalone/public/.standalone-package-test-fixture" \
   "$PROJECT_NAME/.next/static/chunks/app.js" \
