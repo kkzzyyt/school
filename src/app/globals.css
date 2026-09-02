@@ -1963,15 +1963,10 @@ select {
 }
 
 .seating-output-actions .ant-btn {
+  width: 40px;
+  padding-inline: 0;
   color: #465166;
-}
-
-.seating-output-actions .ant-btn:first-child .anticon {
-  color: #465166;
-}
-
-.seating-output-actions .ant-btn:last-child .anticon {
-  color: #087f5b;
+  font-size: 18px;
 }
 
 .seating-view-controls {
@@ -2076,7 +2071,9 @@ select {
 
 .room-front {
   display: grid;
-  grid-template-columns: 88px minmax(180px, 360px) 88px;
+  width: max-content;
+  min-width: 100%;
+  grid-template-columns: 88px minmax(var(--room-center-min-width, 180px), 1fr) 88px;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -2114,22 +2111,23 @@ select {
 
 .room-layout {
   display: grid;
-  min-width: 0;
-  grid-template-columns: 88px minmax(0, 1fr) 88px;
+  width: max-content;
+  min-width: 100%;
+  grid-template-columns: 88px minmax(var(--room-center-min-width, 0px), 1fr) 88px;
   align-items: start;
   gap: 8px;
 }
 
 .room-layout-no-left {
-  grid-template-columns: minmax(0, 1fr) 88px;
+  grid-template-columns: minmax(var(--room-center-min-width, 0px), 1fr) 88px;
 }
 
 .room-layout-no-right {
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(var(--room-center-min-width, 0px), 1fr);
 }
 
 .room-layout-no-left.room-layout-no-right {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(var(--room-center-min-width, 0px), 1fr);
 }
 
 .room-center-column {
@@ -2219,7 +2217,9 @@ select {
 
 .room-back {
   display: grid;
-  grid-template-columns: 88px minmax(180px, 360px) 88px;
+  width: max-content;
+  min-width: 100%;
+  grid-template-columns: 88px minmax(var(--room-center-min-width, 180px), 1fr) 88px;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -2337,12 +2337,13 @@ select {
   min-width: 0;
   flex: 1;
   align-items: center;
+  justify-content: center;
   padding: 6px 8px;
   border: 1px solid #d9dee6;
   border-radius: 6px;
   background: #f5f6f8;
   color: var(--ink);
-  text-align: left;
+  text-align: center;
   cursor: grab;
   transition: border-color 0.18s ease, background 0.18s ease;
   -webkit-touch-callout: none;
@@ -2351,8 +2352,19 @@ select {
 }
 
 .seat-student-readonly {
-  align-items: flex-start;
+  align-items: center;
   cursor: default;
+}
+
+.seat-student-copy,
+.seat-student-name {
+  width: 100%;
+  align-items: center;
+  text-align: center;
+}
+
+.seat-student-name {
+  display: block;
 }
 
 .seat-student-male {
@@ -2378,21 +2390,7 @@ select {
 
 .seating-workspace-body-editing .seat-student {
   flex-direction: column;
-  justify-content: center;
   gap: 3px;
-  text-align: center;
-}
-
-.seating-workspace-body-editing .seat-student-copy {
-  width: 100%;
-  align-items: center;
-}
-
-.seating-workspace-body-editing .seat-student-copy strong {
-  width: 100%;
-  font-size: 14px;
-  line-height: 1.25;
-  text-align: center;
 }
 
 .seat-replacement-menu .ant-dropdown-menu {
@@ -3071,6 +3069,8 @@ select {
   }
 
   .seating-print-region {
+    --room-center-min-width: 0px !important;
+    --seat-grid-min-seat-width: 0px !important;
     min-width: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -3148,6 +3148,13 @@ select {
   }
 
   .seating-map {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .seating-print-region .room-front,
+  .seating-print-region .room-layout,
+  .seating-print-region .room-back {
     width: 100% !important;
     min-width: 0 !important;
   }
