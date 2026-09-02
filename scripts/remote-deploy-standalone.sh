@@ -60,6 +60,10 @@ validate_path "Prisma CLI 路径" "$PRISMA_BIN"
 validate_integer "保留回滚数量" "$KEEP_ROLLBACKS"
 (( KEEP_ROLLBACKS >= 1 )) || die "保留回滚数量至少为 1"
 [[ -x "$PRISMA_BIN" ]] || die "Prisma CLI 不可执行：$PRISMA_BIN"
+PRISMA_BIN_DIR="$(dirname "$PRISMA_BIN")"
+[[ "$(basename "$PRISMA_BIN_DIR")" == .bin ]] || die "Prisma CLI 必须位于 .bin 目录：$PRISMA_BIN"
+PRISMA_NODE_MODULES_DIR="$(dirname "$PRISMA_BIN_DIR")"
+[[ -d "$PRISMA_NODE_MODULES_DIR" ]] || die "Prisma 运行时依赖目录不存在：$PRISMA_NODE_MODULES_DIR"
 
 case "$ARCHIVE_PATH" in
   "$DEPLOY_PATH/.deploy/incoming/"*) ;;
@@ -197,6 +201,7 @@ LC_ALL=C tar -xzf "$ARCHIVE_PATH" -C "$RELEASE_DIR" --strip-components=1
 [[ -d "$RELEASE_DIR/.next/static" ]] || die '发布包解压后缺少 .next/static'
 [[ -d "$RELEASE_DIR/public" ]] || die '发布包解压后缺少 public'
 [[ -d "$RELEASE_DIR/prisma/migrations" ]] || die '发布包解压后缺少 Prisma migrations'
+[[ -f "$RELEASE_DIR/prisma.config.ts" ]] || die '发布包解压后缺少 prisma.config.ts'
 [[ ! -e "$RELEASE_DIR/.env" && ! -L "$RELEASE_DIR/.env" ]] || die '发布包不应包含 .env'
 [[ ! -e "$RELEASE_DIR/node_modules" && ! -L "$RELEASE_DIR/node_modules" ]] || die '发布包根目录不应包含 node_modules'
 ln -s "$ENV_PATH" "$RELEASE_DIR/.env"
@@ -208,7 +213,13 @@ set -a
 . "$ENV_PATH"
 set +a
 : "${DATABASE_URL:?运行时 .env 缺少 DATABASE_URL}"
-(cd "$RELEASE_DIR" && "$PRISMA_BIN" migrate deploy)
+run_prisma() {
+  (cd "$RELEASE_DIR" && NODE_PATH="$PRISMA_NODE_MODULES_DIR" "$PRISMA_BIN" "$@")
+}
+
+echo '校验 Prisma 配置和运行时依赖'
+run_prisma validate --config "$RELEASE_DIR/prisma.config.ts"
+run_prisma migrate deploy --config "$RELEASE_DIR/prisma.config.ts"
 
 if [[ "$SERVICE_NEEDS_CONFIG" == true ]]; then
   [[ ! -e "$SERVICE_OVERRIDE_PATH" ]] || die "已有 standalone systemd drop-in，拒绝覆盖：$SERVICE_OVERRIDE_PATH"

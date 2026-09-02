@@ -156,7 +156,7 @@ npm run db:studio       # Prisma 数据浏览器
 
 仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 只执行检查和 Linux standalone 构建；推送到 `main` 后，工作流会在验证和构建通过后立即把同一份 Linux 构建包发布到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
 
-普通发布只执行兼容的 Prisma 生产迁移，不会上传本地 `.env` 或覆盖数据库。远端 systemd 服务需要使用 `.next/standalone/server.js`，并预置可执行的 Prisma CLI。
+普通发布只执行兼容的 Prisma 生产迁移，不会上传本地 `.env` 或覆盖数据库。远端 systemd 服务需要使用 `.next/standalone/server.js`，并预置与仓库锁文件兼容的 Prisma CLI 运行时。默认 CLI 路径所在的 `runtime-node_modules` 目录必须包含 `prisma` 及其依赖；部署脚本会将该目录作为 Prisma 配置的模块解析路径，并在迁移前执行配置校验。
 
 在 GitHub 的 `production` Environment 中配置：
 
