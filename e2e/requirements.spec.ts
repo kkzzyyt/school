@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/login");
@@ -445,6 +446,86 @@ test("学生池编辑开始即显示且不压缩画布", async ({ page }) => {
   expect(layout.sidebarLeft).toBeGreaterThanOrEqual(0);
   expect(layout.sidebarRight).toBeLessThanOrEqual(layout.viewportWidth + 1);
   await expect(page.getByRole("button", { name: "收起编辑工具" })).toHaveCount(0);
+});
+
+test("座次页可以导出当前座位表 Excel", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/seating", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: 2,
+          columns: 3,
+          students: [
+            { id: "export-1", name: "张三", studentNo: "001", gender: "MALE" },
+            { id: "export-2", name: "李四", studentNo: "002", gender: "FEMALE" },
+            { id: "export-3", name: "王五", studentNo: "003", gender: "OTHER" },
+          ],
+          assignments: [
+            { studentId: "export-2", row: 2, column: 1 },
+            { studentId: "export-1", row: 1, column: 3 },
+          ],
+          environment: {
+            aisleAfterColumns: [1],
+            left: { windows: [], doorRows: [] },
+            right: { windows: [], doorRows: [] },
+            rear: { waterDispenser: null, airConditioner: null },
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/seating");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出 Excel" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^班级座次表-\d{8}\.xlsx$/);
+  expect(await download.failure()).toBeNull();
+
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const downloadBytes = readFileSync(downloadPath!);
+  expect(downloadBytes.byteLength).toBeGreaterThan(100);
+  expect(downloadBytes.subarray(0, 2).toString()).toBe("PK");
+});
+
+test("座次页可以打印并在打印媒体隐藏编辑工具", async ({ page }) => {
+  await login(page);
+  await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
+  await page.evaluate(() => {
+    window.print = () => {
+      document.documentElement.setAttribute("data-print-called", "true");
+    };
+  });
+
+  await page.getByRole("button", { name: "打印座位图" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-print-called", "true");
+
+  await page.emulateMedia({ media: "print" });
+  const printStyles = await page.evaluate(() => ({
+    headerDisplay: getComputedStyle(document.querySelector(".page-heading")!).display,
+    overviewDisplay: getComputedStyle(document.querySelector(".seating-overview")!).display,
+    toolbarDisplay: getComputedStyle(document.querySelector(".seating-canvas-toolbar")!).display,
+    poolDisplay: getComputedStyle(document.querySelector(".seating-sidebar-floating")!).display,
+    printHeaderDisplay: getComputedStyle(document.querySelector(".seating-print-header")!).display,
+    mapFilter: getComputedStyle(document.querySelector(".seating-print-region")!).filter,
+  }));
+
+  expect(printStyles.headerDisplay).toBe("none");
+  expect(printStyles.overviewDisplay).toBe("none");
+  expect(printStyles.toolbarDisplay).toBe("none");
+  expect(printStyles.poolDisplay).toBe("none");
+  expect(printStyles.printHeaderDisplay).toBe("flex");
+  expect(printStyles.mapFilter).toContain("grayscale");
 });
 
 test("座位布局、过道与教室标记使用独立交互", async ({ page }) => {

@@ -7,9 +7,11 @@ import {
   EditOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
+  FileExcelOutlined,
   HolderOutlined,
   LoginOutlined,
   PlusOutlined,
+  PrinterOutlined,
   RedoOutlined,
   RollbackOutlined,
   SearchOutlined,
@@ -55,6 +57,11 @@ import {
 import { resolveStudentGender, type StudentGenderValue } from "@/domain/student-gender";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
+import {
+  buildSeatingMatrix,
+  buildSeatingRosterRows,
+  getSeatingExportFilename,
+} from "@/lib/seating-export";
 
 interface Student { id: string; name: string; studentNo: string; gender: StudentGenderValue }
 interface Assignment { studentId: string; row: number; column: number }
@@ -295,6 +302,7 @@ export default function SeatingPage() {
   const seatLongPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const suppressNextSeatClick = useRef(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -453,6 +461,98 @@ export default function SeatingPage() {
         setSeatActionMenuKey(null);
       },
     });
+  }
+
+  function printSeating() {
+    if (!draft) return;
+    const workspaceMain = document.querySelector<HTMLElement>(".workspace-main");
+    const previousMarginLeft = workspaceMain?.style.marginLeft;
+    workspaceMain?.style.setProperty("margin-left", "0px");
+    window.addEventListener("afterprint", () => {
+      if (!workspaceMain) return;
+      if (previousMarginLeft) workspaceMain.style.marginLeft = previousMarginLeft;
+      else workspaceMain.style.removeProperty("margin-left");
+    }, { once: true });
+    window.print();
+  }
+
+  async function exportSeating() {
+    if (!draft || !data) return;
+    setExporting(true);
+    try {
+      const { default: writeExcelFile } = await import("write-excel-file/browser");
+      const input = {
+        rows: draft.rows,
+        columns: draft.columns,
+        students: data.students,
+        assignments: draft.assignments,
+      };
+      const seatMatrix = buildSeatingMatrix(input);
+      const seatSheetData = seatMatrix.map((row, rowIndex) => row.map((value, columnIndex) => {
+        if (rowIndex < 2) {
+          return columnIndex === 0
+            ? {
+              value,
+              columnSpan: row.length,
+              align: "center" as const,
+              alignVertical: "center" as const,
+              fontWeight: rowIndex === 0 ? "bold" as const : undefined,
+              fontSize: rowIndex === 0 ? 16 : 10,
+              height: rowIndex === 0 ? 28 : 20,
+              textColor: rowIndex === 0 ? "#191c1e" : "#5f6368",
+            }
+            : null;
+        }
+        return {
+          value,
+          align: columnIndex === 0 ? "left" as const : "center" as const,
+          alignVertical: "center" as const,
+          fontWeight: rowIndex === 2 ? "bold" as const : undefined,
+          backgroundColor: rowIndex === 2 ? "#f1f3f6" : "#ffffff",
+          borderColor: "#bcc5d3",
+          borderStyle: "thin" as const,
+        };
+      }));
+      const rosterRows = buildSeatingRosterRows(input);
+      const rosterSheetData = [
+        ["排", "座", "姓名", "状态"].map((value) => ({
+          value,
+          align: "center" as const,
+          fontWeight: "bold" as const,
+          backgroundColor: "#f1f3f6",
+          borderColor: "#bcc5d3",
+          borderStyle: "thin" as const,
+        })),
+        ...rosterRows.map((row) => [row.排, row.座, row.姓名, row.状态].map((value, columnIndex) => ({
+          value,
+          align: columnIndex < 2 ? "center" as const : "left" as const,
+          borderColor: "#d7dce5",
+          borderStyle: "thin" as const,
+        }))),
+      ];
+      await writeExcelFile([
+        {
+          data: seatSheetData,
+          sheet: "座位表",
+          columns: [{ width: 12 }, ...Array.from({ length: draft.columns }, () => ({ width: 14 }))],
+          orientation: "landscape",
+          stickyRowsCount: 3,
+          showGridLines: false,
+        },
+        {
+          data: rosterSheetData,
+          sheet: "学生清单",
+          columns: [{ width: 8 }, { width: 8 }, { width: 16 }, { width: 12 }],
+          stickyRowsCount: 1,
+          showGridLines: false,
+        },
+      ]).toFile(getSeatingExportFilename());
+      message.success("座次表 Excel 已导出");
+    } catch {
+      message.error("Excel 导出失败，请稍后重试");
+    } finally {
+      setExporting(false);
+    }
   }
 
   function commitDraft(nextDraft: SeatingDraft) {
@@ -951,6 +1051,27 @@ export default function SeatingPage() {
         description={isEditing ? "编辑模式：拖动学生或选择目标座位，完成后保存座次。" : "面向讲台查看教室布局，座次仅在编辑模式下可以调整。"}
         action={(
           <Space className="seating-heading-actions">
+            <Space className="seating-output-actions" size={6}>
+              <Button
+                size="small"
+                icon={<PrinterOutlined />}
+                title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}
+                disabled={!draft || saving || exporting}
+                onClick={printSeating}
+              >
+                打印座位图
+              </Button>
+              <Button
+                size="small"
+                icon={<FileExcelOutlined />}
+                loading={exporting}
+                disabled={!draft || saving}
+                title={isDirty ? "导出当前座次（含未保存修改）" : "导出当前座次"}
+                onClick={() => void exportSeating()}
+              >
+                导出 Excel
+              </Button>
+            </Space>
             {!isEditing ? (
               <Button type="primary" icon={<EditOutlined />} onClick={enterEditing}>
                 编辑座次
@@ -1160,7 +1281,11 @@ export default function SeatingPage() {
               )}
             </aside>}
 
-            <section ref={studentPoolCanvasRef} className="seating-canvas-section" aria-label="教室座位画布">
+            <section ref={studentPoolCanvasRef} className="seating-canvas-section seating-print-region" aria-label="教室座位画布">
+              <div className="seating-print-header" aria-hidden="true">
+                <strong>班级座次表</strong>
+                <span>{isDirty ? "含未保存修改 · " : ""}面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
+              </div>
               <div className="seating-canvas-toolbar">
                 <div>
                   <strong>面向讲台</strong>

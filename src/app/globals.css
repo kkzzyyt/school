@@ -1953,6 +1953,27 @@ select {
   gap: 12px;
 }
 
+.seating-output-actions {
+  flex: 0 0 auto;
+}
+
+.seating-heading-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.seating-output-actions .ant-btn {
+  color: #465166;
+}
+
+.seating-output-actions .ant-btn:first-child .anticon {
+  color: #465166;
+}
+
+.seating-output-actions .ant-btn:last-child .anticon {
+  color: #087f5b;
+}
+
 .seating-view-controls {
   display: flex;
   align-items: center;
@@ -2020,6 +2041,26 @@ select {
 
 .seating-legend span:nth-child(4) .anticon {
   color: #a74f00;
+}
+
+.seating-print-header {
+  display: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #777;
+  color: #111;
+}
+
+.seating-print-header strong {
+  font-size: 18px;
+}
+
+.seating-print-header span {
+  color: #444;
+  font-size: 11px;
 }
 
 .seating-map-scroll {
@@ -2905,6 +2946,11 @@ select {
     gap: 10px;
   }
 
+  .seating-heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .seating-legend {
     justify-content: flex-start;
   }
@@ -2962,5 +3008,247 @@ select {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    min-height: 0 !important;
+    background: white !important;
+  }
+
+  .workspace-layout {
+    background: white !important;
+  }
+
+  .workspace-sider,
+  .workspace-header,
+  .workspace-page-stack > .page-heading,
+  .workspace-page-stack > .ant-alert,
+  .seating-overview,
+  .seating-canvas-toolbar,
+  .seating-sidebar-floating,
+  .seating-workspace-footer,
+  .ant-dropdown,
+  .ant-tooltip,
+  .ant-message,
+  .ant-notification,
+  .ant-modal-root {
+    display: none !important;
+  }
+
+  .workspace-layout > .workspace-main {
+    min-height: 0 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    background: white !important;
+  }
+
+  .workspace-content {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .workspace-page-stack {
+    gap: 0 !important;
+  }
+
+  .seating-workspace-card.surface-card {
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .seating-workspace-card .ant-card-body {
+    padding: 0 !important;
+  }
+
+  .seating-print-region {
+    min-width: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #111 !important;
+    filter: grayscale(1);
+  }
+
+  .seating-print-header {
+    display: flex;
+  }
+
+  .seating-print-region .room-front {
+    margin-bottom: 8px;
+  }
+
+  .seating-print-region .blackboard {
+    min-height: 32px;
+    gap: 6px;
+    padding: 4px 10px;
+  }
+
+  .seating-print-region .blackboard strong {
+    font-size: 12px;
+  }
+
+  .seating-print-region .blackboard small {
+    font-size: 8px;
+  }
+
+  .seating-print-region .room-layout {
+    gap: 6px;
+  }
+
+  .seating-print-region .room-column-label {
+    height: 18px;
+    font-size: 8px;
+  }
+
+  .seating-print-region .room-side-track {
+    grid-template-rows: repeat(7, minmax(64px, 1fr)) !important;
+    gap: 3px;
+  }
+
+  .seating-print-region .room-side-marker {
+    min-height: 64px;
+    gap: 2px;
+    padding: 3px 2px;
+    border-radius: 4px;
+    font-size: 8px;
+  }
+
+  .seating-print-region .room-side-marker-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  .seating-print-region .room-end-label {
+    gap: 1px;
+  }
+
+  .seating-print-region .room-end-label strong,
+  .seating-print-region .room-end-hint {
+    font-size: 8px;
+  }
+
+  .seating-print-region .room-end-label small {
+    font-size: 7px;
+  }
+
+  .seating-map-scroll {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .seating-map {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .seating-print-region .seat-grid {
+    gap: 3px;
+    grid-auto-rows: minmax(64px, auto);
+  }
+
+  .seating-print-region .seat-cell,
+  .seating-print-region .seat-aisle {
+    min-height: 64px;
+  }
+
+  .seating-print-region .seat-cell {
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  .seating-print-region .seat-cell-header {
+    gap: 3px;
+    margin-bottom: 2px;
+    font-size: 7px;
+  }
+
+  .seating-print-region .seat-student {
+    padding: 3px 4px;
+    border-radius: 4px;
+  }
+
+  .seating-print-region .seat-student-copy strong {
+    font-size: 11px !important;
+    line-height: 1.1;
+  }
+
+  .seating-print-region .seat-aisle {
+    font-size: 8px;
+  }
+
+  .seating-print-region .seat-aisle span {
+    padding-top: 4px;
+  }
+
+  .room-front,
+  .room-layout,
+  .room-back {
+    color: #222 !important;
+  }
+
+  .blackboard,
+  .room-side-marker,
+  .room-back-boundary,
+  .seat-cell,
+  .seat-student,
+  .seat-aisle {
+    border-color: #666 !important;
+    background: white !important;
+    box-shadow: none !important;
+    color: #111 !important;
+  }
+
+  .blackboard,
+  .room-side-marker-icon {
+    background: #f2f2f2 !important;
+  }
+
+  .room-side-marker-window,
+  .room-side-marker-door,
+  .seat-student-male,
+  .seat-student-female,
+  .seat-student-neutral {
+    border-color: #666 !important;
+    background: white !important;
+    color: #111 !important;
+  }
+
+  .seat-aisle {
+    border-right-color: #999 !important;
+    border-left-color: #999 !important;
+  }
+
+  .seat-cell,
+  .room-side-marker {
+    break-inside: avoid;
+  }
+
+  .seating-print-region .room-back {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .seating-print-region .room-back-boundary {
+    min-height: 24px;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 8px;
+  }
+
+  .seating-print-region * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
