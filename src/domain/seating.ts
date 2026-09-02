@@ -30,6 +30,22 @@ export interface SeatingSideLayoutInput {
 export const rearFacilityPositions = ["LEFT", "CENTER", "RIGHT"] as const;
 export type RearFacilityPosition = (typeof rearFacilityPositions)[number];
 
+export function getSeatingFixedFacilityColumn(
+  position: RearFacilityPosition,
+  columns: number,
+): number {
+  if (position === "LEFT") return 1;
+  if (position === "RIGHT") return Math.max(1, columns);
+  return Math.max(1, Math.ceil(columns / 2));
+}
+
+export function getSeatingGridTrackForColumn(
+  column: number,
+  aisleAfterColumns: readonly number[],
+): number {
+  return Math.max(1, column) + aisleAfterColumns.filter((aisle) => aisle < column).length;
+}
+
 export interface SeatingRearLayout {
   waterDispenser: RearFacilityPosition | null;
   airConditioner: RearFacilityPosition | null;
@@ -40,11 +56,49 @@ export interface SeatingRearLayoutInput {
   airConditioner?: RearFacilityPosition | null;
 }
 
+export const seatingFixedSides = ["LEFT", "RIGHT", "FRONT", "BACK"] as const;
+export type SeatingFixedSide = (typeof seatingFixedSides)[number];
+
+export interface SeatingFixedFacilityPlacement {
+  side: SeatingFixedSide;
+  position: number;
+}
+
+export interface SeatingFixedFacilities {
+  waterDispenser: SeatingFixedFacilityPlacement | null;
+  airConditioner: SeatingFixedFacilityPlacement | null;
+}
+
+export interface SeatingFixedFacilitiesInput {
+  waterDispenser?: SeatingFixedFacilityPlacement | null;
+  airConditioner?: SeatingFixedFacilityPlacement | null;
+}
+
+export function createFixedFacilitiesFromLegacyRear(
+  rear: SeatingRearLayout,
+  rows: number,
+  columns: number,
+): SeatingFixedFacilities {
+  const row = Math.max(1, Math.ceil(rows / 2));
+  const column = Math.max(1, Math.ceil(columns / 2));
+  const placementFor = (position: RearFacilityPosition | null): SeatingFixedFacilityPlacement | null => {
+    if (position === "LEFT") return { side: "LEFT", position: row };
+    if (position === "RIGHT") return { side: "RIGHT", position: row };
+    if (position === "CENTER") return { side: "BACK", position: column };
+    return null;
+  };
+  return {
+    waterDispenser: placementFor(rear.waterDispenser),
+    airConditioner: placementFor(rear.airConditioner),
+  };
+}
+
 export interface SeatingEnvironment {
   aisleAfterColumns: number[];
   left: SeatingSideLayout;
   right: SeatingSideLayout;
   rear: SeatingRearLayout;
+  fixedFacilities?: SeatingFixedFacilities;
 }
 
 export interface SeatingEnvironmentInput {
@@ -54,6 +108,7 @@ export interface SeatingEnvironmentInput {
   left: SeatingSideLayoutInput;
   right: SeatingSideLayoutInput;
   rear?: SeatingRearLayoutInput;
+  fixedFacilities?: SeatingFixedFacilitiesInput;
 }
 
 export interface SeatingEnvironmentValidationOptions {
@@ -117,7 +172,8 @@ export type SeatingValidationCode =
   | "POSITION_IS_AISLE"
   | "INVALID_AISLE_COLUMNS"
   | "INVALID_SIDE_FEATURES"
-  | "INVALID_REAR_FEATURES";
+  | "INVALID_REAR_FEATURES"
+  | "INVALID_FIXED_FACILITIES";
 
 export class SeatingValidationError extends Error {
   constructor(public readonly code: SeatingValidationCode) {
@@ -149,6 +205,61 @@ function isRearFacilityPosition(value: unknown): value is RearFacilityPosition {
   return typeof value === "string" && rearFacilityPositions.includes(value as RearFacilityPosition);
 }
 
+function isSeatingFixedSide(value: unknown): value is SeatingFixedSide {
+  return typeof value === "string" && seatingFixedSides.includes(value as SeatingFixedSide);
+}
+
+function normalizeFixedFacilityPlacement(
+  placement: SeatingFixedFacilityPlacement | null | undefined,
+  rows: number,
+  columns: number | undefined,
+): SeatingFixedFacilityPlacement | null {
+  if (placement === null || placement === undefined) return null;
+  const maxPosition = placement.side === "LEFT" || placement.side === "RIGHT"
+    ? rows
+    : columns ?? MAX_SEAT_DIMENSION;
+  if (
+    !isSeatingFixedSide(placement.side)
+    || !Number.isInteger(placement.position)
+    || placement.position < 1
+    || placement.position > maxPosition
+  ) {
+    throw new SeatingValidationError("INVALID_FIXED_FACILITIES");
+  }
+  return {
+    side: placement.side,
+    position: placement.position,
+  };
+}
+
+function sameFixedFacilitySlot(
+  left: SeatingFixedFacilityPlacement | null,
+  right: SeatingFixedFacilityPlacement | null,
+) {
+  return Boolean(
+    left
+    && right
+    && left.side === right.side
+    && left.position === right.position,
+  );
+}
+
+function normalizeFixedFacilities(
+  input: SeatingFixedFacilitiesInput | undefined,
+  rows: number,
+  columns: number | undefined,
+): SeatingFixedFacilities | undefined {
+  if (input === undefined) return undefined;
+  const fixedFacilities = {
+    waterDispenser: normalizeFixedFacilityPlacement(input.waterDispenser, rows, columns),
+    airConditioner: normalizeFixedFacilityPlacement(input.airConditioner, rows, columns),
+  };
+  if (sameFixedFacilitySlot(fixedFacilities.waterDispenser, fixedFacilities.airConditioner)) {
+    throw new SeatingValidationError("INVALID_FIXED_FACILITIES");
+  }
+  return fixedFacilities;
+}
+
 function normalizeLegacyAisleColumns(columns: readonly number[]): number[] {
   const sortedColumns = [...columns].sort((left, right) => left - right);
   if (
@@ -163,8 +274,8 @@ function normalizeLegacyAisleColumns(columns: readonly number[]): number[] {
 
 export function validateSeatingEnvironment(
   environment: SeatingEnvironmentInput,
-  _rows: number,
-  _columns?: number,
+  rows: number,
+  columns?: number,
   options: SeatingEnvironmentValidationOptions = {},
 ): SeatingEnvironment {
   const aisleAfterColumns = [...(
@@ -220,12 +331,14 @@ export function validateSeatingEnvironment(
   ) {
     throw new SeatingValidationError("INVALID_REAR_FEATURES");
   }
+  const fixedFacilities = normalizeFixedFacilities(environment.fixedFacilities, rows, columns);
 
   return {
     aisleAfterColumns,
     left: normalizedSides[0],
     right: normalizedSides[1],
     rear,
+    ...(fixedFacilities === undefined ? {} : { fixedFacilities }),
   };
 }
 

@@ -67,14 +67,19 @@
   "aisleAfterColumns": [2, 6],
   "left": { "windows": [1, 2], "doorRows": [] },
   "right": { "windows": [], "doorRows": [7] },
-  "rear": { "waterDispenser": "LEFT", "airConditioner": "RIGHT" }
+  "rear": { "waterDispenser": "LEFT", "airConditioner": "RIGHT" },
+  "fixedFacilities": {
+    "waterDispenser": { "side": "LEFT", "position": 4 },
+    "airConditioner": { "side": "FRONT", "position": 3 }
+  }
 }
 ```
 
 - `aisleAfterColumns` 表示在第几列座位之后插入过道，不占用也不减少座位列；过道位置独立于排数、列数和左右侧轨道。
 - 默认教室为 `2 | 4 | 2`：8 列座位，在第 2、6 列后插入两条过道。
 - 左右侧轨道固定为 7 个标记位。窗户和门口使用从 `1` 开始的轨道排号；每侧最多两个门口，且同一位置只能设置一种标记。
-- `rear` 继续作为兼容字段保存饮水机和空调的位置；`LEFT`、`RIGHT` 会在界面上显示为左右侧固定设施，`CENTER` 仅用于兼容既有记录，两者不能重叠。
+- `fixedFacilities` 保存饮水机和空调的四侧槽位：`LEFT`/`RIGHT` 的 `position` 是座位排号，`FRONT`/`BACK` 的 `position` 是座位列号；两个设施不能占用同一侧同一槽位。
+- `rear` 继续作为旧记录兼容字段；没有 `fixedFacilities` 的记录会按旧位置转换为四侧默认槽位，保存后写入新结构。
 - 为兼容旧客户端与既有 JSON，服务端会把 `aisleColumns` 和单一 `doorRow` 归一化为 `aisleAfterColumns` 和 `doorRows`；PUT 也可以省略 `environment`。
 - PUT 必须回传 GET 给出的 `revision`。revision 已过期时返回 `409 STALE_WRITE`，不会删除当前座次。
 

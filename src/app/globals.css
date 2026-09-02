@@ -1304,7 +1304,7 @@ select {
   left: auto;
   z-index: 13;
   display: block;
-  width: min(224px, calc(100% - 32px));
+  width: min(216px, calc(100% - 32px));
   max-height: calc(100vh - 32px);
   overflow: hidden;
   padding: 6px;
@@ -1339,6 +1339,7 @@ select {
 }
 
 .student-pool-toggle {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 32px;
@@ -1391,6 +1392,39 @@ select {
   font-size: 10px;
 }
 
+.student-pool-unassigned-badge {
+  display: inline-flex;
+  min-width: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 5px;
+  border: 1px solid #d7dce5;
+  border-radius: 5px;
+  background: #f4f5f7;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.student-pool-unassigned-badge strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-pool-unassigned-badge small {
+  font-size: 9px;
+}
+
+.student-pool-unassigned-badge-active {
+  border-color: #f0ce9c;
+  background: #fff4df;
+  color: #a74f00;
+}
+
+.seating-sidebar-floating-open .student-pool-unassigned-badge {
+  display: none;
+}
+
 .student-pool-close {
   display: grid;
   width: 26px;
@@ -1410,6 +1444,51 @@ select {
   background: var(--surface-low);
   color: var(--primary);
   outline: 0;
+}
+
+.student-pool-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border: 1px solid #e7ebf1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.student-pool-summary-active {
+  border-color: #f0ce9c;
+  background: #fff8ec;
+}
+
+.student-pool-summary-primary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #a74f00;
+}
+
+.student-pool-summary-primary span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.student-pool-summary-primary strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.student-pool-summary-primary small,
+.student-pool-summary-secondary {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.student-pool-summary-secondary {
+  flex: 0 0 auto;
 }
 
 .seating-sidebar-floating-collapsed .student-pool-floating-header {
@@ -1447,6 +1526,34 @@ select {
 .seating-sidebar-floating-collapsed .student-pool-toggle-copy small {
   font-size: 9px;
   line-height: 1.1;
+}
+
+.seating-sidebar-floating-collapsed .student-pool-toggle-copy small {
+  display: none;
+}
+
+.seating-sidebar-floating-collapsed .student-pool-unassigned-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 24px;
+  height: 24px;
+  padding: 2px;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(25, 28, 30, 0.16);
+}
+
+.seating-sidebar-floating-collapsed .student-pool-unassigned-badge strong {
+  font-size: 11px;
+}
+
+.seating-sidebar-floating-collapsed .student-pool-unassigned-badge small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .seating-sidebar-floating-handle {
@@ -1630,7 +1737,7 @@ select {
 
 .student-pool-list {
   display: grid;
-  max-height: min(420px, calc(100vh - 176px));
+  max-height: min(300px, calc(100vh - 270px));
   min-height: 0;
   gap: 2px;
   overflow-y: auto;
@@ -1639,6 +1746,22 @@ select {
   border-top: 1px solid var(--line);
   border-radius: 0;
   transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.student-pool-search {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.student-pool-search .ant-input {
+  font-size: 11px;
+}
+
+.student-pool-empty {
+  padding: 18px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
 }
 
 .student-pool-list-drop-active {
@@ -1650,7 +1773,8 @@ select {
   width: 100%;
   min-width: 0;
   align-items: center;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 5px 6px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -1662,6 +1786,21 @@ select {
 
 .student-pool-item .student-pool-copy {
   align-items: flex-start;
+}
+
+.student-pool-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.student-pool-group-label small {
+  font-size: 9px;
+  font-weight: 500;
 }
 
 .student-pool-item:hover,
@@ -1676,6 +1815,25 @@ select {
 
 .student-pool-item-dragging {
   opacity: 0.45;
+}
+
+.student-pool-item-status {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.student-pool-item-status-unassigned {
+  background: #fff0d8;
+  color: #a74f00;
+  font-weight: 700;
+}
+
+.student-pool-item-status-assigned {
+  background: #f0f2f5;
+  color: var(--muted);
 }
 
 .student-avatar {
@@ -1877,10 +2035,10 @@ select {
 
 .room-front {
   display: grid;
-  grid-template-columns: 88px minmax(180px, 360px) 88px;
+  grid-template-columns: 88px minmax(0, 1fr) 88px;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 14px;
   color: var(--muted);
   font-size: 10px;
@@ -1889,11 +2047,13 @@ select {
 
 .blackboard {
   display: flex;
+  width: min(100%, 360px);
   min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: 10px;
   padding: 8px 16px;
+  margin-inline: auto;
   border: 1px solid #c3cbd6;
   border-radius: 6px;
   background: #eef1f4;
@@ -1962,20 +2122,37 @@ select {
   justify-content: flex-start;
 }
 
-.room-side-fixed-facilities {
-  display: flex;
+.room-fixed-facility-track {
+  display: grid;
   min-width: 0;
   align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
+  gap: 6px;
 }
 
-.room-side-facility,
-.room-side-facility-control {
+.room-fixed-facility-track-front {
+  grid-column: 2;
+}
+
+.room-fixed-facility-track-back {
+  margin-top: 4px;
+}
+
+.room-fixed-facility-slot {
   display: inline-flex;
-  width: 27px;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.room-fixed-facility,
+.room-fixed-facility-control {
+  display: inline-flex;
+  width: 26px;
   height: 24px;
-  flex: 0 0 27px;
+  flex: 0 0 26px;
   align-items: center;
   justify-content: center;
   border-radius: 5px;
@@ -1983,30 +2160,31 @@ select {
   line-height: 1;
 }
 
-.room-side-facility {
+.room-fixed-facility {
   background: white;
 }
 
-.room-side-facility-control {
+.room-fixed-facility-control {
   padding: 0;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
+  pointer-events: auto;
 }
 
-.room-side-facility-control:hover,
-.room-side-facility-control:focus-visible,
-.room-side-facility-selected {
+.room-fixed-facility-control:hover,
+.room-fixed-facility-control:focus-visible,
+.room-fixed-facility-selected {
   border-color: currentColor;
   outline: 0;
 }
 
-.room-side-facility-control:disabled {
+.room-fixed-facility-control:disabled {
   cursor: not-allowed;
   opacity: 0.35;
 }
 
-.room-side-facility-name {
+.room-fixed-facility-name {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2017,21 +2195,21 @@ select {
   border: 0;
 }
 
-.room-side-facility-waterDispenser {
+.room-fixed-facility-waterDispenser {
   color: #087f8c;
 }
 
-.room-side-facility-airConditioner {
+.room-fixed-facility-airConditioner {
   color: #285c9d;
 }
 
-.room-side-facility-selected.room-side-facility-waterDispenser,
-.room-side-facility-waterDispenser.room-side-facility:not(.room-side-facility-control) {
+.room-fixed-facility-selected.room-fixed-facility-waterDispenser,
+.room-fixed-facility-waterDispenser.room-fixed-facility:not(.room-fixed-facility-control) {
   background: #e6f6f5;
 }
 
-.room-side-facility-selected.room-side-facility-airConditioner,
-.room-side-facility-airConditioner.room-side-facility:not(.room-side-facility-control) {
+.room-fixed-facility-selected.room-fixed-facility-airConditioner,
+.room-fixed-facility-airConditioner.room-fixed-facility:not(.room-fixed-facility-control) {
   background: #ebf2fb;
 }
 
@@ -2042,13 +2220,14 @@ select {
 
 .room-side-marker {
   display: flex;
+  position: relative;
   min-width: 0;
-  min-height: 96px;
+  min-height: 104px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 3px;
+  gap: 3px;
+  padding: 4px 3px;
   border: 1px dashed #cbd2dc;
   border-radius: 7px;
   background: #f9fafb;
@@ -2056,6 +2235,48 @@ select {
   font-size: 10px;
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.room-side-marker-toggle {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+button.room-side-marker-toggle {
+  cursor: pointer;
+}
+
+.room-side-marker > .room-side-marker-toggle {
+  padding-right: 40px;
+}
+
+.room-side-marker > .room-fixed-facility-slot {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  transform: translateY(-50%);
+}
+
+.room-side-marker > .room-fixed-facility-slot .room-fixed-facility {
+  width: 24px;
+  height: 22px;
+  flex-basis: 22px;
 }
 
 .room-side-marker:hover,
@@ -2106,10 +2327,10 @@ select {
 
 .room-back {
   display: grid;
-  grid-template-columns: 88px minmax(180px, 360px) 88px;
+  grid-template-columns: 88px minmax(0, 1fr) 88px;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
@@ -2155,17 +2376,14 @@ select {
   color: #7b8492;
 }
 
+.room-back-center {
+  min-width: 0;
+}
+
 .room-back-boundary-line {
   min-width: 20px;
   flex: 1;
   border-top: 1px dashed #cbd2dc;
-}
-
-.room-back-center-facilities {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 4px;
 }
 
 .seat-grid {
@@ -2278,12 +2496,15 @@ select {
 }
 
 .seating-workspace-body-editing .seat-student-copy {
+  width: 100%;
   align-items: center;
 }
 
 .seating-workspace-body-editing .seat-student-copy strong {
-  font-size: 12px;
+  width: 100%;
+  font-size: 14px;
   line-height: 1.25;
+  text-align: center;
 }
 
 .seat-replacement-menu .ant-dropdown-menu {
@@ -2306,9 +2527,10 @@ select {
 
 .seat-empty-trigger {
   display: flex;
-  min-width: 38px;
+  min-width: 0;
   min-height: 40px;
-  flex: 0 0 42px;
+  width: 100%;
+  flex: 1;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -2319,6 +2541,7 @@ select {
   color: #9aa5b5;
   font-size: 11px;
   cursor: default;
+  white-space: nowrap;
 }
 
 .seat-empty-trigger:hover {

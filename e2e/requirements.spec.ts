@@ -303,6 +303,36 @@ test("桌面右键座位卡打开受控操作菜单并可删除", async ({ page 
   await expect(page.getByText("有未保存修改", { exact: true })).toBeVisible();
 });
 
+test("点击座位学生的选择菜单可以通过外部点击和 Escape 收起", async ({ page }) => {
+  await login(page);
+  await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
+
+  const seat = page.locator(".seat-cell-filled .seat-student").first();
+  const menu = page.locator(".ant-dropdown-menu");
+  await seat.click();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+
+  await seat.click();
+  await expect(menu).toBeVisible();
+  await page.locator(".seating-canvas-toolbar").click();
+  await expect(menu).toBeHidden();
+});
+
+test("编辑态空座不显示下拉框且学生姓名居中显示", async ({ page }) => {
+  await login(page);
+  await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
+
+  await expect(page.locator(".seat-cell-empty .ant-select")).toHaveCount(0);
+  const studentName = page.locator(".seat-cell-filled .seat-student-name").first();
+  await expect(studentName).toBeVisible();
+  await expect(studentName).toHaveCSS("text-align", "center");
+  await expect(studentName).toHaveCSS("font-size", "14px");
+});
+
 test.describe("移动端座位操作", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
@@ -444,8 +474,8 @@ test("座位布局、过道与教室标记使用独立交互", async ({ page }) 
   await expect(page.locator(".room-side-marker")).toHaveCount(14);
   await page.locator('[data-side="left"][data-marker-row="1"]').click({ force: true });
   await expect(page.locator('[data-side="left"][data-marker-row="1"]')).toContainText("窗户");
-  await page.locator('[data-side-facility-position="LEFT"] button[aria-label*="饮水机"]').click({ force: true });
-  await expect(page.locator('[data-side-facility-position="LEFT"] .room-side-facility-selected')).toHaveCount(1);
+  await page.locator('[data-fixed-side="LEFT"][data-fixed-position="1"] button[aria-label*="饮水机"]').click({ force: true });
+  await expect(page.locator('[data-fixed-side="LEFT"][data-fixed-position="1"] .room-fixed-facility-selected')).toHaveCount(1);
 });
 
 test("座次图将前后侧作为固定边界并把设施固定在左右侧", async ({ page }) => {
@@ -470,6 +500,10 @@ test("座次图将前后侧作为固定边界并把设施固定在左右侧", as
             left: { windows: [], doorRows: [] },
             right: { windows: [], doorRows: [] },
             rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
+            fixedFacilities: {
+              waterDispenser: { side: "LEFT", position: 2 },
+              airConditioner: { side: "FRONT", position: 3 },
+            },
           },
         },
       }),
@@ -481,8 +515,65 @@ test("座次图将前后侧作为固定边界并把设施固定在左右侧", as
   await expect(page.locator(".room-front")).toContainText("固定");
   await expect(page.locator(".room-back")).toContainText("后方");
   await expect(page.locator(".room-back")).toContainText("固定");
-  await expect(page.locator('[data-side-facility-position="LEFT"] .room-side-facility-waterDispenser')).toBeVisible();
-  await expect(page.locator('[data-side-facility-position="RIGHT"] .room-side-facility-airConditioner')).toBeVisible();
+  await expect(page.locator('[data-fixed-side="LEFT"][data-fixed-position="2"] .room-fixed-facility-waterDispenser')).toBeVisible();
+  await expect(page.locator('[data-fixed-side="FRONT"][data-fixed-position="3"] .room-fixed-facility-airConditioner')).toBeVisible();
+
+  const alignment = await page.evaluate(() => {
+    const leftSeat = document.querySelector('[data-seat-row="2"][data-seat-column="1"]')?.getBoundingClientRect();
+    const frontSeat = document.querySelector('[data-seat-row="1"][data-seat-column="3"]')?.getBoundingClientRect();
+    const leftFacility = document.querySelector('[data-fixed-side="LEFT"][data-fixed-position="2"]')?.getBoundingClientRect();
+    const frontFacility = document.querySelector('[data-fixed-side="FRONT"][data-fixed-position="3"]')?.getBoundingClientRect();
+    return {
+      leftDelta: Math.abs(
+        ((leftFacility?.top ?? 0) + (leftFacility?.height ?? 0) / 2)
+        - ((leftSeat?.top ?? 0) + (leftSeat?.height ?? 0) / 2),
+      ),
+      frontDelta: Math.abs(
+        ((frontFacility?.left ?? 0) + (frontFacility?.width ?? 0) / 2)
+        - ((frontSeat?.left ?? 0) + (frontSeat?.width ?? 0) / 2),
+      ),
+    };
+  });
+  expect(alignment.leftDelta).toBeLessThanOrEqual(1);
+  expect(alignment.frontDelta).toBeLessThanOrEqual(1);
+});
+
+test("固定设施可以在左右前后槽位间使用同一套切换逻辑", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/seating", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: 3,
+          columns: 4,
+          students: [],
+          assignments: [],
+          environment: {
+            aisleAfterColumns: [2],
+            left: { windows: [], doorRows: [] },
+            right: { windows: [], doorRows: [] },
+            rear: { waterDispenser: null, airConditioner: null },
+            fixedFacilities: { waterDispenser: null, airConditioner: null },
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
+
+  await page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] button[aria-label*="饮水机"]').click({ force: true });
+  await expect(page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] .room-fixed-facility-selected')).toHaveCount(1);
+  await page.locator('[data-fixed-side="BACK"][data-fixed-position="3"] button[aria-label*="饮水机"]').click({ force: true });
+  await expect(page.locator('[data-fixed-side="RIGHT"][data-fixed-position="2"] .room-fixed-facility-selected')).toHaveCount(0);
+  await expect(page.locator('[data-fixed-side="BACK"][data-fixed-position="3"] .room-fixed-facility-selected')).toHaveCount(1);
 });
 
 test("座次页顶部配置区域在桌面端保持单行", async ({ page }) => {
@@ -513,6 +604,12 @@ test("学生池浮动窗口可以拖动", async ({ page }) => {
   expect(handleBox).not.toBeNull();
   const initialBox = await panel.boundingBox();
   expect(initialBox).not.toBeNull();
+  const canvasBox = await page.locator(".seating-canvas-section").boundingBox();
+  expect(canvasBox).not.toBeNull();
+  expect(initialBox!.x).toBeGreaterThanOrEqual(canvasBox!.x);
+  expect(initialBox!.x).toBeLessThanOrEqual(canvasBox!.x + 24);
+  expect(initialBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
+  expect(initialBox!.y).toBeLessThanOrEqual(canvasBox!.y + 24);
   await page.mouse.move(handleBox!.x + 12, handleBox!.y + 10);
   await page.mouse.down();
   await page.mouse.move(handleBox!.x - 120, handleBox!.y + 10);
@@ -534,6 +631,58 @@ test("学生池浮动窗口可以拖动", async ({ page }) => {
     const box = await panel.boundingBox();
     return Boolean(box && box.x >= 0 && box.x + box.width <= 390);
   }).toBe(true);
+});
+
+test("学生池可以搜索对应学生", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/seating", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: 1,
+          columns: 4,
+          students: [
+            { id: "search-1", name: "张瀞涵", studentNo: "S001", gender: "OTHER" },
+            { id: "search-2", name: "蒋志豪", studentNo: "S002", gender: "OTHER" },
+          ],
+          assignments: [{ studentId: "search-2", row: 1, column: 1 }],
+          environment: {
+            aisleAfterColumns: [2],
+            left: { windows: [], doorRows: [] },
+            right: { windows: [], doorRows: [] },
+            rear: { waterDispenser: null, airConditioner: null },
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/seating");
+  await page.getByRole("button", { name: "编辑座次" }).click();
+  await page.getByRole("button", { name: "打开学生池" }).click();
+
+  const pool = page.locator(".seating-sidebar-floating");
+  const search = pool.getByPlaceholder("搜索学生");
+  await expect(search).toBeVisible();
+  await expect(page.locator("#student-pool-unassigned-count")).toContainText("1");
+  await expect(pool.locator(".student-pool-summary")).toContainText("待安排");
+  await expect(pool.locator(".student-pool-summary")).toContainText("1");
+  await expect(pool.locator(".student-pool-item")).toHaveCount(2);
+  await expect(pool.locator(".student-pool-item").first()).toContainText("张瀞涵");
+  await expect(pool.locator(".student-pool-item").last()).toContainText("蒋志豪");
+  await expect(pool.locator(".student-pool-item").first().locator(".student-pool-item-status")).toHaveText("未分配");
+  await expect(pool.locator(".student-pool-item").last().locator(".student-pool-item-status")).toHaveText("已安排");
+  await search.fill("瀞涵");
+  await expect(pool.locator(".student-pool-item")).toHaveCount(1);
+  await expect(pool.locator(".student-pool-item").first()).toContainText("张瀞涵");
+  await search.fill("不存在");
+  await expect(pool.getByText("没有匹配的学生", { exact: true })).toBeVisible();
 });
 
 test("学生编辑侧滑面板在移动端保持独立滚动和固定操作区", async ({ page }) => {

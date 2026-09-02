@@ -253,6 +253,29 @@ describe("seating route handlers", () => {
     expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it("persists fixed facilities using row slots on sides and column slots on ends", async () => {
+    mocks.prisma.student.count.mockResolvedValue(0);
+    const fixedFacilities = {
+      waterDispenser: { side: "LEFT", position: 2 },
+      airConditioner: { side: "FRONT", position: 3 },
+    };
+    const response = await PUT(
+      putRequest({
+        rows: 2,
+        columns: 4,
+        assignments: [],
+        environment: { ...environment, fixedFacilities },
+      }),
+    );
+    const body = await responseBody(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ success: true, data: { environment: { fixedFacilities } } });
+    expect(mocks.transaction.classroom.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ seatingEnvironment: expect.objectContaining({ fixedFacilities }) }),
+    }));
+  });
+
   it("allows seat assignments beside independently inserted aisles", async () => {
     mocks.prisma.student.count.mockResolvedValue(1);
     const response = await PUT(
