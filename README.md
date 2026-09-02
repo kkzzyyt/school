@@ -66,7 +66,7 @@ cp deploy.env.example deploy.env
 npm run deploy
 ```
 
-发布包只包含源码和构建所需配置，绝不包含本机的 `.next` 或 `node_modules`。发布前会运行 ESLint、类型检查和单元测试；Linux 服务器会在新 release 中按顺序执行 `npm ci --include=dev`、`npm run build`、可选的 `npm run db:deploy` 和 `npm prune --omit=dev`。这样构建产物和原生依赖始终匹配服务器平台。
+传统 SSH 发布包只包含源码和构建所需配置，绝不包含本机的 `.next` 或 `node_modules`；服务器会在 Linux 环境中完成构建。GitHub Actions CI/CD 使用 Linux runner 生成 standalone 发布包，服务器只接收已经验证的生产产物，因此适合内存较小的生产主机。
 
 PM2 模式通过 `<DEPLOY_PATH>/current` 指向新 release。systemd 模式会先在 `<DEPLOY_PATH>/.deploy/releases/` 完成上述所有步骤，随后才停止服务、把原 `DEPLOY_APP_PATH` 整目录移入 `rollback-<release>`、切换新目录、启动服务并执行健康检查；旧目录自己的 `node_modules` 因此可用于应用目录回滚。
 
@@ -100,11 +100,14 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=school
-Group=school
+User=www
+Group=www
 WorkingDirectory=/www/wwwroot/school.19soul.cn/school
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+EnvironmentFile=/www/wwwroot/school.19soul.cn/.deploy/runtime.env
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/local/bin/node /www/wwwroot/school.19soul.cn/school/.next/standalone/server.js
 Restart=on-failure
 
 [Install]
@@ -116,7 +119,10 @@ install -d -m 750 -o school -g school /www/wwwroot/school.19soul.cn/.deploy
 install -m 600 -o school -g school /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime.env
 systemctl daemon-reload
 systemctl enable school-next.service
+systemctl restart school-next.service
 ```
+
+`deploy/school-next.service` 是与 CI/CD standalone 发布方式匹配的服务单元模板。首次切换前请确认服务器上的 `WorkingDirectory`、`EnvironmentFile` 和 `ExecStart` 与模板一致。
 
 SSH 发布账号必须能够写入 `<DEPLOY_PATH>/.deploy`、重命名 `DEPLOY_APP_PATH`、读取运行时 `.env` 完成构建，并执行该服务的 `systemctl show`、`stop` 和 `start`；脚本还会将新目录 `chown` 到 systemd 单元的 `User`/`Group`。通常让发布账号与服务账号一致；若不同，发布账号需要受限的 `chown` 权限，以及仅限该服务的非交互式 systemd 权限。运行时 `.env`、SSH 私钥和数据库凭据不会进入发布包；`deploy.env` 已被 Git 忽略。首次部署前请确认服务器上的 `.env` 已配置正确，并在反向代理中只将公网流量转发到应用监听的本机端口。
 
@@ -132,14 +138,34 @@ npm test                # 单元测试
 npm run test:coverage   # 覆盖率报告（阈值 80%）
 npm run test:e2e        # Playwright 关键流程测试
 npm run test:package    # 发布包内容和秘密文件排除测试
+npm run test:package:standalone # CI standalone 发布包测试
 npm run test:deploy     # 使用伪造 SSH/PM2 的部署流程测试
 npm run test:deploy:systemd # systemd 远端构建和切换测试
+npm run test:deploy:standalone # standalone 远端切换和回滚测试
+npm run package:standalone # 打包已构建的 standalone 产物
 npm run db:generate     # 生成 Prisma Client
 npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
 npm run db:deploy       # 应用已提交迁移（初始化/生产推荐）
 npm run db:seed         # 重置并写入演示数据
 npm run db:studio       # Prisma 数据浏览器
 ```
+
+## GitHub Actions CI/CD
+
+仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 只执行检查和 Linux standalone 构建；推送到 `main` 后，工作流会等待 10 分钟，再把同一份 Linux 构建包发布到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
+
+普通发布只执行兼容的 Prisma 生产迁移，不会上传本地 `.env` 或覆盖数据库。远端 systemd 服务需要使用 `.next/standalone/server.js`，并预置可执行的 Prisma CLI。
+
+在 GitHub 的 `production` Environment 中配置：
+
+```text
+Secret: SCHOOL_DEPLOY_SSH_KEY       # 服务器 authorized_keys 对应的私钥
+Secret: SCHOOL_DEPLOY_KNOWN_HOSTS   # 已核验的 39.106.46.229 主机密钥
+Variable: SCHOOL_DEPLOY_TARGET      # 默认 root@39.106.46.229
+Variable: SCHOOL_DEPLOY_PRISMA_BIN  # 默认 /www/wwwroot/school.19soul.cn/.deploy/runtime-node_modules/.bin/prisma
+```
+
+其余路径变量有与当前服务器匹配的默认值，可按环境覆盖。生产数据库导入应使用单独的人工确认流程，先备份再恢复，不应绑定到每次代码推送。
 
 首次运行 E2E 前安装 Chromium：
 

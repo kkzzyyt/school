@@ -1,0 +1,156 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: school-ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  DATABASE_URL: "mysql://school:ci@127.0.0.1:3306/school"
+  NEXT_PUBLIC_APP_NAME: "班主任工作台"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify:
+    name: Verify and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:coverage
+
+      - name: Deployment script tests
+        run: |
+          npm run test:package
+          npm run test:package:standalone
+          npm run test:deploy:standalone
+          npm run test:ci:config
+
+      - name: Build standalone artifact
+        run: npm run build
+
+      - name: Package standalone artifact
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/school-artifact"
+          npm run package:standalone -- --skip-checks --output-dir "$RUNNER_TEMP/school-artifact"
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-standalone-${{ github.sha }}
+          path: ${{ runner.temp }}/school-artifact/*
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to production
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+    steps:
+      - name: Checkout deployment scripts
+        uses: actions/checkout@v4
+
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: school-standalone-${{ github.sha }}
+          path: artifact
+
+      - name: Wait 10 minutes after the commit
+        run: sleep 600
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.SCHOOL_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SCHOOL_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          : "${DEPLOY_SSH_KEY:?SCHOOL_DEPLOY_SSH_KEY is not configured}"
+          : "${DEPLOY_KNOWN_HOSTS:?SCHOOL_DEPLOY_KNOWN_HOSTS is not configured}"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/school-deploy.key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/school-known_hosts"
+          chmod 600 "$RUNNER_TEMP/school-deploy.key" "$RUNNER_TEMP/school-known_hosts"
+
+      - name: Upload and atomically activate release
+        env:
+          DEPLOY_TARGET: ${{ vars.SCHOOL_DEPLOY_TARGET || 'root@39.106.46.229' }}
+          DEPLOY_PORT: ${{ vars.SCHOOL_DEPLOY_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.SCHOOL_DEPLOY_PATH || '/www/wwwroot/school.19soul.cn' }}
+          DEPLOY_ENV_PATH: ${{ vars.SCHOOL_DEPLOY_ENV_PATH || '/www/wwwroot/school.19soul.cn/.deploy/runtime.env' }}
+          DEPLOY_SERVICE: ${{ vars.SCHOOL_DEPLOY_SERVICE || 'school-next.service' }}
+          DEPLOY_APP_PATH: ${{ vars.SCHOOL_DEPLOY_APP_PATH || '/www/wwwroot/school.19soul.cn/school' }}
+          DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
+          DEPLOY_KEEP_ROLLBACKS: ${{ vars.SCHOOL_DEPLOY_KEEP_ROLLBACKS || '5' }}
+          DEPLOY_PRISMA_BIN: ${{ vars.SCHOOL_DEPLOY_PRISMA_BIN || '/www/wwwroot/school.19soul.cn/.deploy/runtime-node_modules/.bin/prisma' }}
+        run: |
+          set -Eeuo pipefail
+          ssh_opts=(
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ConnectTimeout=10
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$RUNNER_TEMP/school-known_hosts"
+            -o GlobalKnownHostsFile=/dev/null
+            -o UpdateHostKeys=no
+            -i "$RUNNER_TEMP/school-deploy.key"
+          )
+          mapfile -t archives < <(find artifact -maxdepth 1 -type f -name '*.tar.gz' -print)
+          (( ${#archives[@]} == 1 )) || { printf '%s\n' 'deployment artifact count is not 1' >&2; exit 1; }
+          archive="${archives[0]}"
+          checksum="$archive.sha256"
+          [[ -f "$checksum" ]] || { printf '%s\n' 'deployment checksum is missing' >&2; exit 1; }
+          archive_name="$(basename "$archive")"
+          release_id="ci-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
+          incoming="$DEPLOY_PATH/.deploy/incoming"
+          remote_archive="$incoming/$archive_name"
+          remote_checksum="$remote_archive.sha256"
+          ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" "mkdir -p '$incoming'"
+          scp "${ssh_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
+          ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" bash -s -- \
+            "$DEPLOY_PATH" \
+            "$remote_archive" \
+            "$remote_checksum" \
+            "$release_id" \
+            "$DEPLOY_ENV_PATH" \
+            "$DEPLOY_SERVICE" \
+            "$DEPLOY_APP_PATH" \
+            "$DEPLOY_HEALTHCHECK_URL" \
+            "$DEPLOY_KEEP_ROLLBACKS" \
+            "$DEPLOY_PRISMA_BIN" \
+            < scripts/remote-deploy-standalone.sh

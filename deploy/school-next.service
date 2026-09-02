@@ -1,0 +1,25 @@
+[Unit]
+Description=School Next.js Application
+After=network.target mysqld.service
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/school.19soul.cn/school
+EnvironmentFile=/www/wwwroot/school.19soul.cn/.deploy/runtime.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=NODE_OPTIONS=--max-old-space-size=384
+ExecStart=/usr/local/bin/node /www/wwwroot/school.19soul.cn/school/.next/standalone/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
