@@ -283,6 +283,8 @@ test("座次学生卡仅显示姓名且依据 gender 区分颜色", async ({ pag
   await expect(firstSeat.locator(".seat-student-copy")).not.toContainText(/\d/);
   await expect(firstSeat.locator(".student-avatar")).toHaveCount(0);
   await expect(page.locator(".seat-student-name").first()).toBeVisible();
+  await expect(page.locator(".seat-student-name").first()).toHaveCSS("text-align", "center");
+  await expect(page.locator(".seat-student-name").first()).toHaveCSS("font-size", "16px");
   await expect(page.locator(".seat-student-male")).not.toHaveCount(0);
   await expect(page.locator(".seat-student-female")).not.toHaveCount(0);
   await expect(page.locator(".seat-student-neutral")).not.toHaveCount(0);
@@ -331,7 +333,20 @@ test("编辑态空座不显示下拉框且学生姓名居中显示", async ({ pa
   const studentName = page.locator(".seat-cell-filled .seat-student-name").first();
   await expect(studentName).toBeVisible();
   await expect(studentName).toHaveCSS("text-align", "center");
-  await expect(studentName).toHaveCSS("font-size", "14px");
+  await expect(studentName).toHaveCSS("font-size", "16px");
+});
+
+test("座次输出操作使用平台图标按钮", async ({ page }) => {
+  await login(page);
+  await page.goto("/seating");
+
+  const printButton = page.getByRole("button", { name: "打印座位图" });
+  const exportButton = page.getByRole("button", { name: "导出 Excel" });
+
+  await expect(printButton).toHaveAttribute("aria-label", "打印座位图");
+  await expect(exportButton).toHaveAttribute("aria-label", "导出 Excel");
+  await expect(printButton).toHaveText("");
+  await expect(exportButton).toHaveText("");
 });
 
 test.describe("移动端座位操作", () => {
@@ -413,6 +428,80 @@ test("座次表桌面端完整展示座位矩阵", async ({ page }) => {
   expect(layout.aisleCount).toBe(14);
   expect(layout.gridTrackCount).toBe(10);
   expect(layout.sideMarkerCount).toBe(14);
+});
+
+test("窄屏座次画布保留可读的座位宽度并在画布内滚动", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.route("**/api/seating", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: 1,
+          columns: 12,
+          students: [{ id: "wide-layout-student", name: "座位姓名", studentNo: "W001", gender: "OTHER" }],
+          assignments: [{ studentId: "wide-layout-student", row: 1, column: 1 }],
+          environment: {
+            aisleAfterColumns: [3, 8],
+            left: { windows: [], doorRows: [] },
+            right: { windows: [], doorRows: [] },
+            rear: { waterDispenser: null, airConditioner: null },
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/seating");
+  await page.locator(".seat-grid").waitFor();
+
+  const layout = await page.evaluate(() => {
+    const scroll = document.querySelector<HTMLElement>(".seating-map-scroll");
+    const firstSeat = document.querySelector<HTMLElement>(".seat-cell");
+    const lastSeat = document.querySelector<HTMLElement>(".seat-cell:last-of-type");
+    const rightMarker = document.querySelector<HTMLElement>(".room-side-marker[data-side=\"right\"]");
+    const firstName = document.querySelector<HTMLElement>(".seat-student-name");
+    const lastSeatRect = lastSeat?.getBoundingClientRect();
+    const rightMarkerRect = rightMarker?.getBoundingClientRect();
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      scrollWidth: scroll?.scrollWidth ?? 0,
+      scrollClientWidth: scroll?.clientWidth ?? 0,
+      seatWidth: firstSeat?.getBoundingClientRect().width ?? 0,
+      nameWidth: firstName?.clientWidth ?? 0,
+      lastSeatRight: lastSeatRect?.right ?? 0,
+      rightMarkerLeft: rightMarkerRect?.left ?? 0,
+    };
+  });
+
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+  expect(layout.scrollWidth).toBeGreaterThan(layout.scrollClientWidth);
+  expect(layout.seatWidth).toBeGreaterThanOrEqual(76);
+  expect(layout.nameWidth).toBeGreaterThan(0);
+  expect(layout.lastSeatRight).toBeLessThanOrEqual(layout.rightMarkerLeft + 1);
+
+  await page.setViewportSize({ width: 1123, height: 794 });
+  await page.emulateMedia({ media: "print" });
+  const printLayout = await page.evaluate(() => {
+    const map = document.querySelector<HTMLElement>(".seating-map");
+    const grid = document.querySelector<HTMLElement>(".seat-grid");
+    return {
+      mapClientWidth: map?.clientWidth ?? 0,
+      mapScrollWidth: map?.scrollWidth ?? 0,
+      gridClientWidth: grid?.clientWidth ?? 0,
+      gridScrollWidth: grid?.scrollWidth ?? 0,
+    };
+  });
+
+  expect(printLayout.mapScrollWidth).toBeLessThanOrEqual(printLayout.mapClientWidth + 1);
+  expect(printLayout.gridScrollWidth).toBeLessThanOrEqual(printLayout.gridClientWidth + 1);
 });
 
 test("学生池编辑开始即显示且不压缩画布", async ({ page }) => {

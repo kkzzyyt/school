@@ -1,3 +1,11 @@
+import {
+  DEFAULT_SEATING_SIDE_MARKER_ROWS,
+  createFixedFacilitiesFromLegacyRear,
+  getSeatingAisleAfterColumns,
+  type SeatingEnvironment,
+  type SeatingFixedFacilityPlacement,
+} from "@/domain/seating";
+
 export interface SeatingExportStudent {
   id: string;
   name: string;
@@ -15,7 +23,12 @@ export interface SeatingExportInput {
   columns: number;
   students: readonly SeatingExportStudent[];
   assignments: readonly SeatingExportAssignment[];
+  environment?: SeatingEnvironment;
 }
+
+export type SeatingExportTrack =
+  | { type: "SEAT"; seatColumn: number }
+  | { type: "AISLE"; afterColumn: number };
 
 export interface SeatingExportRosterRow {
   排: number | "";
@@ -30,6 +43,10 @@ function normalizeDimension(value: number) {
 
 function safeCellText(value: string) {
   return /^[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
+function emptyCells(count: number) {
+  return Array.from({ length: Math.max(0, count) }, () => "");
 }
 
 function createIndexes(input: SeatingExportInput) {
@@ -58,8 +75,110 @@ function createIndexes(input: SeatingExportInput) {
   return { rows, columns, studentById, assignmentByPosition, assignmentByStudent };
 }
 
+export function getSeatingExportTracks(
+  input: Pick<SeatingExportInput, "columns" | "environment">,
+): SeatingExportTrack[] {
+  const columns = normalizeDimension(input.columns);
+  const aisleAfterColumns = input.environment
+    ? [...new Set(getSeatingAisleAfterColumns(columns, input.environment.aisleAfterColumns))]
+    : [];
+  const tracks: SeatingExportTrack[] = [];
+
+  for (let column = 1; column <= columns; column += 1) {
+    tracks.push({ type: "SEAT", seatColumn: column });
+    if (aisleAfterColumns.includes(column)) tracks.push({ type: "AISLE", afterColumn: column });
+  }
+
+  return tracks;
+}
+
+function seatValue(
+  row: number,
+  column: number,
+  assignmentByPosition: ReadonlyMap<string, SeatingExportAssignment>,
+  studentById: ReadonlyMap<string, SeatingExportStudent>,
+) {
+  const assignment = assignmentByPosition.get(`${row}-${column}`);
+  const student = assignment ? studentById.get(assignment.studentId) : undefined;
+  return student ? safeCellText(student.name) : assignment ? "未知学生" : "空座";
+}
+
+interface SeatingExportFacility {
+  label: string;
+  placement: SeatingFixedFacilityPlacement;
+}
+
+function getFixedFacilities(environment: SeatingEnvironment, rows: number, columns: number) {
+  const fixedFacilities = environment.fixedFacilities
+    ?? createFixedFacilitiesFromLegacyRear(environment.rear, rows, columns);
+  return [
+    { label: "饮水机", placement: fixedFacilities.waterDispenser },
+    { label: "空调", placement: fixedFacilities.airConditioner },
+  ].filter((facility): facility is SeatingExportFacility => facility.placement !== null);
+}
+
+function sideMarker(
+  environment: SeatingEnvironment,
+  facilities: readonly SeatingExportFacility[],
+  side: "left" | "right",
+  row: number,
+) {
+  const layout = environment[side];
+  const feature = layout.doorRows.includes(row) ? "门口" : layout.windows.includes(row) ? "窗户" : "";
+  const fixedFacilityLabels = facilities
+    .filter((facility) => facility.placement.side === side.toUpperCase() && facility.placement.position === row)
+    .map((facility) => facility.label);
+  return [feature, ...fixedFacilityLabels].filter(Boolean).join(" · ");
+}
+
+function boundaryLabel(
+  label: string,
+  facilities: readonly SeatingExportFacility[],
+  side: "FRONT" | "BACK",
+) {
+  const fixedFacilityLabels = facilities
+    .filter((facility) => facility.placement.side === side)
+    .map((facility) => `${facility.label}（第 ${facility.placement.position} 座）`);
+  return fixedFacilityLabels.length ? `${label} · ${fixedFacilityLabels.join("、")}` : label;
+}
+
 export function buildSeatingMatrix(input: SeatingExportInput): string[][] {
   const { rows, columns, studentById, assignmentByPosition } = createIndexes(input);
+
+  if (input.environment) {
+    const tracks = getSeatingExportTracks(input);
+    const facilities = getFixedFacilities(input.environment, rows, columns);
+    const visualRowCount = Math.max(rows, DEFAULT_SEATING_SIDE_MARKER_ROWS);
+    const physicalColumnCount = tracks.length + 3;
+    const matrix: string[][] = [
+      ["班级座次表", ...emptyCells(physicalColumnCount - 1)],
+      [`面向讲台 · ${rows} 排 · ${columns} 个座位/排`, ...emptyCells(physicalColumnCount - 1)],
+      ["前方", boundaryLabel("讲台", facilities, "FRONT"), ...emptyCells(physicalColumnCount - 2)],
+      [
+        "左侧",
+        "排\\座",
+        ...tracks.map((track) => track.type === "SEAT" ? `第 ${track.seatColumn} 座` : "过道"),
+        "右侧",
+      ],
+    ];
+
+    for (let row = 1; row <= visualRowCount; row += 1) {
+      matrix.push([
+        sideMarker(input.environment, facilities, "left", row),
+        `第 ${row} 排`,
+        ...tracks.map((track) => (
+          track.type === "AISLE" || row > rows
+            ? ""
+            : seatValue(row, track.seatColumn, assignmentByPosition, studentById)
+        )),
+        sideMarker(input.environment, facilities, "right", row),
+      ]);
+    }
+
+    matrix.push(["后方", boundaryLabel("教室后墙", facilities, "BACK"), ...emptyCells(physicalColumnCount - 2)]);
+    return matrix;
+  }
+
   const matrix: string[][] = [
     ["班级座次表", ...Array.from({ length: columns }, () => "")],
     [`面向讲台 · ${rows} 排 · ${columns} 个座位/排`, ...Array.from({ length: columns }, () => "")],
@@ -69,9 +188,7 @@ export function buildSeatingMatrix(input: SeatingExportInput): string[][] {
   for (let row = 1; row <= rows; row += 1) {
     const values = [`第 ${row} 排`];
     for (let column = 1; column <= columns; column += 1) {
-      const assignment = assignmentByPosition.get(`${row}-${column}`);
-      const student = assignment ? studentById.get(assignment.studentId) : undefined;
-      values.push(student ? safeCellText(student.name) : assignment ? "未知学生" : "空座");
+      values.push(seatValue(row, column, assignmentByPosition, studentById));
     }
     matrix.push(values);
   }

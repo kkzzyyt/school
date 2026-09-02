@@ -39,7 +39,7 @@ import {
   Tooltip,
 } from "antd";
 import type { MenuProps } from "antd";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, type CSSProperties, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { PageHeading } from "@/components/layout/PageHeading";
 import {
@@ -60,6 +60,7 @@ import { apiRequest } from "@/lib/api";
 import {
   buildSeatingMatrix,
   buildSeatingRosterRows,
+  getSeatingExportTracks,
   getSeatingExportFilename,
 } from "@/lib/seating-export";
 
@@ -113,6 +114,9 @@ type SideFeature = "WINDOW" | "DOOR";
 const sideLabels: Record<SideKey, string> = { left: "左侧", right: "右侧" };
 const featureLabels: Record<SideFeature, string> = { WINDOW: "窗户", DOOR: "门口" };
 const maxHistoryLength = 30;
+const seatGridMinimumSeatWidth = 76;
+const seatGridAisleWidth = 22;
+const seatGridGap = 6;
 
 function sortAssignments(assignments: Assignment[]) {
   return [...assignments].sort(
@@ -379,12 +383,19 @@ export default function SeatingPage() {
     () => Array.from({ length: draft?.columns ?? DEFAULT_SEATING_COLUMNS }, (_, index) => {
       const column = index + 1;
       return [
-        "minmax(0, 1fr)",
-        ...(aisleAfterColumns.includes(column) ? ["22px"] : []),
+        `minmax(var(--seat-grid-min-seat-width, ${seatGridMinimumSeatWidth}px), 1fr)`,
+        ...(aisleAfterColumns.includes(column) ? [`${seatGridAisleWidth}px`] : []),
       ];
     }).flat().join(" "),
     [aisleAfterColumns, draft?.columns],
   );
+  const seatGridMinimumWidth = useMemo(() => {
+    const seatColumnCount = draft?.columns ?? DEFAULT_SEATING_COLUMNS;
+    const gridTrackCount = seatColumnCount + aisleAfterColumns.length;
+    return seatColumnCount * seatGridMinimumSeatWidth
+      + aisleAfterColumns.length * seatGridAisleWidth
+      + Math.max(0, gridTrackCount - 1) * seatGridGap;
+  }, [aisleAfterColumns.length, draft?.columns]);
   const poolStudents = useMemo(() => {
     if (!data || !draft) return [];
     return [...data.students].sort((left, right) => {
@@ -486,8 +497,14 @@ export default function SeatingPage() {
         columns: draft.columns,
         students: data.students,
         assignments: draft.assignments,
+        environment: draft.environment,
       };
       const seatMatrix = buildSeatingMatrix(input);
+      const seatTracks = getSeatingExportTracks(input);
+      const aisleColumnIndexes = new Set(
+        seatTracks.flatMap((track, index) => track.type === "AISLE" ? [index + 2] : []),
+      );
+      const rearRowIndex = seatMatrix.length - 1;
       const seatSheetData = seatMatrix.map((row, rowIndex) => row.map((value, columnIndex) => {
         if (rowIndex < 2) {
           return columnIndex === 0
@@ -503,12 +520,55 @@ export default function SeatingPage() {
             }
             : null;
         }
+
+        if (rowIndex === 2 || rowIndex === rearRowIndex) {
+          if (columnIndex === 0 || columnIndex === row.length - 1) {
+            return {
+              value,
+              align: "center" as const,
+              alignVertical: "center" as const,
+              fontWeight: "bold" as const,
+              backgroundColor: "#f1f3f6",
+              borderColor: "#bcc5d3",
+              borderStyle: "thin" as const,
+              height: 24,
+            };
+          }
+          if (columnIndex === 1) {
+            return {
+              value,
+              columnSpan: row.length - 2,
+              align: "center" as const,
+              alignVertical: "center" as const,
+              fontWeight: "bold" as const,
+              backgroundColor: rowIndex === 2 ? "#e8eef8" : "#f1f3f6",
+              borderColor: "#bcc5d3",
+              borderStyle: "thin" as const,
+              height: 24,
+            };
+          }
+          return null;
+        }
+
+        if (rowIndex === 3) {
+          return {
+            value,
+            align: "center" as const,
+            alignVertical: "center" as const,
+            fontWeight: "bold" as const,
+            backgroundColor: aisleColumnIndexes.has(columnIndex) ? "#e8ebf0" : "#f1f3f6",
+            borderColor: "#bcc5d3",
+            borderStyle: "thin" as const,
+            height: 22,
+          };
+        }
+
         return {
           value,
-          align: columnIndex === 0 ? "left" as const : "center" as const,
+          align: "center" as const,
           alignVertical: "center" as const,
-          fontWeight: rowIndex === 2 ? "bold" as const : undefined,
-          backgroundColor: rowIndex === 2 ? "#f1f3f6" : "#ffffff",
+          fontWeight: columnIndex === 1 ? "bold" as const : undefined,
+          backgroundColor: aisleColumnIndexes.has(columnIndex) ? "#f7f9fc" : "#ffffff",
           borderColor: "#bcc5d3",
           borderStyle: "thin" as const,
         };
@@ -523,9 +583,9 @@ export default function SeatingPage() {
           borderColor: "#bcc5d3",
           borderStyle: "thin" as const,
         })),
-        ...rosterRows.map((row) => [row.排, row.座, row.姓名, row.状态].map((value, columnIndex) => ({
+        ...rosterRows.map((row) => [row.排, row.座, row.姓名, row.状态].map((value) => ({
           value,
-          align: columnIndex < 2 ? "center" as const : "left" as const,
+          align: "center" as const,
           borderColor: "#d7dce5",
           borderStyle: "thin" as const,
         }))),
@@ -534,9 +594,14 @@ export default function SeatingPage() {
         {
           data: seatSheetData,
           sheet: "座位表",
-          columns: [{ width: 12 }, ...Array.from({ length: draft.columns }, () => ({ width: 14 }))],
+          columns: [
+            { width: 10 },
+            { width: 10 },
+            ...seatTracks.map((track) => ({ width: track.type === "AISLE" ? 5 : 14 })),
+            { width: 10 },
+          ],
           orientation: "landscape",
-          stickyRowsCount: 3,
+          stickyRowsCount: 4,
           showGridLines: false,
         },
         {
@@ -1051,26 +1116,26 @@ export default function SeatingPage() {
         description={isEditing ? "编辑模式：拖动学生或选择目标座位，完成后保存座次。" : "面向讲台查看教室布局，座次仅在编辑模式下可以调整。"}
         action={(
           <Space className="seating-heading-actions">
-            <Space className="seating-output-actions" size={6}>
-              <Button
-                size="small"
-                icon={<PrinterOutlined />}
-                title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}
-                disabled={!draft || saving || exporting}
-                onClick={printSeating}
-              >
-                打印座位图
-              </Button>
-              <Button
-                size="small"
-                icon={<FileExcelOutlined />}
-                loading={exporting}
-                disabled={!draft || saving}
-                title={isDirty ? "导出当前座次（含未保存修改）" : "导出当前座次"}
-                onClick={() => void exportSeating()}
-              >
-                导出 Excel
-              </Button>
+            <Space className="seating-output-actions" size={8}>
+              <Tooltip title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}>
+                <Button
+                  type="text"
+                  icon={<PrinterOutlined />}
+                  aria-label="打印座位图"
+                  disabled={!draft || saving || exporting}
+                  onClick={printSeating}
+                />
+              </Tooltip>
+              <Tooltip title={isDirty ? "导出当前座次（含未保存修改）" : "导出当前座次"}>
+                <Button
+                  type="text"
+                  icon={<FileExcelOutlined />}
+                  aria-label="导出 Excel"
+                  loading={exporting}
+                  disabled={!draft || saving}
+                  onClick={() => void exportSeating()}
+                />
+              </Tooltip>
             </Space>
             {!isEditing ? (
               <Button type="primary" icon={<EditOutlined />} onClick={enterEditing}>
@@ -1281,7 +1346,12 @@ export default function SeatingPage() {
               )}
             </aside>}
 
-            <section ref={studentPoolCanvasRef} className="seating-canvas-section seating-print-region" aria-label="教室座位画布">
+            <section
+              ref={studentPoolCanvasRef}
+              className="seating-canvas-section seating-print-region"
+              aria-label="教室座位画布"
+              style={{ "--room-center-min-width": `${seatGridMinimumWidth}px` } as CSSProperties}
+            >
               <div className="seating-print-header" aria-hidden="true">
                 <strong>班级座次表</strong>
                 <span>{isDirty ? "含未保存修改 · " : ""}面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
