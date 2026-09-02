@@ -152,7 +152,7 @@ npm run db:studio       # Prisma 数据浏览器
 
 ## GitHub Actions CI/CD
 
-仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 只执行检查和 Linux standalone 构建；推送到 `main` 后，工作流会等待 10 分钟，再把同一份 Linux 构建包发布到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
+仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 只执行检查和 Linux standalone 构建；推送到 `main` 后，工作流会在验证和构建通过后立即把同一份 Linux 构建包发布到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
 
 普通发布只执行兼容的 Prisma 生产迁移，不会上传本地 `.env` 或覆盖数据库。远端 systemd 服务需要使用 `.next/standalone/server.js`，并预置可执行的 Prisma CLI。
 

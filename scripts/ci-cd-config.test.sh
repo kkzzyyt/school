@@ -26,7 +26,6 @@ for required_text in \
   'npm run package:standalone' \
   'actions/upload-artifact@v4' \
   'actions/download-artifact@v4' \
-  'sleep 600' \
   'SCHOOL_DEPLOY_SSH_KEY' \
   'SCHOOL_DEPLOY_KNOWN_HOSTS' \
   'scripts/remote-deploy-standalone.sh'; do
@@ -40,6 +39,9 @@ grep -Fq -- '-P "$DEPLOY_PORT"' "$WORKFLOW" || fail 'scp 未使用大写 -P 指�
 grep -Fq 'scp "${scp_opts[@]}"' "$WORKFLOW" || fail '上传命令未使用 scp 参数数组'
 if grep -Fq 'scp "${ssh_opts[@]}"' "$WORKFLOW"; then
   fail 'scp 错误复用了 ssh 参数数组'
+fi
+if grep -Fq 'sleep 600' "$WORKFLOW"; then
+  fail '生产部署仍包含 10 分钟延迟'
 fi
 
 printf '%s\n' 'CI/CD 配置测试通过'

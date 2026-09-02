@@ -89,9 +89,6 @@ jobs:
           name: school-standalone-${{ github.sha }}
           path: artifact
 
-      - name: Wait 10 minutes after the commit
-        run: sleep 600
-
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.SCHOOL_DEPLOY_SSH_KEY }}
