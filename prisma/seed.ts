@@ -124,11 +124,6 @@ async function seed() {
         aisleAfterColumns: [...DEFAULT_SEATING_AISLE_AFTER_COLUMNS],
         left: { windows: [1, 2, 3, 4, 5, 6], doorRows: [] },
         right: { windows: [], doorRows: [7] },
-        rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
-        fixedFacilities: {
-          waterDispenser: { side: "LEFT", position: 4 },
-          airConditioner: { side: "RIGHT", position: 4 },
-        },
       },
       memberships: {
         create: [
