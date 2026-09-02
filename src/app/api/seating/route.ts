@@ -26,6 +26,11 @@ const sideLayoutSchema = z.object({
   doorRow: z.number().int().nullable().optional(),
 });
 
+const fixedFacilityPlacementSchema = z.object({
+  side: z.enum(["LEFT", "RIGHT", "FRONT", "BACK"]),
+  position: z.number().int(),
+});
+
 const seatingSchema = z.object({
   revision: z.string().datetime(),
   rows: z.number().int(),
@@ -46,6 +51,10 @@ const seatingSchema = z.object({
     rear: z.object({
       waterDispenser: z.enum(["LEFT", "CENTER", "RIGHT"]).nullable().optional(),
       airConditioner: z.enum(["LEFT", "CENTER", "RIGHT"]).nullable().optional(),
+    }).optional(),
+    fixedFacilities: z.object({
+      waterDispenser: fixedFacilityPlacementSchema.nullable().optional(),
+      airConditioner: fixedFacilityPlacementSchema.nullable().optional(),
     }).optional(),
   }).optional(),
 });

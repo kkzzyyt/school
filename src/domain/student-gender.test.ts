@@ -11,6 +11,14 @@ describe("inferStudentGenderFromName", () => {
     expect(inferStudentGenderFromName("赵雅涵")).toBe("FEMALE");
   });
 
+  it("matches additional common characters and weighs stronger hints", () => {
+    expect(inferStudentGenderFromName("孙溪桥")).toBe("FEMALE");
+    expect(inferStudentGenderFromName("沈泽熙")).toBe("MALE");
+    expect(inferStudentGenderFromName("龚婉晨")).toBe("FEMALE");
+    expect(inferStudentGenderFromName("李佳航")).toBe("MALE");
+    expect(inferStudentGenderFromName("杨睿烁")).toBe("MALE");
+  });
+
   it("trims names before inferring", () => {
     expect(inferStudentGenderFromName("  王晨  ")).toBe("MALE");
   });

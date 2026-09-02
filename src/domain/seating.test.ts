@@ -4,6 +4,9 @@ import {
   DEFAULT_SEATING_AISLE_AFTER_COLUMNS,
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ROWS,
+  createFixedFacilitiesFromLegacyRear,
+  getSeatingFixedFacilityColumn,
+  getSeatingGridTrackForColumn,
   getSeatingAisleAfterColumns,
   isSeatingAisleAfterColumn,
   SeatingValidationError,
@@ -100,6 +103,72 @@ describe("seating aisles", () => {
     expect(isSeatingAisleAfterColumn(3, 10)).toBe(false);
     expect(isSeatingAisleAfterColumn(4, 6, [4])).toBe(true);
     expect(isSeatingAisleAfterColumn(3, 6, [4])).toBe(false);
+  });
+});
+
+describe("fixed facility column alignment", () => {
+  it("maps fixed positions to the current seat columns", () => {
+    expect(getSeatingFixedFacilityColumn("LEFT", 8)).toBe(1);
+    expect(getSeatingFixedFacilityColumn("CENTER", 8)).toBe(4);
+    expect(getSeatingFixedFacilityColumn("RIGHT", 8)).toBe(8);
+  });
+
+  it("keeps every position valid for a one-column classroom", () => {
+    expect(getSeatingFixedFacilityColumn("LEFT", 1)).toBe(1);
+    expect(getSeatingFixedFacilityColumn("CENTER", 1)).toBe(1);
+    expect(getSeatingFixedFacilityColumn("RIGHT", 1)).toBe(1);
+  });
+
+  it("accounts for inserted aisles when finding the CSS grid track", () => {
+    expect(getSeatingGridTrackForColumn(1, [2, 6])).toBe(1);
+    expect(getSeatingGridTrackForColumn(4, [2, 6])).toBe(5);
+    expect(getSeatingGridTrackForColumn(8, [2, 6])).toBe(10);
+  });
+});
+
+describe("four-edge fixed facilities", () => {
+  it("normalizes facility placements by edge and slot", () => {
+    expect(validateSeatingEnvironment({
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+      fixedFacilities: {
+        waterDispenser: { side: "LEFT", position: 3 },
+        airConditioner: { side: "FRONT", position: 5 },
+      },
+    }, 7, 8).fixedFacilities).toEqual({
+      waterDispenser: { side: "LEFT", position: 3 },
+      airConditioner: { side: "FRONT", position: 5 },
+    });
+  });
+
+  it("rejects duplicate or out-of-range facility slots", () => {
+    expect(() => validateSeatingEnvironment({
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+      fixedFacilities: {
+        waterDispenser: { side: "LEFT", position: 2 },
+        airConditioner: { side: "LEFT", position: 2 },
+      },
+    }, 7, 8)).toThrowError(new SeatingValidationError("INVALID_FIXED_FACILITIES"));
+
+    expect(() => validateSeatingEnvironment({
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+      fixedFacilities: {
+        waterDispenser: { side: "FRONT", position: 9 },
+        airConditioner: null,
+      },
+    }, 7, 8)).toThrowError(new SeatingValidationError("INVALID_FIXED_FACILITIES"));
+  });
+
+  it("converts legacy rear positions to safe four-edge defaults", () => {
+    expect(createFixedFacilitiesFromLegacyRear({
+      waterDispenser: "LEFT",
+      airConditioner: "RIGHT",
+    }, 7, 8)).toEqual({
+      waterDispenser: { side: "LEFT", position: 4 },
+      airConditioner: { side: "RIGHT", position: 4 },
+    });
   });
 });
 
