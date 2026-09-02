@@ -212,6 +212,40 @@
   font-size: 12px;
 }
 
+.genderMark {
+  display: inline-flex;
+  align-items: center;
+  min-width: 20px;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.genderMarkMALE {
+  background: #e9f2ff;
+  color: #285c9d;
+}
+
+.genderMarkFEMALE {
+  background: #fff0f5;
+  color: #a4553f;
+}
+
+.genderMarkOTHER {
+  background: var(--surface-low);
+  color: var(--muted);
+}
+
+.genderInference {
+  margin-left: 5px;
+  color: #a74f00;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .studentCardEdit {
   width: 32px;
   height: 32px;

@@ -71,6 +71,78 @@ test("移动端课程表可以打开某个时段的编辑交互", async ({ page 
   expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
 });
 
+test("花名册会标记根据姓名推断的性别", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/students**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          items: [
+            {
+              id: "name-hint-male",
+              studentNo: "T001",
+              name: "蒋志豪",
+              gender: "OTHER",
+              birthDate: null,
+              phone: null,
+              address: null,
+              dormitory: null,
+              status: "ACTIVE",
+              guardians: [],
+            },
+            {
+              id: "name-hint-female",
+              studentNo: "T002",
+              name: "赵雅涵",
+              gender: "OTHER",
+              birthDate: null,
+              phone: null,
+              address: null,
+              dormitory: null,
+              status: "ACTIVE",
+              guardians: [],
+            },
+            {
+              id: "explicit-male",
+              studentNo: "T003",
+              name: "王伟",
+              gender: "MALE",
+              birthDate: null,
+              phone: null,
+              address: null,
+              dormitory: null,
+              status: "ACTIVE",
+              guardians: [],
+            },
+          ],
+          meta: { total: 3, page: 1, pageSize: 100 },
+        },
+      }),
+    });
+  });
+  await page.goto("/students");
+
+  const maleCard = page.getByRole("button", { name: "查看蒋志豪的学生档案" });
+  const femaleCard = page.getByRole("button", { name: "查看赵雅涵的学生档案" });
+  const explicitCard = page.getByRole("button", { name: "查看王伟的学生档案" });
+  await expect(maleCard).toContainText("男");
+  await expect(maleCard.getByText("姓名推断", { exact: true })).toBeVisible();
+  await expect(femaleCard).toContainText("女");
+  await expect(femaleCard.getByText("姓名推断", { exact: true })).toBeVisible();
+  await expect(explicitCard).toContainText("男");
+  await expect(explicitCard.getByText("姓名推断", { exact: true })).toHaveCount(0);
+
+  await maleCard.click();
+  await expect(page.getByRole("dialog")).toContainText("根据姓名推断");
+});
+
 test("拖拽课程后保存请求保留新的课程位置", async ({ page }) => {
   await login(page);
   await page.goto("/timetable");
@@ -128,6 +200,7 @@ test("座次调整显示脏状态并保存完整环境载荷", async ({ page }) 
   await page.getByRole("button", { name: "编辑座次" }).click();
 
   const pool = page.locator(".seating-sidebar-floating");
+  await page.getByRole("button", { name: "打开学生池" }).click();
   const selectedStudent = pool.locator(".student-pool-item").first();
   const emptySeat = page.locator(".seat-empty-trigger").first();
   await expect(pool).toBeVisible();
@@ -333,13 +406,14 @@ test("学生池编辑开始即显示且不压缩画布", async ({ page }) => {
       bodyLeft: bodyRect?.left ?? 0,
       sidebarRight: sidebarRect?.right ?? 0,
       bodyRight: bodyRect?.right ?? 0,
+      viewportWidth: window.innerWidth,
     };
   });
 
   expect(layout.canvasWidth).toBeGreaterThanOrEqual(layout.bodyWidth - 1);
   expect(layout.sidebarWidth).toBeGreaterThan(0);
-  expect(layout.sidebarLeft).toBeGreaterThanOrEqual(layout.bodyLeft);
-  expect(layout.sidebarRight).toBeLessThanOrEqual(layout.bodyRight + 1);
+  expect(layout.sidebarLeft).toBeGreaterThanOrEqual(0);
+  expect(layout.sidebarRight).toBeLessThanOrEqual(layout.viewportWidth + 1);
   await expect(page.getByRole("button", { name: "收起编辑工具" })).toHaveCount(0);
 });
 
@@ -370,8 +444,60 @@ test("座位布局、过道与教室标记使用独立交互", async ({ page }) 
   await expect(page.locator(".room-side-marker")).toHaveCount(14);
   await page.locator('[data-side="left"][data-marker-row="1"]').click({ force: true });
   await expect(page.locator('[data-side="left"][data-marker-row="1"]')).toContainText("窗户");
-  await page.locator('[data-rear-position="LEFT"] button[aria-label*="饮水机"]').click({ force: true });
-  await expect(page.locator('[data-rear-position="LEFT"] .room-rear-facility-selected')).toHaveCount(1);
+  await page.locator('[data-side-facility-position="LEFT"] button[aria-label*="饮水机"]').click({ force: true });
+  await expect(page.locator('[data-side-facility-position="LEFT"] .room-side-facility-selected')).toHaveCount(1);
+});
+
+test("座次图将前后侧作为固定边界并把设施固定在左右侧", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/seating", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: 2,
+          columns: 4,
+          students: [],
+          assignments: [],
+          environment: {
+            aisleAfterColumns: [2],
+            left: { windows: [], doorRows: [] },
+            right: { windows: [], doorRows: [] },
+            rear: { waterDispenser: "LEFT", airConditioner: "RIGHT" },
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/seating");
+
+  await expect(page.locator(".room-front")).toContainText("前方");
+  await expect(page.locator(".room-front")).toContainText("固定");
+  await expect(page.locator(".room-back")).toContainText("后方");
+  await expect(page.locator(".room-back")).toContainText("固定");
+  await expect(page.locator('[data-side-facility-position="LEFT"] .room-side-facility-waterDispenser')).toBeVisible();
+  await expect(page.locator('[data-side-facility-position="RIGHT"] .room-side-facility-airConditioner')).toBeVisible();
+});
+
+test("座次页顶部配置区域在桌面端保持单行", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await login(page);
+  await page.goto("/seating");
+
+  const toolbarLayout = await page.locator(".seating-canvas-toolbar").evaluate((toolbar) => ({
+    height: toolbar.getBoundingClientRect().height,
+    width: toolbar.getBoundingClientRect().width,
+    scrollWidth: toolbar.scrollWidth,
+  }));
+
+  expect(toolbarLayout.height).toBeLessThanOrEqual(44);
+  expect(toolbarLayout.scrollWidth).toBeLessThanOrEqual(toolbarLayout.width + 1);
 });
 
 test("学生池浮动窗口可以拖动", async ({ page }) => {
@@ -381,6 +507,7 @@ test("学生池浮动窗口可以拖动", async ({ page }) => {
   await page.getByRole("button", { name: "编辑座次" }).click();
 
   const panel = page.locator(".seating-sidebar-floating");
+  await expect(page.getByRole("button", { name: "打开学生池" })).toBeVisible();
   const handle = panel.locator(".seating-sidebar-floating-handle");
   const handleBox = await handle.boundingBox();
   expect(handleBox).not.toBeNull();

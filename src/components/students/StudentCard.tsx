@@ -9,8 +9,10 @@ import {
 } from "@ant-design/icons";
 import { Button, Tag, Tooltip } from "antd";
 
+import { resolveStudentGender } from "@/domain/student-gender";
+
 import styles from "./students.module.css";
-import { genderMap, getPrimaryGuardian, statusMap, type Student } from "./types";
+import { getPrimaryGuardian, statusMap, type Student } from "./types";
 
 interface StudentCardProps {
   student: Student;
@@ -25,6 +27,7 @@ function stopCardClick(event: React.MouseEvent<HTMLElement>) {
 export function StudentCard({ student, onOpenDetail, onEdit }: StudentCardProps) {
   const guardian = getPrimaryGuardian(student);
   const status = statusMap[student.status];
+  const gender = resolveStudentGender(student.gender, student.name);
 
   function openFromKeyboard(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === "Enter" || event.key === " ") {
@@ -52,7 +55,12 @@ export function StudentCard({ student, onOpenDetail, onEdit }: StudentCardProps)
               <h2>{student.name}</h2>
               <Tag color={status.color}>{status.text}</Tag>
             </div>
-            <p>{student.studentNo} · {genderMap[student.gender]}</p>
+            <p>
+              {student.studentNo} · <span className={`${styles.genderMark} ${styles[`genderMark${gender.value}`]}`}>
+                {gender.label}
+              </span>
+              {gender.inferred && <span className={styles.genderInference}>姓名推断</span>}
+            </p>
           </div>
         </div>
         <Tooltip title={`编辑${student.name}`}>
@@ -97,4 +105,3 @@ export function StudentCard({ student, onOpenDetail, onEdit }: StudentCardProps)
     </article>
   );
 }
-

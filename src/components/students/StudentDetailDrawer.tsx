@@ -11,8 +11,10 @@ import {
 import { Button, Drawer, Empty, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 
+import { resolveStudentGender } from "@/domain/student-gender";
+
 import styles from "./students.module.css";
-import { genderMap, statusMap, type Student } from "./types";
+import { statusMap, type Student } from "./types";
 
 interface StudentDetailDrawerProps {
   student: Student | null;
@@ -29,6 +31,7 @@ export function StudentDetailDrawer({ student, open, onClose, onEdit }: StudentD
   if (!student) return null;
 
   const status = statusMap[student.status];
+  const gender = resolveStudentGender(student.gender, student.name);
 
   return (
     <Drawer
@@ -64,7 +67,9 @@ export function StudentDetailDrawer({ student, open, onClose, onEdit }: StudentD
               <h2>{student.name}</h2>
               <Tag color={status.color}>{status.text}</Tag>
             </div>
-            <p>{genderMap[student.gender]} · {student.studentNo}</p>
+            <p>
+              {gender.label}{gender.inferred ? " · 根据姓名推断" : ""} · {student.studentNo}
+            </p>
           </div>
         </section>
 
@@ -157,4 +162,3 @@ export function StudentDetailDrawer({ student, open, onClose, onEdit }: StudentD
     </Drawer>
   );
 }
-

@@ -2,6 +2,7 @@
 
 import {
   CloudOutlined,
+  CloseOutlined,
   ColumnWidthOutlined,
   CoffeeOutlined,
   DragOutlined,
@@ -16,6 +17,7 @@ import {
   SaveOutlined,
   SettingOutlined,
   SwapOutlined,
+  TeamOutlined,
   UndoOutlined,
   WindowsOutlined,
 } from "@ant-design/icons";
@@ -52,10 +54,11 @@ import {
   type SeatingEnvironment,
   type SeatingSideLayout,
 } from "@/domain/seating";
+import { resolveStudentGender, type StudentGenderValue } from "@/domain/student-gender";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
 
-interface Student { id: string; name: string; studentNo: string; gender: string }
+interface Student { id: string; name: string; studentNo: string; gender: StudentGenderValue }
 interface Assignment { studentId: string; row: number; column: number }
 interface SeatingData {
   rows: number;
@@ -114,10 +117,7 @@ const rearFacilityLabels: Record<RearFacility, string> = {
   waterDispenser: "饮水机",
   airConditioner: "空调",
 };
-const rearPositions: RearFacilityPosition[] = ["LEFT", "CENTER", "RIGHT"];
 const maxHistoryLength = 30;
-const inferredFemaleNameSuffixes = new Set(Array.from("婷娜芳静丽娟英霞敏燕倩欣怡妍琳慧婉晴芸菲蕾佳涵洁彤悦菲菡莹柔瑄茹"));
-const inferredMaleNameSuffixes = new Set(Array.from("伟强军磊涛杰勇刚鹏超宇轩浩凯峰东波龙博昊阳晨宸哲豪泽航坤祥恺昱寅松鸣"));
 
 function sortAssignments(assignments: Assignment[]) {
   return [...assignments].sort(
@@ -158,19 +158,11 @@ function sameNumberList(left: readonly number[], right: readonly number[]) {
 }
 
 function clampFloatingPanelPosition(
-  body: HTMLElement,
   panel: HTMLElement,
   position: FloatingPanelPosition,
 ): FloatingPanelPosition {
-  const bodyRect = body.getBoundingClientRect();
-  const maxX = Math.max(12, Math.min(
-    body.clientWidth - panel.offsetWidth - 12,
-    window.innerWidth - bodyRect.left - panel.offsetWidth - 12,
-  ));
-  const maxY = Math.max(12, Math.min(
-    body.clientHeight - panel.offsetHeight - 12,
-    window.innerHeight - bodyRect.top - panel.offsetHeight - 12,
-  ));
+  const maxX = Math.max(12, window.innerWidth - panel.offsetWidth - 12);
+  const maxY = Math.max(12, window.innerHeight - panel.offsetHeight - 12);
   return {
     x: Math.min(maxX, Math.max(12, position.x)),
     y: Math.min(maxY, Math.max(12, position.y)),
@@ -272,11 +264,9 @@ function featureIcon(feature: SideFeature | null) {
 }
 
 function studentToneClass(student: Student) {
-  if (student.gender === "MALE") return "seat-student-male";
-  if (student.gender === "FEMALE") return "seat-student-female";
-  const suffix = Array.from(student.name).at(-1);
-  if (suffix && inferredFemaleNameSuffixes.has(suffix)) return "seat-student-female";
-  if (suffix && inferredMaleNameSuffixes.has(suffix)) return "seat-student-male";
+  const gender = resolveStudentGender(student.gender, student.name).value;
+  if (gender === "MALE") return "seat-student-male";
+  if (gender === "FEMALE") return "seat-student-female";
   return "seat-student-neutral";
 }
 
@@ -300,14 +290,13 @@ export default function SeatingPage() {
   const [showLeftSide, setShowLeftSide] = useState(true);
   const [showRightSide, setShowRightSide] = useState(true);
   const [studentPoolPosition, setStudentPoolPosition] = useState<FloatingPanelPosition | null>(null);
+  const [studentPoolOpen, setStudentPoolOpen] = useState(false);
   const [draggingStudentPool, setDraggingStudentPool] = useState(false);
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
   const [aisleSettingsModalOpen, setAisleSettingsModalOpen] = useState(false);
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
-  const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const studentPoolPanelRef = useRef<HTMLElement>(null);
   const studentPoolDrag = useRef<{
-    body: HTMLElement;
     panel: HTMLElement;
     offsetX: number;
     offsetY: number;
@@ -325,28 +314,26 @@ export default function SeatingPage() {
 
   useEffect(() => {
     if (!isEditing || studentPoolPosition === null) return;
-    const body = workspaceBodyRef.current;
     const panel = studentPoolPanelRef.current;
-    if (!body || !panel) return;
+    if (!panel) return;
 
     const clampPosition = () => {
       setStudentPoolPosition((current) => {
         if (!current) return current;
-        const next = clampFloatingPanelPosition(body, panel, current);
+        const next = clampFloatingPanelPosition(panel, current);
         return next.x === current.x && next.y === current.y ? current : next;
       });
     };
 
     clampPosition();
     const observer = new ResizeObserver(clampPosition);
-    observer.observe(body);
     observer.observe(panel);
     window.addEventListener("resize", clampPosition);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", clampPosition);
     };
-  }, [isEditing, studentPoolPosition]);
+  }, [isEditing, studentPoolOpen, studentPoolPosition]);
 
   const draft = editor.draft;
   const savedDraft = useMemo(() => (data ? toDraft(data) : null), [data]);
@@ -410,6 +397,7 @@ export default function SeatingPage() {
     if (!isDirty) {
       setIsEditing(false);
       setStudentPoolPosition(null);
+      setStudentPoolOpen(false);
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -425,6 +413,7 @@ export default function SeatingPage() {
         if (savedDraft) dispatch({ type: "reset", draft: savedDraft });
         setIsEditing(false);
         setStudentPoolPosition(null);
+        setStudentPoolOpen(false);
         setSelectedStudentId(null);
         setDropTarget(null);
         setSeatActionMenuKey(null);
@@ -609,12 +598,10 @@ export default function SeatingPage() {
 
   function startStudentPoolDrag(event: React.PointerEvent<HTMLElement>) {
     const panel = event.currentTarget.closest<HTMLElement>(".seating-sidebar-floating");
-    const body = event.currentTarget.closest<HTMLElement>(".seating-workspace-body");
-    if (!panel || !body) return;
+    if (!panel) return;
 
     const panelRect = panel.getBoundingClientRect();
     studentPoolDrag.current = {
-      body,
       panel,
       offsetX: event.clientX - panelRect.left,
       offsetY: event.clientY - panelRect.top,
@@ -627,10 +614,9 @@ export default function SeatingPage() {
     const drag = studentPoolDrag.current;
     if (!drag) return;
 
-    const bodyRect = drag.body.getBoundingClientRect();
-    setStudentPoolPosition(clampFloatingPanelPosition(drag.body, drag.panel, {
-      x: event.clientX - bodyRect.left - drag.offsetX,
-      y: event.clientY - bodyRect.top - drag.offsetY,
+    setStudentPoolPosition(clampFloatingPanelPosition(drag.panel, {
+      x: event.clientX - drag.offsetX,
+      y: event.clientY - drag.offsetY,
     }));
   }
 
@@ -643,16 +629,14 @@ export default function SeatingPage() {
   }
 
   function moveStudentPoolBy(horizontal: number, vertical: number) {
-    const body = workspaceBodyRef.current;
     const panel = studentPoolPanelRef.current;
-    if (!body || !panel) return;
-    const bodyRect = body.getBoundingClientRect();
+    if (!panel) return;
     const panelRect = panel.getBoundingClientRect();
     const current = studentPoolPosition ?? {
-      x: panelRect.left - bodyRect.left,
-      y: panelRect.top - bodyRect.top,
+      x: panelRect.left,
+      y: panelRect.top,
     };
-    setStudentPoolPosition(clampFloatingPanelPosition(body, panel, {
+    setStudentPoolPosition(clampFloatingPanelPosition(panel, {
       x: current.x + horizontal,
       y: current.y + vertical,
     }));
@@ -857,6 +841,7 @@ export default function SeatingPage() {
       message.success("座次与教室标记已保存");
       setIsEditing(false);
       setStudentPoolPosition(null);
+      setStudentPoolOpen(false);
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -868,11 +853,72 @@ export default function SeatingPage() {
     }
   }
 
+  function renderSideFacilities(side: SideKey) {
+    if (!draft) return null;
+    const position: RearFacilityPosition = side === "left" ? "LEFT" : "RIGHT";
+    const facilities = Object.keys(rearFacilityLabels) as RearFacility[];
+    const placedFacilities = facilities.filter((facility) => draft.environment.rear[facility] === position);
+    if (!isEditing && placedFacilities.length === 0) return null;
+
+    return (
+      <div
+        className="room-side-fixed-facilities"
+        data-side-facility-position={position}
+        data-rear-position={position}
+        aria-label={`${sideLabels[side]}固定设施`}
+      >
+        {facilities.map((facility) => {
+          const isPlaced = draft.environment.rear[facility] === position;
+          const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
+          const isOccupiedByOther = !isPlaced && draft.environment.rear[otherFacility] === position;
+          const FacilityIcon = facility === "waterDispenser" ? CoffeeOutlined : CloudOutlined;
+          const actionLabel = isPlaced
+            ? `移除${sideLabels[side]}${rearFacilityLabels[facility]}`
+            : `将${rearFacilityLabels[facility]}固定在${sideLabels[side]}`;
+          if (!isEditing && !isPlaced) return null;
+          if (!isEditing) {
+            return (
+              <span
+                className={`room-side-facility room-side-facility-${facility}`}
+                key={facility}
+                title={`${sideLabels[side]}固定${rearFacilityLabels[facility]}`}
+                aria-label={`${sideLabels[side]}固定${rearFacilityLabels[facility]}`}
+              >
+                <FacilityIcon />
+                <span className="room-side-facility-name">{rearFacilityLabels[facility]}</span>
+              </span>
+            );
+          }
+          return (
+            <Tooltip title={isOccupiedByOther ? `${sideLabels[side]}已有${rearFacilityLabels[otherFacility]}` : actionLabel} key={facility}>
+              <button
+                type="button"
+                className={`room-side-facility room-side-facility-control ${isPlaced ? "room-side-facility-selected" : ""} room-side-facility-${facility}`}
+                data-side-facility={facility}
+                aria-label={isOccupiedByOther ? `${actionLabel}，该位置已有${rearFacilityLabels[otherFacility]}` : actionLabel}
+                aria-pressed={isPlaced}
+                disabled={isOccupiedByOther}
+                title={isOccupiedByOther ? `${sideLabels[side]}已有${rearFacilityLabels[otherFacility]}` : actionLabel}
+                onClick={() => setRearFacilityPosition(facility, position)}
+              >
+                <FacilityIcon />
+                <span className="room-side-facility-name">{rearFacilityLabels[facility]}</span>
+              </button>
+            </Tooltip>
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderSideRail(side: SideKey) {
     if (!draft) return null;
     return (
       <div className="room-side-column">
-        <div className="room-column-label">{sideLabels[side]}</div>
+        <div className="room-side-column-heading">
+          <span className="room-column-label">{sideLabels[side]}</span>
+          {renderSideFacilities(side)}
+        </div>
         <div
           className="room-side-track"
           style={{ gridTemplateRows: `repeat(${DEFAULT_SEATING_SIDE_MARKER_ROWS}, minmax(96px, 1fr))` }}
@@ -922,56 +968,40 @@ export default function SeatingPage() {
     );
   }
 
-  function renderRearFacilities() {
+  function renderBackRail() {
     if (!draft) return null;
+    const centerFacilities = (Object.keys(rearFacilityLabels) as RearFacility[])
+      .filter((facility) => draft.environment.rear[facility] === "CENTER");
     return (
-      <section className="room-rear" aria-label="后方设施">
-        <div className="room-rear-heading">
-          <span>后方</span>
-          <span>饮水机与空调</span>
+      <div className="room-back" data-orientation="rear" aria-label="后方固定边界">
+        <div className="room-end-label">
+          <strong>后方</strong>
+          <small>固定</small>
         </div>
-        <div className="room-rear-positions">
-          {rearPositions.map((position) => (
-            <div className="room-rear-position" key={position} data-rear-position={position}>
-              <span className="room-rear-position-label">{rearPositionLabels[position]}</span>
-              <div className="room-rear-facilities">
-                {(Object.keys(rearFacilityLabels) as RearFacility[]).map((facility) => {
-                  const isPlaced = draft.environment.rear[facility] === position;
-                  const otherFacility: RearFacility = facility === "waterDispenser" ? "airConditioner" : "waterDispenser";
-                  const isOccupiedByOther = !isPlaced && draft.environment.rear[otherFacility] === position;
-                  const FacilityIcon = facility === "waterDispenser" ? CoffeeOutlined : CloudOutlined;
-                  const actionLabel = isPlaced
-                    ? `移除${rearPositionLabels[position]}侧${rearFacilityLabels[facility]}`
-                    : `将${rearFacilityLabels[facility]}设置在${rearPositionLabels[position]}侧`;
-                  if (!isEditing && !isPlaced) return null;
-                  if (!isEditing) {
-                    return (
-                      <span className={`room-rear-facility room-rear-facility-${facility}`} key={facility}>
-                        <FacilityIcon />
-                        <span>{rearFacilityLabels[facility]}</span>
-                      </span>
-                    );
-                  }
-                  return (
-                    <Tooltip title={isOccupiedByOther ? `${rearPositionLabels[position]}侧已有${rearFacilityLabels[otherFacility]}` : actionLabel} key={facility}>
-                      <button
-                        type="button"
-                        className={`room-rear-facility-control ${isPlaced ? "room-rear-facility-selected" : ""} room-rear-facility-${facility}`}
-                        aria-label={isOccupiedByOther ? `${actionLabel}，该位置已有${rearFacilityLabels[otherFacility]}` : actionLabel}
-                        aria-pressed={isPlaced}
-                        onClick={() => setRearFacilityPosition(facility, position)}
-                      >
-                        <FacilityIcon />
-                        <span className="sr-only">{rearFacilityLabels[facility]}</span>
-                      </button>
-                    </Tooltip>
-                  );
-                })}
-              </div>
+        <div className="room-back-boundary">
+          <span className="room-back-boundary-line" aria-hidden="true" />
+          <span>后侧固定</span>
+          {centerFacilities.length > 0 && (
+            <div className="room-back-center-facilities" aria-label="旧版后方设施">
+              {centerFacilities.map((facility) => {
+                const FacilityIcon = facility === "waterDispenser" ? CoffeeOutlined : CloudOutlined;
+                return (
+                  <span
+                    className={`room-side-facility room-side-facility-${facility}`}
+                    key={facility}
+                    title={`后方固定${rearFacilityLabels[facility]}`}
+                    aria-label={`后方固定${rearFacilityLabels[facility]}`}
+                  >
+                    <FacilityIcon />
+                    <span className="room-side-facility-name">{rearFacilityLabels[facility]}</span>
+                  </span>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
-      </section>
+        <span className="room-end-hint">教室后墙</span>
+      </div>
     );
   }
 
@@ -984,7 +1014,7 @@ export default function SeatingPage() {
         action={(
           <Space className="seating-heading-actions">
             {!isEditing ? (
-              <Button type="primary" icon={<EditOutlined />} onClick={() => { setStudentPoolPosition(null); setIsEditing(true); }}>
+              <Button type="primary" icon={<EditOutlined />} onClick={() => { setStudentPoolPosition(null); setStudentPoolOpen(false); setIsEditing(true); }}>
                 编辑座次
               </Button>
             ) : (
@@ -1063,54 +1093,82 @@ export default function SeatingPage() {
           </div>
 
           <div
-            ref={workspaceBodyRef}
             className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
           >
             {isEditing && <aside
               ref={studentPoolPanelRef}
-              className={`seating-sidebar seating-sidebar-floating ${draggingStudentPool ? "seating-sidebar-floating-dragging" : ""}`}
+              className={`seating-sidebar seating-sidebar-floating ${studentPoolOpen ? "seating-sidebar-floating-open" : "seating-sidebar-floating-collapsed"} ${studentPoolPosition ? "seating-sidebar-floating-positioned" : ""} ${draggingStudentPool ? "seating-sidebar-floating-dragging" : ""}`}
               style={studentPoolPosition ? { left: `${studentPoolPosition.x}px`, top: `${studentPoolPosition.y}px` } : undefined}
               aria-label="待安排学生"
             >
-              <Tooltip title="拖动学生池">
+              <div className="student-pool-floating-header">
+                <Tooltip title="拖动学生池">
+                  <button
+                    type="button"
+                    className="seating-sidebar-floating-handle"
+                    aria-label="拖动学生池位置"
+                    onPointerDown={startStudentPoolDrag}
+                    onPointerMove={moveStudentPool}
+                    onPointerUp={endStudentPoolDrag}
+                    onPointerCancel={endStudentPoolDrag}
+                    onKeyDown={handleStudentPoolHandleKeyDown}
+                  >
+                    <HolderOutlined />
+                  </button>
+                </Tooltip>
                 <button
                   type="button"
-                  className="seating-sidebar-floating-handle"
-                  aria-label="拖动学生池位置"
-                  onPointerDown={startStudentPoolDrag}
-                  onPointerMove={moveStudentPool}
-                  onPointerUp={endStudentPoolDrag}
-                  onPointerCancel={endStudentPoolDrag}
-                  onKeyDown={handleStudentPoolHandleKeyDown}
+                  className="student-pool-toggle"
+                  aria-label={studentPoolOpen ? "收起学生池" : "打开学生池"}
+                  aria-expanded={studentPoolOpen}
+                  onClick={() => setStudentPoolOpen((current) => !current)}
                 >
-                  <HolderOutlined />
+                  <TeamOutlined />
+                  <span className="student-pool-toggle-copy">
+                    <strong>学生池</strong>
+                    <small>{studentCount} 人</small>
+                  </span>
                 </button>
-              </Tooltip>
-              <div
-                className={`student-pool-list ${draggingStudentId ? "student-pool-list-drop-active" : ""}`}
-                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
-                onDrop={handlePoolDrop}
-              >
-                {poolStudents.map((student) => {
-                  const isSelected = selectedStudentId === student.id;
-                  return (
+                {studentPoolOpen && (
+                  <Tooltip title="收起学生池">
                     <button
                       type="button"
-                      key={student.id}
-                      className={`student-pool-item ${isSelected ? "student-pool-item-selected" : ""} ${draggingStudentId === student.id ? "student-pool-item-dragging" : ""}`}
-                      aria-label={`${student.name}，拖动到座位`}
-                      draggable
-                      aria-pressed={isSelected}
-                      onClick={() => selectStudent(student.id)}
-                      onDragStart={(event) => startStudentDrag(event, student.id)}
-                      onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                      className="student-pool-close"
+                      aria-label="收起学生池"
+                      onClick={() => setStudentPoolOpen(false)}
                     >
-                      <span className="student-pool-copy"><strong>{student.name}</strong></span>
+                      <CloseOutlined />
                     </button>
-                  );
-                })}
-                {!poolStudents.length && <span className="sr-only">当前没有待安排学生</span>}
+                  </Tooltip>
+                )}
               </div>
+              {studentPoolOpen && (
+                <div
+                  className={`student-pool-list ${draggingStudentId ? "student-pool-list-drop-active" : ""}`}
+                  onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
+                  onDrop={handlePoolDrop}
+                >
+                  {poolStudents.map((student) => {
+                    const isSelected = selectedStudentId === student.id;
+                    return (
+                      <button
+                        type="button"
+                        key={student.id}
+                        className={`student-pool-item ${isSelected ? "student-pool-item-selected" : ""} ${draggingStudentId === student.id ? "student-pool-item-dragging" : ""}`}
+                        aria-label={`${student.name}，拖动到座位`}
+                        draggable
+                        aria-pressed={isSelected}
+                        onClick={() => selectStudent(student.id)}
+                        onDragStart={(event) => startStudentDrag(event, student.id)}
+                        onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                      >
+                        <span className="student-pool-copy"><strong>{student.name}</strong></span>
+                      </button>
+                    );
+                  })}
+                  {!poolStudents.length && <span className="sr-only">当前没有待安排学生</span>}
+                </div>
+              )}
             </aside>}
 
             <section className="seating-canvas-section" aria-label="教室座位画布">
@@ -1150,17 +1208,17 @@ export default function SeatingPage() {
                   <div className="seating-legend">
                   <span>{isEditing ? <DragOutlined /> : <EyeInvisibleOutlined />}{isEditing ? "拖放编辑" : "只读查看"}</span>
                   <span><ColumnWidthOutlined />过道 {aisleAfterColumns.length}</span>
-                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span><span><CoffeeOutlined />后方设施</span></>}
+                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span><span><CoffeeOutlined />左右固定</span></>}
                   </div>
                 </div>
               </div>
 
               <div className="seating-map-scroll">
                 <div className="seating-map">
-                  <div className="room-front">
-                    <span>前方</span>
+                  <div className="room-front" data-orientation="front">
+                    <span className="room-end-label"><strong>前方</strong><small>固定</small></span>
                     <div className="blackboard"><strong>讲台</strong><small>BLACKBOARD</small></div>
-                    <span>后方</span>
+                    <span className="room-end-hint">面向讲台</span>
                   </div>
                   <div className={`room-layout ${showLeftSide ? "" : "room-layout-no-left"} ${showRightSide ? "" : "room-layout-no-right"}`}>
                     {showLeftSide && renderSideRail("left")}
@@ -1260,7 +1318,7 @@ export default function SeatingPage() {
                     </div>
                     {showRightSide && renderSideRail("right")}
                   </div>
-                  {renderRearFacilities()}
+                  {renderBackRail()}
                 </div>
               </div>
             </section>
