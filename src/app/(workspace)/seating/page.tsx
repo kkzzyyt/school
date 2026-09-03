@@ -1167,55 +1167,6 @@ export default function SeatingPage() {
         </Card>
       ) : (
         <Card className="surface-card seating-workspace-card" styles={{ body: { padding: 0 } }}>
-          <div className="seating-overview">
-            <div className="seating-overview-heading">
-              <div className="seating-overview-icon"><ColumnWidthOutlined /></div>
-              <div>
-                <div className="section-label">教室平面</div>
-                <h2>座位编辑画布</h2>
-              </div>
-              <Tag color={isEditing ? (isDirty ? "orange" : "blue") : "green"}>
-                {isEditing ? (isDirty ? "有未保存修改" : "编辑中") : "查看模式"}
-              </Tag>
-            </div>
-            <div className="seating-overview-stats">
-              <div className="seating-overview-stat">
-                <span>已安排</span>
-                <strong>{assignedCount}<small> / {studentCount}</small></strong>
-              </div>
-              <div className="seating-overview-stat">
-                <span>空座位</span>
-                <strong>{Math.max(availableSeatCount, 0)}</strong>
-              </div>
-              <div className="seating-overview-stat">
-                <span>教室标记</span>
-                <strong>{environmentFeatureCount}<small> 个</small></strong>
-              </div>
-            </div>
-            {isEditing && (
-              <div className="seating-history-actions">
-                <Tooltip title="撤销上一步">
-                  <Button
-                    type="text"
-                    aria-label="撤销上一步"
-                    icon={<UndoOutlined />}
-                    disabled={!editor.past.length}
-                    onClick={() => { dispatch({ type: "undo" }); setSelectedStudentId(null); }}
-                  />
-                </Tooltip>
-                <Tooltip title="重做">
-                  <Button
-                    type="text"
-                    aria-label="重做"
-                    icon={<RedoOutlined />}
-                    disabled={!editor.future.length}
-                    onClick={() => { dispatch({ type: "redo" }); setSelectedStudentId(null); }}
-                  />
-                </Tooltip>
-              </div>
-            )}
-          </div>
-
           <div
             className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
           >
@@ -1357,9 +1308,39 @@ export default function SeatingPage() {
                 <span>{isDirty ? "含未保存修改 · " : ""}面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
               </div>
               <div className="seating-canvas-toolbar">
-                <div>
-                  <strong>面向讲台</strong>
-                  <span>{draft.rows} 排 · {draft.columns} 个座位/排</span>
+                <div className="seating-canvas-summary">
+                  <strong>座位编辑画布</strong>
+                  <Tag color={isEditing ? (isDirty ? "orange" : "blue") : "green"}>
+                    {isEditing ? (isDirty ? "有未保存修改" : "编辑中") : "查看模式"}
+                  </Tag>
+                  <span className="seating-canvas-dimensions">面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
+                  <div className="seating-inline-stats" aria-label="座位统计">
+                    <span className="seating-inline-stat">已安排 <strong>{assignedCount}<small> / {studentCount}</small></strong></span>
+                    <span className="seating-inline-stat">空座位 <strong>{Math.max(availableSeatCount, 0)}</strong></span>
+                    <span className="seating-inline-stat">教室标记 <strong>{environmentFeatureCount}<small> 个</small></strong></span>
+                  </div>
+                  {isEditing && (
+                    <div className="seating-history-actions">
+                      <Tooltip title="撤销上一步">
+                        <Button
+                          type="text"
+                          aria-label="撤销上一步"
+                          icon={<UndoOutlined />}
+                          disabled={!editor.past.length}
+                          onClick={() => { dispatch({ type: "undo" }); setSelectedStudentId(null); }}
+                        />
+                      </Tooltip>
+                      <Tooltip title="重做">
+                        <Button
+                          type="text"
+                          aria-label="重做"
+                          icon={<RedoOutlined />}
+                          disabled={!editor.future.length}
+                          onClick={() => { dispatch({ type: "redo" }); setSelectedStudentId(null); }}
+                        />
+                      </Tooltip>
+                    </div>
+                  )}
                 </div>
                 <div className="seating-canvas-options">
                   {isEditing && <Space className="seating-settings-actions">

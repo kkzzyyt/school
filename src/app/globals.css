@@ -1174,20 +1174,8 @@ select {
   background: #f7f9fc;
 }
 
-.seating-overview {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto auto;
-  align-items: center;
-  gap: 24px;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--line);
-  background: white;
-}
-
-.seating-overview-heading,
 .seating-section-heading,
 .seating-canvas-toolbar,
-.seating-overview-stats,
 .seating-history-actions,
 .seating-environment-list > div,
 .seating-workspace-footer,
@@ -1198,23 +1186,6 @@ select {
   align-items: center;
 }
 
-.seating-overview-heading {
-  min-width: 0;
-  gap: 12px;
-}
-
-.seating-overview-icon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  place-items: center;
-  border-radius: 8px;
-  background: #e5f4ee;
-  color: var(--success);
-  font-size: 18px;
-}
-
 .section-label {
   color: var(--muted);
   font-size: 11px;
@@ -1223,47 +1194,11 @@ select {
   text-transform: uppercase;
 }
 
-.seating-overview-heading h2,
 .seating-section-heading h2 {
   margin: 2px 0 0;
   color: var(--ink);
   font-size: 16px;
   letter-spacing: 0;
-}
-
-.seating-overview-heading .ant-tag {
-  margin-left: 4px;
-  white-space: nowrap;
-}
-
-.seating-overview-stats {
-  gap: 24px;
-  padding-left: 24px;
-  border-left: 1px solid var(--line);
-}
-
-.seating-overview-stat {
-  display: flex;
-  min-width: 68px;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.seating-overview-stat span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.seating-overview-stat strong {
-  color: var(--ink);
-  font-size: 20px;
-  line-height: 1.2;
-}
-
-.seating-overview-stat small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 .seating-history-actions {
@@ -1991,12 +1926,13 @@ select {
   color: var(--muted) !important;
 }
 
-.seating-canvas-toolbar > div:first-child {
+.seating-canvas-summary {
   display: flex;
   min-width: 0;
-  flex: 0 0 auto;
-  align-items: baseline;
-  gap: 10px;
+  flex: 1 1 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
 }
 
 .seating-canvas-toolbar strong {
@@ -2007,6 +1943,40 @@ select {
 .seating-canvas-toolbar span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.seating-canvas-summary .ant-tag {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.seating-inline-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.seating-inline-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  white-space: nowrap;
+}
+
+.seating-inline-stat strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.seating-inline-stat small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .seating-legend {
@@ -2733,14 +2703,6 @@ select {
     grid-template-columns: 248px minmax(0, 1fr);
   }
 
-  .seating-overview {
-    gap: 16px;
-  }
-
-  .seating-overview-stats {
-    gap: 16px;
-    padding-left: 16px;
-  }
 }
 
 @media (max-width: 991px) {
@@ -2860,20 +2822,6 @@ select {
     padding: 20px;
   }
 
-  .seating-overview {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
-    padding: 18px;
-  }
-
-  .seating-overview-stats {
-    grid-column: 1 / -1;
-    justify-content: space-between;
-    padding: 14px 0 0;
-    border-top: 1px solid var(--line);
-    border-left: 0;
-  }
-
   .seating-workspace-body {
     display: flex;
     flex-direction: column;
@@ -2958,22 +2906,10 @@ select {
     font-size: 27px;
   }
 
-  .seating-overview-heading .ant-tag {
-    display: none;
-  }
-
-  .seating-overview-stats {
-    gap: 10px;
-  }
-
-  .seating-overview-stat strong {
-    font-size: 18px;
-  }
-
-  .seating-canvas-toolbar > div:first-child {
+  .seating-canvas-summary {
     align-items: flex-start;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
   }
 
   .seating-legend {
@@ -3016,7 +2952,6 @@ select {
   .workspace-header,
   .workspace-page-stack > .page-heading,
   .workspace-page-stack > .ant-alert,
-  .seating-overview,
   .seating-canvas-toolbar,
   .seating-sidebar-floating,
   .seating-workspace-footer,
