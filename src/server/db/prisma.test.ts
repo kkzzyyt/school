@@ -16,7 +16,7 @@ vi.mock("@/generated/prisma/client", () => ({
 import { withDatabaseTimeouts } from "./prisma";
 
 describe("withDatabaseTimeouts", () => {
-  it("adds bounded MariaDB pool timeouts while preserving existing URL options", () => {
+  it("adds bounded pool and socket timeouts while preserving existing URL options", () => {
     const url = new URL(
       withDatabaseTimeouts("mysql://school:password@example.test:3306/school?ssl=true"),
     );
@@ -25,19 +25,20 @@ describe("withDatabaseTimeouts", () => {
     expect(url.searchParams.get("ssl")).toBe("true");
     expect(url.searchParams.get("connectTimeout")).toBe("1000");
     expect(url.searchParams.get("acquireTimeout")).toBe("2000");
-    expect(url.searchParams.get("queryTimeout")).toBe("2000");
+    expect(url.searchParams.get("socketTimeout")).toBe("2000");
+    expect(url.searchParams.has("queryTimeout")).toBe(false);
   });
 
-  it("respects explicitly configured MariaDB pool timeouts", () => {
+  it("respects explicitly configured pool timeouts", () => {
     const url = new URL(
       withDatabaseTimeouts(
-        "mysql://school:password@example.test/school?connectTimeout=4000&acquireTimeout=5000&queryTimeout=6000",
+        "mysql://school:password@example.test/school?connectTimeout=4000&acquireTimeout=5000&socketTimeout=6000",
       ),
     );
 
     expect(url.searchParams.get("connectTimeout")).toBe("4000");
     expect(url.searchParams.get("acquireTimeout")).toBe("5000");
-    expect(url.searchParams.get("queryTimeout")).toBe("6000");
+    expect(url.searchParams.get("socketTimeout")).toBe("6000");
   });
 
   it("keeps an adapter-native MariaDB URL on the MariaDB protocol", () => {

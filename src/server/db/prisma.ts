@@ -9,7 +9,8 @@ const globalForPrisma = globalThis as unknown as {
 const DATABASE_TIMEOUT_DEFAULTS = {
   acquireTimeout: "2000",
   connectTimeout: "1000",
-  queryTimeout: "2000",
+  // queryTimeout relies on MariaDB's max_statement_time and is not supported by MySQL.
+  socketTimeout: "2000",
 };
 
 export function withDatabaseTimeouts(databaseUrl: string): string {

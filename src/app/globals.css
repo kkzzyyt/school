@@ -1193,7 +1193,6 @@ select {
 .seating-workspace-footer,
 .seating-legend,
 .seating-selection-bar,
-.seat-cell-header,
 .seat-student-row {
   display: flex;
   align-items: center;
@@ -2313,18 +2312,6 @@ select {
   box-shadow: 0 0 0 2px rgba(11, 87, 208, 0.12), 0 5px 14px rgba(11, 87, 208, 0.12) !important;
 }
 
-.seat-cell-header {
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 6px;
-  color: var(--muted);
-  font-size: 9px;
-}
-
-.seat-cell-header span:last-child {
-  color: #8a94a3;
-}
-
 .seat-student-row {
   min-width: 0;
   flex: 1;
@@ -3172,12 +3159,6 @@ select {
   .seating-print-region .seat-cell {
     padding: 4px;
     border-radius: 4px;
-  }
-
-  .seating-print-region .seat-cell-header {
-    gap: 3px;
-    margin-bottom: 2px;
-    font-size: 7px;
   }
 
   .seating-print-region .seat-student {

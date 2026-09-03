@@ -1431,7 +1431,6 @@ export default function SeatingPage() {
                                       onDragLeave={isEditing ? () => setDropTarget((current) => current === positionKey ? null : current) : undefined}
                                       onDrop={isEditing ? (event) => handleSeatDrop(event, row, column) : undefined}
                                     >
-                                      <div className="seat-cell-header"><span>第 {row} 排</span><span>{column} 座</span></div>
                                       {student ? (
                                         <div className="seat-student-row">
                                           {isEditing ? (
