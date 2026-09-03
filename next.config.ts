@@ -2,8 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: ["argon2"],
   outputFileTracingIncludes: {
     "/*": [
+      "node_modules/argon2/**/*",
       "node_modules/@prisma/adapter-mariadb/**/*",
       "node_modules/@prisma/driver-adapter-utils/**/*",
       "node_modules/@prisma/debug/**/*",

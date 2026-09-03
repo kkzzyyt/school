@@ -55,8 +55,7 @@ http_status='000'
 for (( attempt = 1; attempt <= 30; attempt += 1 )); do
   http_status="$(curl -sS --max-time 3 --output /dev/null --write-out '%{http_code}' -- "http://127.0.0.1:$SMOKE_PORT/api/health" 2>/dev/null || true)"
   if [[ "$http_status" == 503 ]]; then
-    printf '%s\n' 'Docker 运行时冒烟测试通过'
-    exit 0
+    break
   fi
   running="$(docker inspect --format '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || printf 'false')"
   if [[ "$running" != true ]]; then
@@ -65,6 +64,18 @@ for (( attempt = 1; attempt <= 30; attempt += 1 )); do
   sleep 1
 done
 
+login_status="$(curl -sS --max-time 3 --output /dev/null --write-out '%{http_code}' \
+  -X POST \
+  -H 'Origin: http://127.0.0.1:'"$SMOKE_PORT" \
+  -H 'Content-Type: application/json' \
+  --data '{}' \
+  -- "http://127.0.0.1:$SMOKE_PORT/api/auth/login" 2>/dev/null || true)"
+if [[ "$http_status" == 503 && "$login_status" == 400 ]]; then
+  printf '%s\n' 'Docker 运行时冒烟测试通过'
+  exit 0
+fi
+
 printf '健康接口未返回预期 HTTP 503，实际为 %s\n' "${http_status:-000}" >&2
+printf '登录路由未返回预期 HTTP 400，实际为 %s\n' "${login_status:-000}" >&2
 docker logs "$CONTAINER_NAME" 2>&1 | sed -n '1,160p' >&2 || true
 fail 'Docker standalone 应用未正常启动'

@@ -54,6 +54,9 @@ COPY --from=builder --chown=node:node /app/src/generated/prisma ./src/generated/
 RUN mkdir -p /app/.next/cache \
   && chown -R node:node /app/.next /app/public /app/src
 
+# Fail the image build if the production platform cannot load Argon2.
+RUN node -e 'const argon2 = require("argon2"); if (typeof argon2.verify !== "function") process.exit(1)'
+
 USER node
 
 EXPOSE 3000

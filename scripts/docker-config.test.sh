@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 DOCKERFILE="$PROJECT_ROOT/Dockerfile"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.production.yml"
 DOCKERIGNORE="$PROJECT_ROOT/.dockerignore"
+NEXT_CONFIG="$PROJECT_ROOT/next.config.ts"
 
 fail() {
   printf 'Docker 配置测试失败：%s\n' "$*" >&2
@@ -33,6 +34,10 @@ assert_not_contains() {
 assert_file "$DOCKERFILE"
 assert_file "$COMPOSE_FILE"
 assert_file "$DOCKERIGNORE"
+assert_file "$NEXT_CONFIG"
+
+assert_contains 'serverExternalPackages' "$NEXT_CONFIG"
+assert_contains '"argon2"' "$NEXT_CONFIG"
 
 for required_text in \
   'ARG NODE_VERSION=24.13.0-slim' \
@@ -41,6 +46,7 @@ for required_text in \
   'ENV DATABASE_URL=mysql://school:build@127.0.0.1:3306/school' \
   'npm run db:generate && npm run build' \
   'npm run build' \
+  'require("argon2")' \
   '/app/.next/standalone' \
   'USER node' \
   'CMD ["node", "server.js"]'; do
