@@ -21,6 +21,7 @@
     "test:deploy": "bash scripts/deploy.test.sh",
     "test:deploy:systemd": "bash scripts/remote-deploy-systemd.test.sh",
     "test:deploy:docker": "bash scripts/remote-deploy-docker.test.sh",
+    "test:deploy:docker:registry": "bash scripts/remote-deploy-docker-registry.test.sh",
     "package:deploy": "bash scripts/package-deploy.sh",
     "package:standalone": "bash scripts/package-standalone-deploy.sh",
     "deploy": "bash scripts/deploy.sh",

@@ -59,7 +59,7 @@ npm run dev
 
 ### 5. Docker 生产部署
 
-线上生产入口使用 GitHub Actions：Linux runner 在固定的 Docker 构建环境中完成依赖安装和 Next.js standalone 构建，先启动镜像做健康路由冒烟测试，再通过 SSH 上传镜像、校验文件和 Compose 配置。服务器只需要 Docker Engine、Docker Compose v2、可访问的 MySQL 和反向代理/TLS，不再需要与本机匹配的 Node.js、npm 或 Prisma CLI。
+线上生产入口使用 GitHub Actions：Linux runner 在固定的 Docker 构建环境中完成依赖安装和 Next.js standalone 构建，先运行镜像健康路由冒烟测试，再把以 commit SHA 标记的镜像推送到 GHCR。部署时通过 SSH 上传轻量的镜像引用和 Compose 配置，服务器从 GHCR 按层拉取镜像，不再传输完整 Docker tar 包。服务器只需要 Docker Engine、Docker Compose v2、能访问 GHCR 的网络、可访问的 MySQL 和反向代理/TLS，不再需要与本机匹配的 Node.js、npm 或 Prisma CLI。
 
 首次部署前，在服务器创建不会上传的运行时环境文件，并确保 SSH 发布账号可以读取它、执行 Docker 命令（通常加入 `docker` 用户组或使用 root）：
 
@@ -70,7 +70,7 @@ install -m 600 /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime
 
 `docker-compose.production.yml` 使用 Linux host network，让现有主机 MySQL 的 `127.0.0.1:3306` 仍可从应用容器访问；应用只监听主机 `127.0.0.1:3000`，反向代理应转发到该地址，不要把应用端口直接暴露到公网。如果数据库在另一个容器或独立主机，需把 `DATABASE_URL` 改成容器/主机可达的地址，并按实际网络调整 Compose 配置。
 
-在 GitHub 的 `production` Environment 中配置好 SSH 密钥和变量后，推送到 `main` 或手动运行 workflow 即可发布。部署脚本会在容器内执行 Prisma 配置校验和生产迁移，健康检查失败时自动恢复上一份 Docker release；数据库迁移本身不会随目录回滚，生产迁移必须保持向后兼容并配合备份。
+在 GitHub 的 `production` Environment 中配置好 SSH 密钥和变量后，推送到 `main` 或手动运行 workflow 即可发布。workflow 使用本次运行的 `GITHUB_TOKEN` 临时登录 GHCR，部署结束后退出登录；服务器不需要保存 GHCR 长期密码。部署脚本会在容器内执行 Prisma 配置校验和生产迁移，启动后先确认运行中的容器确实使用本次镜像，再执行健康检查；任一步失败都会自动恢复上一份 Docker release。数据库迁移本身不会随目录回滚，生产迁移必须保持向后兼容并配合备份。
 
 旧版 `npm run deploy` 的 PM2/systemd 源码发布脚本仍保留作兼容和人工回退使用，但它会依赖服务器本机 Node.js/npm，不是当前 GitHub Actions 的生产入口。
 
@@ -96,6 +96,7 @@ npm run test:deploy     # 使用伪造 SSH/PM2 的部署流程测试
 npm run test:deploy:systemd # systemd 远端构建和切换测试
 npm run test:deploy:standalone # standalone 远端切换和回滚测试
 npm run test:deploy:docker # Docker 镜像远端切换和回滚测试
+npm run test:deploy:docker:registry # GHCR 镜像远端切换、校验和回滚测试
 npm run package:standalone # 打包已构建的 standalone 产物
 npm run db:generate     # 生成 Prisma Client
 npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
@@ -106,9 +107,9 @@ npm run db:studio       # Prisma 数据浏览器
 
 ## GitHub Actions CI/CD
 
-仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 和 push 都会在 Linux runner 中构建同一套 Docker 镜像并运行冒烟测试；推送到 `main` 或手动触发 workflow 时，验证通过的镜像会通过 SSH 上传到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
+仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 会在 Linux runner 中构建镜像并加载到本地运行冒烟测试，不会向 GHCR 写入镜像；推送到 `main` 或手动触发 workflow 时，验证通过的镜像会推送到 GHCR，并通过 SSH 传递镜像引用和 Compose 配置给生产服务器。Docker BuildKit 使用 GitHub Actions 缓存复用依赖和构建层，连续提交时会取消旧运行，只保留最新提交。
 
-Docker 镜像包含 Next.js standalone 运行时、MariaDB Prisma 适配器和生产迁移所需的 Prisma CLI；生产服务器不参与 npm 安装或 Next.js 构建。发布脚本不会上传本地 `.env` 或覆盖数据库，只从服务器上的 `DEPLOY_ENV_PATH` 读取运行时配置，并在启动新容器前执行 Prisma 校验、迁移和 `/api/health` 数据库健康检查。
+Docker 镜像包含 Next.js standalone 运行时、MariaDB Prisma 适配器和生产迁移所需的 Prisma CLI；生产服务器不参与 npm 安装或 Next.js 构建。生产部署产物只包含 `image-ref` 和 `docker-compose.production.yml`，不会上传本地 `.env` 或完整镜像 tar 包，也不会覆盖数据库。发布脚本只从服务器上的 `DEPLOY_ENV_PATH` 读取运行时配置，并在启动新容器前执行 Prisma 校验、迁移，随后校验活动镜像和 `/api/health` 数据库健康检查；切换失败会恢复旧容器和 `current` release 指针。
 
 在 GitHub 的 `production` Environment 中配置：
 

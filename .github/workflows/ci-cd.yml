@@ -25,6 +25,9 @@ jobs:
     name: Verify and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,40 +56,63 @@ jobs:
           npm run test:package:standalone
           npm run test:deploy:standalone
           npm run test:deploy:docker
+          npm run test:deploy:docker:registry
           npm run test:docker:config
           npm run test:ci:config
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build production Docker image
         env:
-          IMAGE_REF: school:${{ github.sha }}
+          IMAGE_REF: ghcr.io/${{ github.repository_owner }}/school:${{ github.sha }}
+          PUBLISH_IMAGE: ${{ github.event_name != 'pull_request' }}
         run: |
           set -Eeuo pipefail
+          build_output=(--load)
+          if [[ "$PUBLISH_IMAGE" == true ]]; then
+            build_output=(--push)
+          fi
           docker buildx build \
             --platform linux/amd64 \
             --build-arg BUILD_SHA="$GITHUB_SHA" \
             --tag "$IMAGE_REF" \
-            --load \
+            --cache-from type=gha,scope=school-docker \
+            --cache-to type=gha,mode=max,scope=school-docker \
+            "${build_output[@]}" \
             .
 
       - name: Smoke test Docker runtime
         env:
-          DOCKER_SMOKE_IMAGE: school:${{ github.sha }}
+          DOCKER_SMOKE_IMAGE: ghcr.io/${{ github.repository_owner }}/school:${{ github.sha }}
           DOCKER_SMOKE_PORT: "3101"
-        run: npm run test:docker:runtime
+          PUBLISH_IMAGE: ${{ github.event_name != 'pull_request' }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$PUBLISH_IMAGE" == true ]]; then
+            docker pull "$DOCKER_SMOKE_IMAGE"
+          fi
+          npm run test:docker:runtime
 
-      - name: Package Docker image
+      - name: Package Docker deployment metadata
+        if: github.event_name != 'pull_request'
         run: |
           set -Eeuo pipefail
           mkdir -p "$RUNNER_TEMP/school-artifact"
-          archive="$RUNNER_TEMP/school-artifact/school-docker-${GITHUB_SHA}.tar.gz"
-          docker save "school:${GITHUB_SHA}" | gzip -1 > "$archive"
-          (cd "$RUNNER_TEMP/school-artifact" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+          printf '%s\n' "ghcr.io/${{ github.repository_owner }}/school:${GITHUB_SHA}" \
+            > "$RUNNER_TEMP/school-artifact/image-ref"
           cp docker-compose.production.yml "$RUNNER_TEMP/school-artifact/"
 
       - name: Upload Docker deployment artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: school-docker-${{ github.sha }}
@@ -100,6 +126,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
     environment:
       name: production
     steps:
@@ -133,7 +162,8 @@ jobs:
           DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
           DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '5' }}
           DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
-          DEPLOY_IMAGE_REF: school:${{ github.sha }}
+          DEPLOY_REGISTRY_USERNAME: ${{ github.actor }}
+          DEPLOY_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
         run: |
           set -Eeuo pipefail
@@ -163,32 +193,36 @@ jobs:
             -o UpdateHostKeys=no
             -i "$RUNNER_TEMP/school-deploy.key"
           )
-          mapfile -t archives < <(find artifact -maxdepth 1 -type f -name '*.tar.gz' -print)
-          (( ${#archives[@]} == 1 )) || { printf '%s\n' 'deployment artifact count is not 1' >&2; exit 1; }
-          archive="${archives[0]}"
-          checksum="$archive.sha256"
+          [[ -f artifact/image-ref ]] || { printf '%s\n' '镜像引用文件缺失' >&2; exit 1; }
+          image_ref="$(sed -n '1p' artifact/image-ref)"
+          [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] || { printf '%s\n' '镜像引用格式非法' >&2; exit 1; }
           compose_file="artifact/docker-compose.production.yml"
-          [[ -f "$checksum" ]] || { printf '%s\n' 'deployment checksum is missing' >&2; exit 1; }
           [[ -f "$compose_file" ]] || { printf '%s\n' 'production Compose file is missing' >&2; exit 1; }
-          archive_name="$(basename "$archive")"
           release_id="ci-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
           incoming="$DEPLOY_PATH/.deploy/incoming"
-          remote_archive="$incoming/$archive_name"
-          remote_checksum="$remote_archive.sha256"
           remote_compose="$incoming/docker-compose.production-${release_id}.yml"
+          registry_logged_in=false
+          cleanup_registry() {
+            if [[ "$registry_logged_in" == true ]]; then
+              ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" docker logout ghcr.io >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_registry EXIT
+          : "${DEPLOY_REGISTRY_TOKEN:?GITHUB_TOKEN is unavailable for GHCR pull}"
+          printf '%s\n' "$DEPLOY_REGISTRY_TOKEN" \
+            | ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" \
+              docker login ghcr.io --username "$DEPLOY_REGISTRY_USERNAME" --password-stdin >/dev/null
+          registry_logged_in=true
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" "mkdir -p '$incoming'"
-          scp "${scp_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
           scp "${scp_opts[@]}" "$compose_file" "$DEPLOY_TARGET:$remote_compose"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" bash -s -- \
             "$DEPLOY_PATH" \
-            "$remote_archive" \
-            "$remote_checksum" \
             "$remote_compose" \
             "$release_id" \
             "$DEPLOY_ENV_PATH" \
             "$DEPLOY_COMPOSE_PROJECT" \
             "$DEPLOY_HEALTHCHECK_URL" \
             "$DEPLOY_KEEP_RELEASES" \
-            "$DEPLOY_IMAGE_REF" \
+            "$image_ref" \
             "$DEPLOY_LEGACY_SERVICE" \
-            < scripts/remote-deploy-docker.sh
+            < scripts/remote-deploy-docker-registry.sh
