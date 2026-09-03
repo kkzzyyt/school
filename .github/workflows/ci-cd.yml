@@ -52,24 +52,44 @@ jobs:
           npm run test:package
           npm run test:package:standalone
           npm run test:deploy:standalone
+          npm run test:deploy:docker
+          npm run test:docker:config
           npm run test:ci:config
 
-      - name: Build standalone artifact
-        run: npm run build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Smoke test standalone runtime
-        run: npm run test:standalone:runtime
+      - name: Build production Docker image
+        env:
+          IMAGE_REF: school:${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg BUILD_SHA="$GITHUB_SHA" \
+            --tag "$IMAGE_REF" \
+            --load \
+            .
 
-      - name: Package standalone artifact
+      - name: Smoke test Docker runtime
+        env:
+          DOCKER_SMOKE_IMAGE: school:${{ github.sha }}
+          DOCKER_SMOKE_PORT: "3101"
+        run: npm run test:docker:runtime
+
+      - name: Package Docker image
         run: |
           set -Eeuo pipefail
           mkdir -p "$RUNNER_TEMP/school-artifact"
-          npm run package:standalone -- --skip-checks --output-dir "$RUNNER_TEMP/school-artifact"
+          archive="$RUNNER_TEMP/school-artifact/school-docker-${GITHUB_SHA}.tar.gz"
+          docker save "school:${GITHUB_SHA}" | gzip -1 > "$archive"
+          (cd "$RUNNER_TEMP/school-artifact" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+          cp docker-compose.production.yml "$RUNNER_TEMP/school-artifact/"
 
-      - name: Upload deployment artifact
+      - name: Upload Docker deployment artifact
         uses: actions/upload-artifact@v4
         with:
-          name: school-standalone-${{ github.sha }}
+          name: school-docker-${{ github.sha }}
           path: ${{ runner.temp }}/school-artifact/*
           if-no-files-found: error
           retention-days: 7
@@ -89,7 +109,7 @@ jobs:
       - name: Download deployment artifact
         uses: actions/download-artifact@v4
         with:
-          name: school-standalone-${{ github.sha }}
+          name: school-docker-${{ github.sha }}
           path: artifact
 
       - name: Configure SSH
@@ -110,11 +130,11 @@ jobs:
           DEPLOY_PORT: ${{ vars.SCHOOL_DEPLOY_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.SCHOOL_DEPLOY_PATH || '/www/wwwroot/school.19soul.cn' }}
           DEPLOY_ENV_PATH: ${{ vars.SCHOOL_DEPLOY_ENV_PATH || '/www/wwwroot/school.19soul.cn/.deploy/runtime.env' }}
-          DEPLOY_SERVICE: ${{ vars.SCHOOL_DEPLOY_SERVICE || 'school-next.service' }}
-          DEPLOY_APP_PATH: ${{ vars.SCHOOL_DEPLOY_APP_PATH || '/www/wwwroot/school.19soul.cn/school' }}
           DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
-          DEPLOY_KEEP_ROLLBACKS: ${{ vars.SCHOOL_DEPLOY_KEEP_ROLLBACKS || '5' }}
-          DEPLOY_PRISMA_BIN: ${{ vars.SCHOOL_DEPLOY_PRISMA_BIN || '/www/wwwroot/school.19soul.cn/.deploy/runtime-node_modules/.bin/prisma' }}
+          DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '5' }}
+          DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
+          DEPLOY_IMAGE_REF: school:${{ github.sha }}
+          DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
         run: |
           set -Eeuo pipefail
           ssh_opts=(
@@ -147,23 +167,28 @@ jobs:
           (( ${#archives[@]} == 1 )) || { printf '%s\n' 'deployment artifact count is not 1' >&2; exit 1; }
           archive="${archives[0]}"
           checksum="$archive.sha256"
+          compose_file="artifact/docker-compose.production.yml"
           [[ -f "$checksum" ]] || { printf '%s\n' 'deployment checksum is missing' >&2; exit 1; }
+          [[ -f "$compose_file" ]] || { printf '%s\n' 'production Compose file is missing' >&2; exit 1; }
           archive_name="$(basename "$archive")"
           release_id="ci-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
           incoming="$DEPLOY_PATH/.deploy/incoming"
           remote_archive="$incoming/$archive_name"
           remote_checksum="$remote_archive.sha256"
+          remote_compose="$incoming/docker-compose.production-${release_id}.yml"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" "mkdir -p '$incoming'"
           scp "${scp_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
+          scp "${scp_opts[@]}" "$compose_file" "$DEPLOY_TARGET:$remote_compose"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" bash -s -- \
             "$DEPLOY_PATH" \
             "$remote_archive" \
             "$remote_checksum" \
+            "$remote_compose" \
             "$release_id" \
             "$DEPLOY_ENV_PATH" \
-            "$DEPLOY_SERVICE" \
-            "$DEPLOY_APP_PATH" \
+            "$DEPLOY_COMPOSE_PROJECT" \
             "$DEPLOY_HEALTHCHECK_URL" \
-            "$DEPLOY_KEEP_ROLLBACKS" \
-            "$DEPLOY_PRISMA_BIN" \
-            < scripts/remote-deploy-standalone.sh
+            "$DEPLOY_KEEP_RELEASES" \
+            "$DEPLOY_IMAGE_REF" \
+            "$DEPLOY_LEGACY_SERVICE" \
+            < scripts/remote-deploy-docker.sh

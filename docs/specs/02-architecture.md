@@ -77,7 +77,7 @@ dashboard   只读聚合，不拥有业务数据
 
 ## 7. 部署拓扑
 
-开发环境由 `docker compose` 启动 MySQL，应用通过本地 Node.js 启动。生产环境至少包含：一个 Next.js Node 进程、一个 MySQL 8 实例、反向代理/TLS 和每日备份。应用实例扩容时会话仍在 MySQL 中，无需粘性会话。
+开发环境由 `docker compose` 启动 MySQL，应用通过本地 Node.js 启动。生产环境至少包含：一个运行在 Docker 容器中的 Next.js standalone 进程、一个 MySQL 8 实例、反向代理/TLS 和每日备份。应用实例扩容时会话仍在 MySQL 中，无需粘性会话；镜像在 Linux CI 中构建，服务器只负责运行已验证的镜像。
 
 ## 8. 演进策略
 

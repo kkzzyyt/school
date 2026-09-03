@@ -1,0 +1,28 @@
+services:
+  app:
+    image: ${SCHOOL_IMAGE:?SCHOOL_IMAGE is required}
+    env_file:
+      - ${SCHOOL_RUNTIME_ENV_FILE:?SCHOOL_RUNTIME_ENV_FILE is required}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 127.0.0.1
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: --max-old-space-size=384
+    # Linux host networking keeps an existing host MySQL address such as
+    # 127.0.0.1:3306 reachable without changing the production DATABASE_URL.
+    network_mode: host
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/api/health').then((response) => process.exit(response.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6

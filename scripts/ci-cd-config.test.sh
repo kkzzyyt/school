@@ -22,14 +22,20 @@ for required_text in \
   'npm run lint' \
   'npm run typecheck' \
   'npm run test:coverage' \
-  'npm run build' \
-  'npm run test:standalone:runtime' \
-  'npm run package:standalone' \
+  'npm run test:docker:config' \
+  'npm run test:deploy:docker' \
+  'docker/setup-buildx-action@v3' \
+  'docker buildx build' \
+  '--platform linux/amd64' \
+  'npm run test:docker:runtime' \
+  'docker save' \
+  'sha256sum "$(basename "$archive")"' \
   'actions/upload-artifact@v4' \
   'actions/download-artifact@v4' \
   'SCHOOL_DEPLOY_SSH_KEY' \
   'SCHOOL_DEPLOY_KNOWN_HOSTS' \
-  'scripts/remote-deploy-standalone.sh'; do
+  'docker-compose.production.yml' \
+  'scripts/remote-deploy-docker.sh'; do
   grep -Fq -- "$required_text" "$WORKFLOW" || fail "workflow 缺少：$required_text"
 done
 
@@ -44,12 +50,18 @@ fi
 if grep -Fq 'sleep 600' "$WORKFLOW"; then
   fail '生产部署仍包含 10 分钟延迟'
 fi
+if grep -Fq 'remote-deploy-standalone.sh' "$WORKFLOW"; then
+  fail '生产部署仍使用 standalone 主机发布脚本'
+fi
+if grep -Fq 'DEPLOY_PRISMA_BIN' "$WORKFLOW"; then
+  fail '生产部署不应依赖服务器上的 Prisma CLI'
+fi
 
-build_step_line="$(grep -n -m 1 'name: Build standalone artifact' "$WORKFLOW" | cut -d: -f1)"
-smoke_step_line="$(grep -n -m 1 'name: Smoke test standalone runtime' "$WORKFLOW" | cut -d: -f1)"
-package_step_line="$(grep -n -m 1 'name: Package standalone artifact' "$WORKFLOW" | cut -d: -f1)"
+build_step_line="$(grep -n -m 1 'name: Build production Docker image' "$WORKFLOW" | cut -d: -f1)"
+smoke_step_line="$(grep -n -m 1 'name: Smoke test Docker runtime' "$WORKFLOW" | cut -d: -f1)"
+package_step_line="$(grep -n -m 1 'name: Package Docker image' "$WORKFLOW" | cut -d: -f1)"
 (( build_step_line < smoke_step_line && smoke_step_line < package_step_line )) || {
-  fail 'standalone 运行时冒烟测试必须位于构建后、打包前'
+  fail 'Docker 运行时冒烟测试必须位于镜像构建后、打包前'
 }
 
 printf '%s\n' 'CI/CD 配置测试通过'

@@ -1,3 +1,4 @@
+# Legacy Node/systemd compatibility unit. Production CI/CD uses Docker Compose.
 [Unit]
 Description=School Next.js Application
 After=network.target mysqld.service

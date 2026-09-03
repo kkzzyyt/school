@@ -57,76 +57,24 @@ npm run dev
 
 浏览器访问 [http://localhost:3000](http://localhost:3000)。
 
-### 5. 部署到自有 Node.js 服务器
+### 5. Docker 生产部署
 
-项目提供基于 SSH 的源码发布脚本，支持 PM2 release 符号链接或已配置好的 systemd 服务，适用于宝塔或普通 Linux 主机。服务器需要准备与锁文件兼容的 Node.js/npm、可访问的 MySQL，以及由反向代理/TLS 暴露的域名。
+线上生产入口使用 GitHub Actions：Linux runner 在固定的 Docker 构建环境中完成依赖安装和 Next.js standalone 构建，先启动镜像做健康路由冒烟测试，再通过 SSH 上传镜像、校验文件和 Compose 配置。服务器只需要 Docker Engine、Docker Compose v2、可访问的 MySQL 和反向代理/TLS，不再需要与本机匹配的 Node.js、npm 或 Prisma CLI。
 
-```bash
-cp deploy.env.example deploy.env
-# 编辑 deploy.env，至少填写 DEPLOY_TARGET 和 DEPLOY_KNOWN_HOSTS_FILE。
-# 在服务器创建 DEPLOY_ENV_PATH 指向的运行时 .env；该文件不会上传。
-npm run deploy
-```
-
-传统 SSH 发布包只包含源码和构建所需配置，绝不包含本机的 `.next` 或 `node_modules`；服务器会在 Linux 环境中完成构建。GitHub Actions CI/CD 使用 Linux runner 生成 standalone 发布包，服务器只接收已经验证的生产产物，因此适合内存较小的生产主机。
-
-PM2 模式通过 `<DEPLOY_PATH>/current` 指向新 release。systemd 模式会先在 `<DEPLOY_PATH>/.deploy/releases/` 完成上述所有步骤，随后才停止服务、把原 `DEPLOY_APP_PATH` 整目录移入 `rollback-<release>`、切换新目录、启动服务并执行健康检查；旧目录自己的 `node_modules` 因此可用于应用目录回滚。
-
-目录回滚不能撤销已执行的数据库迁移。生产迁移必须保持向后兼容，并配合数据库备份和单独的数据库回滚方案；`--skip-migrations` 只能用于已经由其他受控流程完成迁移的发布。
-
-`DEPLOY_KNOWN_HOSTS_FILE` 是必填项。脚本使用 `StrictHostKeyChecking=yes`，只读取该固定文件且不会接受或写入首次连接的主机密钥。首次部署前，请通过独立可信渠道核验服务器 SSH 主机密钥指纹，再把已核验的条目写入该文件。默认允许 SSH 交互式密码登录；使用密钥自动化时可加 `--batch-mode`。如果 SSH 需要通过本机 SOCKS5 代理，可设置代理命令：
+首次部署前，在服务器创建不会上传的运行时环境文件，并确保 SSH 发布账号可以读取它、执行 Docker 命令（通常加入 `docker` 用户组或使用 root）：
 
 ```bash
-DEPLOY_PROXY_COMMAND='nc -x 127.0.0.1:7897 -X 5 %h %p' npm run deploy
+install -d -m 750 /www/wwwroot/school.19soul.cn/.deploy
+install -m 600 /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime.env
 ```
 
-常用选项：
+`docker-compose.production.yml` 使用 Linux host network，让现有主机 MySQL 的 `127.0.0.1:3306` 仍可从应用容器访问；应用只监听主机 `127.0.0.1:3000`，反向代理应转发到该地址，不要把应用端口直接暴露到公网。如果数据库在另一个容器或独立主机，需把 `DATABASE_URL` 改成容器/主机可达的地址，并按实际网络调整 Compose 配置。
 
-```bash
-npm run deploy -- --dry-run                    # 检查 SSH 并生成源码包，不上传、不发布
-npm run deploy -- --skip-checks                # 跳过本地 lint、类型检查和单元测试
-npm run deploy -- --skip-migrations            # 不在服务器执行 Prisma 生产迁移
-npm run deploy -- --batch-mode                 # 仅使用 SSH 密钥，不提示输入密码
+在 GitHub 的 `production` Environment 中配置好 SSH 密钥和变量后，推送到 `main` 或手动运行 workflow 即可发布。部署脚本会在容器内执行 Prisma 配置校验和生产迁移，健康检查失败时自动恢复上一份 Docker release；数据库迁移本身不会随目录回滚，生产迁移必须保持向后兼容并配合备份。
 
-# 已配置 systemd 服务时：
-DEPLOY_RUNTIME=systemd npm run deploy
-```
+旧版 `npm run deploy` 的 PM2/systemd 源码发布脚本仍保留作兼容和人工回退使用，但它会依赖服务器本机 Node.js/npm，不是当前 GitHub Actions 的生产入口。
 
-systemd 首次部署前，先创建服务单元和稳定的运行时 `.env`。`DEPLOY_APP_PATH` 可以尚不存在，但 `DEPLOY_ENV_PATH` 必须位于其外部且物理路径仍在 `DEPLOY_PATH` 内；脚本会解析符号链接并拒绝逃出部署目录的应用父目录或 `.env`。systemd 模式默认使用 `<DEPLOY_PATH>/.deploy/runtime.env`。例如：
-
-```ini
-# /etc/systemd/system/school-next.service
-[Unit]
-Description=School Next.js service
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=www
-Group=www
-WorkingDirectory=/www/wwwroot/school.19soul.cn/school
-Environment=NODE_ENV=production
-EnvironmentFile=/www/wwwroot/school.19soul.cn/.deploy/runtime.env
-Environment=HOSTNAME=127.0.0.1
-Environment=PORT=3000
-ExecStart=/usr/local/bin/node /www/wwwroot/school.19soul.cn/school/.next/standalone/server.js
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-install -d -m 750 -o school -g school /www/wwwroot/school.19soul.cn/.deploy
-install -m 600 -o school -g school /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime.env
-systemctl daemon-reload
-systemctl enable school-next.service
-systemctl restart school-next.service
-```
-
-`deploy/school-next.service` 是与 CI/CD standalone 发布方式匹配的服务单元模板。首次切换前请确认服务器上的 `WorkingDirectory`、`EnvironmentFile` 和 `ExecStart` 与模板一致。
-
-SSH 发布账号必须能够写入 `<DEPLOY_PATH>/.deploy`、重命名 `DEPLOY_APP_PATH`、读取运行时 `.env` 完成构建，并执行该服务的 `systemctl show`、`stop` 和 `start`；脚本还会将新目录 `chown` 到 systemd 单元的 `User`/`Group`。通常让发布账号与服务账号一致；若不同，发布账号需要受限的 `chown` 权限，以及仅限该服务的非交互式 systemd 权限。运行时 `.env`、SSH 私钥和数据库凭据不会进入发布包；`deploy.env` 已被 Git 忽略。首次部署前请确认服务器上的 `.env` 已配置正确，并在反向代理中只将公网流量转发到应用监听的本机端口。
+如果 SSH 需要通过本机 SOCKS5 代理，可在 workflow 的 SSH 配置中设置对应代理命令；固定 `known_hosts` 仍必须通过独立可信渠道核验，发布流程始终使用 `StrictHostKeyChecking=yes`。
 
 ## 常用命令
 
@@ -142,9 +90,12 @@ npm run test:e2e        # Playwright 关键流程测试
 npm run test:package    # 发布包内容和秘密文件排除测试
 npm run test:package:standalone # CI standalone 发布包测试
 npm run test:standalone:runtime # standalone 构建产物运行时冒烟测试
+npm run test:docker:config # Dockerfile、Compose 和忽略规则测试
+npm run test:docker:runtime # Docker 镜像运行时冒烟测试
 npm run test:deploy     # 使用伪造 SSH/PM2 的部署流程测试
 npm run test:deploy:systemd # systemd 远端构建和切换测试
 npm run test:deploy:standalone # standalone 远端切换和回滚测试
+npm run test:deploy:docker # Docker 镜像远端切换和回滚测试
 npm run package:standalone # 打包已构建的 standalone 产物
 npm run db:generate     # 生成 Prisma Client
 npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
@@ -155,9 +106,9 @@ npm run db:studio       # Prisma 数据浏览器
 
 ## GitHub Actions CI/CD
 
-仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 只执行检查和 Linux standalone 构建；推送到 `main` 后，工作流会在验证和构建通过后立即把同一份 Linux 构建包发布到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
+仓库包含 `.github/workflows/ci-cd.yml`。Pull Request 和 push 都会在 Linux runner 中构建同一套 Docker 镜像并运行冒烟测试；推送到 `main` 或手动触发 workflow 时，验证通过的镜像会通过 SSH 上传到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
 
-普通发布只执行兼容的 Prisma 生产迁移，不会上传本地 `.env` 或覆盖数据库。远端 systemd 服务需要使用 `.next/standalone/server.js`，并预置与仓库锁文件兼容的 Prisma CLI 运行时。默认 CLI 路径所在的 `runtime-node_modules` 目录必须包含 `prisma` 及其依赖；部署脚本会将该目录作为 Prisma 配置的模块解析路径，并在迁移前执行配置校验。发布包会在打包前验证 MariaDB Prisma 适配器可从 standalone 运行时加载，健康检查也会验证数据库连接。
+Docker 镜像包含 Next.js standalone 运行时、MariaDB Prisma 适配器和生产迁移所需的 Prisma CLI；生产服务器不参与 npm 安装或 Next.js 构建。发布脚本不会上传本地 `.env` 或覆盖数据库，只从服务器上的 `DEPLOY_ENV_PATH` 读取运行时配置，并在启动新容器前执行 Prisma 校验、迁移和 `/api/health` 数据库健康检查。
 
 在 GitHub 的 `production` Environment 中配置：
 
@@ -165,7 +116,8 @@ npm run db:studio       # Prisma 数据浏览器
 Secret: SCHOOL_DEPLOY_SSH_KEY       # 服务器 authorized_keys 对应的私钥
 Secret: SCHOOL_DEPLOY_KNOWN_HOSTS   # 已核验的 39.106.46.229 主机密钥
 Variable: SCHOOL_DEPLOY_TARGET      # 默认 root@39.106.46.229
-Variable: SCHOOL_DEPLOY_PRISMA_BIN  # 默认 /www/wwwroot/school.19soul.cn/.deploy/runtime-node_modules/.bin/prisma
+Variable: SCHOOL_DEPLOY_COMPOSE_PROJECT # 默认 school
+Variable: SCHOOL_DEPLOY_LEGACY_SERVICE  # 默认 school-next.service；首次 Docker 发布时停止旧 systemd
 ```
 
 其余路径变量有与当前服务器匹配的默认值，可按环境覆盖。生产数据库导入应使用单独的人工确认流程，先备份再恢复，不应绑定到每次代码推送。
@@ -179,6 +131,8 @@ npx playwright install chromium
 ## 目录结构
 
 ```text
+Dockerfile                   Linux 多阶段生产镜像
+docker-compose.production.yml Docker 生产运行与健康检查配置
 docs/specs/                  产品、架构、数据模型、API 与验收 Spec
 prisma/
   migrations/               MySQL 初始化迁移
