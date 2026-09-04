@@ -48,6 +48,8 @@ describe("POST /api/auth/login", () => {
       displayName: "周老师",
       passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$test",
       status: "ACTIVE",
+      role: "HEAD_TEACHER",
+      memberships: [{ id: "membership-1" }],
     });
     mocks.prisma.session.create.mockResolvedValue({ id: "session-1" });
     mocks.prisma.user.update.mockResolvedValue({ id: "user-1" });
@@ -102,7 +104,10 @@ describe("POST /api/auth/login", () => {
     const setCookie = response.headers.get("set-cookie") ?? "";
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ success: true, data: { displayName: "周老师" } });
+    expect(body).toEqual({
+      success: true,
+      data: { displayName: "周老师", userRole: "HEAD_TEACHER", hasClassMembership: true },
+    });
     expect(mocks.verify).toHaveBeenCalledWith(
       "$argon2id$v=19$m=65536,t=3,p=4$test",
       "secret",
@@ -143,5 +148,26 @@ describe("POST /api/auth/login", () => {
       error: { code: "FORBIDDEN", message: "请求来源不受信任" },
     });
     expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("reports when an administrator has no class membership", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "admin-1",
+      username: "admin",
+      displayName: "系统管理员",
+      passwordHash: "hash",
+      role: "ADMIN",
+      status: "ACTIVE",
+      memberships: [],
+    });
+
+    const response = await POST(loginRequest({ username: "admin", password: "Admin123" }));
+    const body = await responseBody(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      data: { displayName: "系统管理员", userRole: "ADMIN", hasClassMembership: false },
+    });
   });
 });

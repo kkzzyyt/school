@@ -50,6 +50,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const user = await prisma.user.findUnique({
     where: { username: parsed.data.username },
+    include: { memberships: { select: { id: true } } },
   });
   const passwordMatches = user
     ? await verify(user.passwordHash, parsed.data.password).catch(() => false)
@@ -74,7 +75,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const response = NextResponse.json({
     success: true,
-    data: { displayName: user.displayName },
+    data: {
+      displayName: user.displayName,
+      userRole: user.role,
+      hasClassMembership: user.memberships.length > 0,
+    },
   });
   response.cookies.set(SESSION_COOKIE_NAME, credential.token, {
     httpOnly: true,

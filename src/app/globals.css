@@ -1165,6 +1165,44 @@ select {
   text-align: center;
 }
 
+.login-register-link {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.login-register-link a {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.register-panel .login-brand {
+  margin-bottom: 30px;
+}
+
+.register-success {
+  text-align: center;
+}
+
+.register-success-icon {
+  color: var(--success);
+  font-size: 48px;
+}
+
+.register-success h2 {
+  margin: 18px 0 8px;
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.register-success p {
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .seating-loading-card .ant-card-body {
   padding: 24px;
 }

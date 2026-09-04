@@ -2,7 +2,7 @@
 
 ## 1. 通用约定
 
-基础路径：`/api`。除登录和健康检查外，所有接口需要有效会话。
+基础路径：`/api`。注册、登录和健康检查可匿名访问；用户管理接口需要 `ADMIN` 会话，其余业务接口需要有效会话。
 
 成功响应：
 
@@ -20,23 +20,35 @@
 }
 ```
 
-标准状态码：`400` 参数错误，`401` 未登录/会话过期，`403` 无班级权限，`404` 资源不存在，`409` 唯一约束冲突，`500` 未预期错误。
+标准状态码：`400` 参数错误，`401` 未登录/会话过期，`403` 角色或班级权限不足，`404` 资源不存在，`409` 唯一约束冲突，`500` 未预期错误。
 
 ## 2. 认证
 
 | Method | Path | Body / 说明 |
 | --- | --- | --- |
+| POST | `/api/auth/register` | `{ username, displayName, password, confirmPassword }`；创建 `PENDING` 账号，不创建会话 |
 | POST | `/api/auth/login` | `{ username, password }`；设置会话 Cookie |
 | POST | `/api/auth/logout` | 删除当前会话与 Cookie |
 | GET | `/api/auth/me` | 当前用户、可访问班级和当前班级 |
 
-## 3. 工作台
+## 3. 用户管理（仅管理员）
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| GET | `/api/admin/classrooms` | 返回可分配的班级摘要 |
+| GET | `/api/admin/users?q=&status=&role=&page=&pageSize=` | 分页返回用户，不返回密码哈希和会话令牌 |
+| POST | `/api/admin/users` | 创建启用中的用户，可设置角色和默认班级 |
+| PATCH | `/api/admin/users/:id` | 更新姓名、角色、状态和默认班级 |
+| POST | `/api/admin/users/:id/reset-password` | 设置新密码并撤销目标用户全部会话 |
+| POST | `/api/admin/users/:id/revoke-sessions` | 撤销目标用户全部会话 |
+
+## 4. 工作台
 
 | Method | Path | 说明 |
 | --- | --- | --- |
 | GET | `/api/dashboard` | 学生统计、今日课程/值日、待办、最近考试 |
 
-## 4. 学生与通讯录
+## 5. 学生与通讯录
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -49,7 +61,7 @@
 | PATCH | `/api/guardians/:id` | 更新监护人 |
 | DELETE | `/api/guardians/:id` | 删除监护人 |
 
-## 5. 座次和值日
+## 6. 座次和值日
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -78,7 +90,7 @@
 - 为兼容旧客户端与既有 JSON，服务端会把 `aisleColumns` 和单一 `doorRow` 归一化为 `aisleAfterColumns` 和 `doorRows`；PUT 也可以省略 `environment`。
 - PUT 必须回传 GET 给出的 `revision`。revision 已过期时返回 `409 STALE_WRITE`，不会删除当前座次。
 
-## 6. 班委和课表
+## 7. 班委和课表
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -87,7 +99,7 @@
 | GET | `/api/timetable` | 课程字典和课表 |
 | PUT | `/api/timetable` | 原子替换课表节次 |
 
-## 7. 考试与成绩
+## 8. 考试与成绩
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -96,7 +108,7 @@
 | GET | `/api/exams/:id/analysis` | 科目统计、总分排行和覆盖率 |
 | PUT | `/api/exams/:id/scores` | 批量 upsert 成绩 |
 
-## 8. 并发与幂等
+## 9. 并发与幂等
 
 - 原子替换接口在事务内先验证完整载荷，再执行写入。
 - 座次完整替换接口使用 GET 返回的 `revision`；与当前版本不一致时返回 `409 STALE_WRITE`。

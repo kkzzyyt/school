@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `User`
+    MODIFY `status` ENUM('PENDING', 'ACTIVE', 'DISABLED') NOT NULL DEFAULT 'ACTIVE';

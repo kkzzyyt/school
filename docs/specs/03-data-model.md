@@ -19,7 +19,7 @@ Classroom ──< WorkItem
 
 | 实体 | 关键字段 | 约束 |
 | --- | --- | --- |
-| User | username, passwordHash, displayName, role, status | username 全局唯一 |
+| User | username, passwordHash, displayName, role, status | username 全局唯一；`PENDING` 账号未审核前不可登录 |
 | Session | tokenHash, userId, expiresAt | tokenHash 全局唯一；过期即无效 |
 | Classroom | name, grade, academicYear, semester, seatRows, seatColumns, seatingEnvironment | name + academicYear 唯一；环境 JSON 保存独立过道插入边界、左右侧窗户/最多两处门口；旧版饮水机/空调字段仅作兼容 |
 | ClassMembership | userId, classId, role | userId + classId 唯一 |
@@ -42,6 +42,8 @@ Classroom ──< WorkItem
 2. 跨实体写入时，引用目标必须属于同一班级。例如给座位分配学生前，必须确认 `student.classId === context.classId`。
 3. 聚合查询必须带 `classId`；禁止先按全局 id 查询后再在客户端过滤。
 4. 删除学生前若存在成绩，默认将学生状态改为 `TRANSFERRED`，保留历史成绩。
+5. 注册申请不能通过请求体设置 `role`、`status` 或 `classId`；管理员审核时在服务端事务中设置角色和默认班级。
+6. 停用用户或重置密码时必须撤销该用户的全部会话；不允许停用或降级最后一个启用中的管理员。
 
 ## 4. 索引
 
@@ -56,3 +58,5 @@ Classroom ──< WorkItem
 - 密码只保存 Argon2id 哈希；会话只保存令牌 SHA-256 哈希。
 - 监护人电话、学生地址属于个人信息，只在授权页面和 API 中按需返回。
 - 退出登录立即删除当前会话；过期会话可由每日任务物理清理。
+- 用户停用采用软状态保留账号和审计关联，不提供默认物理删除。
+- 用户管理动作写入 `AuditLog`；审计 metadata 不得包含明文密码、会话令牌或个人敏感信息。

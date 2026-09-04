@@ -2,6 +2,7 @@
 
 import { ArrowRightOutlined, BookOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Checkbox, Form, Input } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -11,6 +12,12 @@ interface LoginValues {
   username: string;
   password: string;
   remember?: boolean;
+}
+
+interface LoginResponse {
+  displayName: string;
+  userRole: "ADMIN" | "HEAD_TEACHER";
+  hasClassMembership: boolean;
 }
 
 const REMEMBERED_ACCOUNT_KEY = "school.remembered-account";
@@ -33,7 +40,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await apiRequest("/api/auth/login", {
+      const loginResult = await apiRequest<LoginResponse>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ username: values.username, password: values.password }),
         redirectOnUnauthorized: false,
@@ -43,7 +50,10 @@ export default function LoginPage() {
       } else {
         window.localStorage.removeItem(REMEMBERED_ACCOUNT_KEY);
       }
-      router.replace("/dashboard");
+      const destination = loginResult.userRole === "ADMIN" && !loginResult.hasClassMembership
+        ? "/admin/users"
+        : "/dashboard";
+      router.replace(destination);
       router.refresh();
     } catch (loginError) {
       setError((loginError as Error).message);
@@ -83,6 +93,9 @@ export default function LoginPage() {
           <Button type="primary" htmlType="submit" size="large" block loading={loading} style={{ height: 46 }}>
             立即登录 <ArrowRightOutlined />
           </Button>
+          <div className="login-register-link">
+            还没有账号？<Link href="/register">立即注册</Link>
+          </div>
         </Form>
       </section>
     </main>

@@ -12,6 +12,7 @@ import {
   MenuUnfoldOutlined,
   PhoneOutlined,
   QuestionCircleOutlined,
+  SafetyCertificateOutlined,
   SettingOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
@@ -20,23 +21,28 @@ import type { MenuProps } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
-import type { AuthContext } from "@/server/auth/context";
+import type { AuthIdentity } from "@/server/auth/context";
 
 const { Sider, Content } = Layout;
 
-const menuItems: MenuProps["items"] = [
+const workspaceMenuItems: NonNullable<MenuProps["items"]> = [
   { key: "/dashboard", icon: <AppstoreOutlined />, label: "工作台" },
   { key: "/seating", icon: <IdcardOutlined />, label: "座次表" },
   { key: "/students", icon: <TeamOutlined />, label: "花名册" },
   { key: "/contacts", icon: <PhoneOutlined />, label: "家长通讯录" },
 ];
 
+const adminMenuItems: NonNullable<MenuProps["items"]> = [
+  { key: "/admin/users", icon: <SafetyCertificateOutlined />, label: "用户管理" },
+];
+
 interface WorkspaceShellProps {
-  auth: AuthContext;
+  auth: AuthIdentity;
   children: React.ReactNode;
+  mode?: "workspace" | "admin";
 }
 
-export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ auth, children, mode = "workspace" }: WorkspaceShellProps) {
   const { message } = App.useApp();
   const pathname = usePathname();
   const router = useRouter();
@@ -44,6 +50,11 @@ export function WorkspaceShell({ auth, children }: WorkspaceShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const siderWidth = collapsed ? 80 : 248;
+  const menuItems = mode === "admin"
+    ? adminMenuItems
+    : auth.userRole === "ADMIN"
+      ? [...workspaceMenuItems, { type: "divider" as const }, ...adminMenuItems]
+      : workspaceMenuItems;
 
   async function logout() {
     try {

@@ -21,7 +21,31 @@ export interface AuthContext {
   room: string | null;
 }
 
-export async function getAuthContext(): Promise<AuthContext | null> {
+export type AuthIdentity = Pick<AuthContext, "userId" | "username" | "displayName" | "userRole">;
+
+interface AuthenticatedSession {
+  id: string;
+  expiresAt: Date;
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    role: "ADMIN" | "HEAD_TEACHER";
+    status: UserStatus;
+    memberships: Array<{
+      classId: string;
+      isDefault: boolean;
+      classroom: {
+        id: string;
+        name: string;
+        grade: string;
+        room: string | null;
+      };
+    }>;
+  };
+}
+
+async function getAuthenticatedSession(): Promise<AuthenticatedSession | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -55,6 +79,25 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     return null;
   }
 
+  return session as AuthenticatedSession;
+}
+
+export async function getAuthIdentity(): Promise<AuthIdentity | null> {
+  const session = await getAuthenticatedSession();
+  if (!session) return null;
+
+  return {
+    userId: session.user.id,
+    username: session.user.username,
+    displayName: session.user.displayName,
+    userRole: session.user.role,
+  };
+}
+
+export async function getAuthContext(): Promise<AuthContext | null> {
+  const session = await getAuthenticatedSession();
+  if (!session) return null;
+
   const membership = session.user.memberships[0];
   if (!membership) {
     return null;
@@ -78,4 +121,20 @@ export async function requireAuthContext(): Promise<AuthContext> {
     throw new ApiError(401, "UNAUTHORIZED", "登录已过期，请重新登录");
   }
   return context;
+}
+
+export async function requireAuthIdentity(): Promise<AuthIdentity> {
+  const identity = await getAuthIdentity();
+  if (!identity) {
+    throw new ApiError(401, "UNAUTHORIZED", "登录已过期，请重新登录");
+  }
+  return identity;
+}
+
+export async function requireAdmin(): Promise<AuthIdentity> {
+  const identity = await requireAuthIdentity();
+  if (identity.userRole !== "ADMIN") {
+    throw new ApiError(403, "FORBIDDEN", "只有管理员可以管理用户");
+  }
+  return identity;
 }
