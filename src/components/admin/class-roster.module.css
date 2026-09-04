@@ -1,0 +1,49 @@
+.page {
+  min-width: 0;
+}
+
+.rosterCard {
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.rosterMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-low);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rosterMeta :global(.ant-space) {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar :global(.ant-input-search),
+  .toolbar :global(.ant-select) {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .rosterMeta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

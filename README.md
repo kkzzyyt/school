@@ -105,6 +105,7 @@ npm run package:standalone # 打包已构建的 standalone 产物
 npm run db:generate     # 生成 Prisma Client
 npm run db:migrate      # 创建新的开发迁移（需要数据库建库权限）
 npm run db:deploy       # 应用已提交迁移（初始化/生产推荐）
+npm run db:sync:student-gender # 将 OTHER 且可由姓名明确推断的性别同步到 Student.gender
 npm run db:seed         # 重置并写入演示数据
 npm run db:studio       # Prisma 数据浏览器
 ```

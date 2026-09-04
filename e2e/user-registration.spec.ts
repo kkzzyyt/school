@@ -58,8 +58,10 @@ test("管理员可以在班级管理查看学生基础信息", async ({ page }) 
   await expect(page.getByRole("menuitem", { name: "工作台" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "用户管理" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "班级管理" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "学号" }).first()).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "姓名" }).first()).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "学籍状态" }).first()).toBeVisible();
   await expect(page.getByText("手机号", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "查看花名册" }).click();
+  await expect(page).toHaveURL(/\/admin\/classes\/[^/]+\/students$/);
+  await expect(page.getByRole("heading", { name: /班$/ })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "学号" })).toBeVisible();
 });
