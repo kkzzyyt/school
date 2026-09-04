@@ -124,6 +124,7 @@ Secret: SCHOOL_DEPLOY_KNOWN_HOSTS   # 已核验的 39.106.46.229 主机密钥
 Variable: SCHOOL_DEPLOY_TARGET      # 默认 root@39.106.46.229
 Variable: SCHOOL_DEPLOY_COMPOSE_PROJECT # 默认 school
 Variable: SCHOOL_DEPLOY_LEGACY_SERVICE  # 默认 school-next.service；首次 Docker 发布时停止旧 systemd
+Variable: SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS # 默认 600；远程镜像拉取超时后自动重试
 ```
 
 其余路径变量有与当前服务器匹配的默认值，可按环境覆盖。生产数据库导入应使用单独的人工确认流程，先备份再恢复，不应绑定到每次代码推送。

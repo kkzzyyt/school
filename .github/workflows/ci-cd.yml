@@ -98,7 +98,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ "$PUBLISH_IMAGE" == true ]]; then
-            docker pull "$DOCKER_SMOKE_IMAGE"
+            docker pull --platform linux/amd64 "$DOCKER_SMOKE_IMAGE"
           fi
           npm run test:docker:runtime
 
@@ -162,6 +162,7 @@ jobs:
           DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
           DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '5' }}
           DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
+          DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS: ${{ vars.SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS || '600' }}
           DEPLOY_REGISTRY_USERNAME: ${{ github.actor }}
           DEPLOY_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
@@ -225,4 +226,5 @@ jobs:
             "$DEPLOY_KEEP_RELEASES" \
             "$image_ref" \
             "$DEPLOY_LEGACY_SERVICE" \
+            "$DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS" \
             < scripts/remote-deploy-docker-registry.sh

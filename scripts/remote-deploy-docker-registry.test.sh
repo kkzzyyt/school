@@ -13,6 +13,7 @@ LEGACY_ACTIVE="$TEST_ROOT/legacy-active"
 LEGACY_ENABLED="$TEST_ROOT/legacy-enabled"
 ACTIVE_IMAGE="$TEST_ROOT/active-image"
 IMAGE_PULLED="$TEST_ROOT/image-pulled"
+PULL_ATTEMPTS="$TEST_ROOT/pull-attempts"
 ORIGINAL_PATH="$PATH"
 
 cleanup() {
@@ -57,6 +58,15 @@ printf '\n' >> "$DEPLOY_TEST_COMMAND_LOG"
 
 case "${1:-}" in
   pull)
+    pull_attempts=0
+    if [[ -f "$DEPLOY_TEST_PULL_ATTEMPTS" ]]; then
+      pull_attempts="$(sed -n '1p' "$DEPLOY_TEST_PULL_ATTEMPTS")"
+    fi
+    pull_attempts=$((pull_attempts + 1))
+    printf '%s\n' "$pull_attempts" > "$DEPLOY_TEST_PULL_ATTEMPTS"
+    if [[ "${DEPLOY_TEST_FAIL_PULL_FIRST:-false}" == true && "$pull_attempts" == 1 ]]; then
+      exit 55
+    fi
     : > "$DEPLOY_TEST_IMAGE_PULLED"
     ;;
   image)
@@ -163,12 +173,28 @@ exit 0
 SCRIPT
 chmod +x "$FAKE_BIN/sleep"
 
+cat > "$FAKE_BIN/timeout" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+printf 'timeout' >> "$DEPLOY_TEST_COMMAND_LOG"
+printf ' %q' "$@" >> "$DEPLOY_TEST_COMMAND_LOG"
+printf '\n' >> "$DEPLOY_TEST_COMMAND_LOG"
+
+[[ "${1:-}" == "30" ]] || exit 26
+shift
+"$@"
+SCRIPT
+chmod +x "$FAKE_BIN/timeout"
+
 PATH="$FAKE_BIN:$ORIGINAL_PATH" \
   DEPLOY_TEST_COMMAND_LOG="$COMMAND_LOG" \
   DEPLOY_TEST_LEGACY_ACTIVE="$LEGACY_ACTIVE" \
   DEPLOY_TEST_LEGACY_ENABLED="$LEGACY_ENABLED" \
   DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
   DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
+  DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
+  DEPLOY_TEST_FAIL_PULL_FIRST=true \
   DEPLOY_TEST_ROLLBACK_IMAGE=school:first \
   DEPLOY_TEST_HEALTH_STATUS=200 \
   bash "$PROJECT_ROOT/scripts/remote-deploy-docker-registry.sh" \
@@ -180,7 +206,8 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
     http://127.0.0.1:3000/api/health \
     2 \
     school:first \
-    school-next.service >/dev/null
+    school-next.service \
+    30 >/dev/null
 
 assert_file "$IMAGE_PULLED"
 assert_file "$REMOTE_ROOT/.deploy/docker/releases/first-release/docker-compose.production.yml"
@@ -190,7 +217,7 @@ assert_not_exists "$INCOMING/docker-compose.production.yml"
 assert_not_exists "$REMOTE_ROOT/.deploy/docker/lock"
 assert_not_exists "$LEGACY_ACTIVE"
 assert_not_exists "$LEGACY_ENABLED"
-assert_contains 'docker pull school:first' "$COMMAND_LOG"
+assert_contains 'timeout 30 docker pull --platform linux/amd64 school:first' "$COMMAND_LOG"
 assert_contains 'up --detach --no-deps --force-recreate app' "$COMMAND_LOG"
 assert_contains 'systemctl stop school-next.service' "$COMMAND_LOG"
 assert_contains 'systemctl disable school-next.service' "$COMMAND_LOG"
@@ -207,6 +234,7 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
   DEPLOY_TEST_LEGACY_ENABLED="$LEGACY_ENABLED" \
   DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
   DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
+  DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
   DEPLOY_TEST_ROLLBACK_IMAGE=school:first \
   DEPLOY_TEST_HEALTH_STATUS=503 \
   bash "$PROJECT_ROOT/scripts/remote-deploy-docker-registry.sh" \
@@ -218,7 +246,8 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
     http://127.0.0.1:3000/api/health \
     2 \
     school:second \
-    school-next.service >"$TEST_ROOT/failure-output.log" 2>&1
+    school-next.service \
+    30 >"$TEST_ROOT/failure-output.log" 2>&1
 failure_exit_code=$?
 set -e
 
@@ -241,6 +270,7 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
   DEPLOY_TEST_LEGACY_ENABLED="$LEGACY_ENABLED" \
   DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
   DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
+  DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
   DEPLOY_TEST_ROLLBACK_IMAGE=school:first \
   DEPLOY_TEST_HEALTH_STATUS=200 \
   DEPLOY_TEST_UP_STALE=true \
@@ -253,7 +283,8 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
     http://127.0.0.1:3000/api/health \
     2 \
     school:stale \
-    school-next.service >"$TEST_ROOT/stale-output.log" 2>&1
+    school-next.service \
+    30 >"$TEST_ROOT/stale-output.log" 2>&1
 stale_exit_code=$?
 set -e
 

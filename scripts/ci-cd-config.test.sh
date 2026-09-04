@@ -35,6 +35,9 @@ for required_text in \
   '--cache-to type=gha,mode=max,scope=school-docker' \
   '--push' \
   'docker pull' \
+  '--platform linux/amd64' \
+  'DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS' \
+  'SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS' \
   'npm run test:docker:runtime' \
   'image-ref' \
   'actions/upload-artifact@v4' \

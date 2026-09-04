@@ -2,8 +2,8 @@
 
 set -Eeuo pipefail
 
-if [[ $# -ne 9 ]]; then
-  printf 'remote-deploy-docker-registry.sh 参数数量错误：期望 9，实际 %s\n' "$#" >&2
+if [[ $# -ne 10 ]]; then
+  printf 'remote-deploy-docker-registry.sh 参数数量错误：期望 10，实际 %s\n' "$#" >&2
   exit 2
 fi
 
@@ -16,6 +16,8 @@ HEALTHCHECK_URL="$6"
 KEEP_RELEASES="$7"
 IMAGE_REF="$8"
 LEGACY_SERVICE_NAME="$9"
+IMAGE_PULL_TIMEOUT_SECONDS="${10}"
+IMAGE_PULL_ATTEMPTS=2
 
 die() {
   printf 'Docker 远程部署失败：%s\n' "$*" >&2
@@ -51,6 +53,8 @@ validate_path ".env 路径" "$ENV_PATH"
 [[ "$ENV_PATH" == "$DEPLOY_PATH"/* ]] || die ".env 必须位于部署目录内"
 validate_integer "保留 release 数量" "$KEEP_RELEASES"
 (( KEEP_RELEASES >= 1 )) || die "保留 release 数量至少为 1"
+validate_integer "镜像拉取超时时间" "$IMAGE_PULL_TIMEOUT_SECONDS"
+(( IMAGE_PULL_TIMEOUT_SECONDS >= 30 && IMAGE_PULL_TIMEOUT_SECONDS <= 1800 )) || die "镜像拉取超时时间必须在 30 到 1800 秒之间"
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "release id 非法"
 [[ "$PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]+$ ]] || die "Compose 项目名非法"
 [[ "$IMAGE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] || die "镜像引用非法"
@@ -70,7 +74,7 @@ COMPOSE_NAME="$(basename "$COMPOSE_UPLOAD_PATH")"
 [[ -f "$ENV_PATH" ]] || die "运行时 .env 不存在：$ENV_PATH"
 [[ -d "$DEPLOY_PATH" ]] || die "部署目录不存在：$DEPLOY_PATH"
 
-for command_name in bash cp curl docker head ln ls mkdir mv readlink rm sed sleep; do
+for command_name in bash cp curl docker head ln ls mkdir mv readlink rm sed sleep timeout; do
   require_command "$command_name"
 done
 docker compose version >/dev/null 2>&1 || die 'Docker Compose 插件不可用'
@@ -156,6 +160,24 @@ run_compose() {
     docker compose -f "$compose_path" -p "$PROJECT_NAME" "$@"
 }
 
+pull_image() {
+  local attempt
+
+  for (( attempt = 1; attempt <= IMAGE_PULL_ATTEMPTS; attempt += 1 )); do
+    printf '拉取 Docker 镜像（第 %s/%s 次，超时 %s 秒）：%s\n' \
+      "$attempt" "$IMAGE_PULL_ATTEMPTS" "$IMAGE_PULL_TIMEOUT_SECONDS" "$IMAGE_REF"
+    if timeout "$IMAGE_PULL_TIMEOUT_SECONDS" docker pull --platform linux/amd64 "$IMAGE_REF"; then
+      return 0
+    fi
+    if (( attempt < IMAGE_PULL_ATTEMPTS )); then
+      printf '%s\n' '镜像拉取失败，5 秒后重试。' >&2
+      sleep 5
+    fi
+  done
+
+  die "镜像拉取失败或超时：$IMAGE_REF"
+}
+
 wait_for_health() {
   local url="$1"
   local last_status='无响应'
@@ -179,6 +201,7 @@ wait_for_health() {
 verify_active_image() {
   local container_id
   local active_image
+  local expected_image_ref
 
   container_id="$(docker ps \
     --filter "label=com.docker.compose.project=$PROJECT_NAME" \
@@ -186,7 +209,11 @@ verify_active_image() {
     --format '{{.ID}}' | head -n 1)"
   [[ -n "$container_id" ]] || die "未找到运行中的 app 容器"
   active_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
-  [[ "$active_image" == "$IMAGE_REF" ]] || die "运行中的镜像不匹配：期望 $IMAGE_REF，实际 $active_image"
+  expected_image_ref="$IMAGE_REF"
+  if [[ "$active_image" != "$expected_image_ref" ]]; then
+    printf '运行中的镜像不匹配：期望 %s，实际 %s\n' "$expected_image_ref" "$active_image" >&2
+    die "运行中的镜像不匹配"
+  fi
 }
 
 restore_previous() {
@@ -263,8 +290,7 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-echo "拉取 Docker 镜像：$IMAGE_REF"
-docker pull "$IMAGE_REF"
+pull_image
 docker image inspect "$IMAGE_REF" >/dev/null
 
 echo "准备 Docker release：$RELEASE_ID"
