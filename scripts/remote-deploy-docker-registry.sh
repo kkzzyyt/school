@@ -108,10 +108,7 @@ find_previous_release_from_container() {
   local candidate_image
 
   [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]] && return 0
-  container_id="$(docker ps \
-    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
-    --filter 'label=com.docker.compose.service=app' \
-    --format '{{.ID}}' | head -n 1)"
+  container_id="$(find_app_container_id)"
   [[ -n "$container_id" ]] || return 0
   active_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
 
@@ -138,6 +135,14 @@ if [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]; then
   PREVIOUS_RELEASE_DIR="$CURRENT_TARGET"
   PREVIOUS_IMAGE_REF="$(sed -n '1p' "$CURRENT_TARGET/image-ref")"
 fi
+
+find_app_container_id() {
+  docker ps \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter 'label=com.docker.compose.service=app' \
+    --filter 'label=com.docker.compose.oneoff=False' \
+    --format '{{.ID}}' | head -n 1
+}
 
 # 兼容此前由手工 Compose 启动、但尚未建立 current 指针的服务器。
 find_previous_release_from_container
@@ -203,10 +208,7 @@ verify_active_image() {
   local active_image
   local expected_image_ref
 
-  container_id="$(docker ps \
-    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
-    --filter 'label=com.docker.compose.service=app' \
-    --format '{{.ID}}' | head -n 1)"
+  container_id="$(find_app_container_id)"
   [[ -n "$container_id" ]] || die "未找到运行中的 app 容器"
   active_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
   expected_image_ref="$IMAGE_REF"
@@ -335,6 +337,7 @@ ln -s "$RELEASE_DIR" "$CURRENT_TMP"
 mv -f "$CURRENT_TMP" "$CURRENT_LINK"
 CURRENT_LINK_UPDATED=true
 [[ "$(readlink "$CURRENT_LINK")" == "$RELEASE_DIR" ]] || die '当前 release 指针校验失败'
+verify_active_image
 
 if [[ "$LEGACY_WAS_ENABLED" == true ]]; then
   systemctl disable "$LEGACY_SERVICE_NAME"
