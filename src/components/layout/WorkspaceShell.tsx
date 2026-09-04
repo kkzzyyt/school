@@ -4,7 +4,6 @@ import {
   AppstoreOutlined,
   ApartmentOutlined,
   BellOutlined,
-  BookOutlined,
   DownOutlined,
   IdcardOutlined,
   LogoutOutlined,
@@ -102,60 +101,43 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
         trigger={null}
       >
         <div className="brand">
-          <div className="brand-mark"><BookOutlined /></div>
+          <div className="brand-mark-monogram">
+            缺
+          </div>
           {!collapsed && (
             <div className="brand-copy">
-              <div className="brand-title">智教办公系统</div>
-              <div className="brand-subtitle">效能版</div>
+              <div className="brand-title">缺我不转工作台</div>
+              <div className="brand-subtitle">SIS / REG. 2026</div>
             </div>
           )}
+          <Button
+            className="sider-toggle-btn"
+            type="text"
+            size="small"
+            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed((value) => !value)}
+          />
         </div>
         {navigation}
         <div className="sider-footer">
-          <Button type="text" icon={<LogoutOutlined />} onClick={() => void logout()}>
-            {!collapsed && "退出登录"}
-          </Button>
+          <Dropdown trigger={["click"]} menu={accountMenu} placement="topRight">
+            <div className="sider-user-profile" role="button" tabIndex={0}>
+              <Avatar className="account-avatar">{auth.displayName.slice(0, 1)}</Avatar>
+              {!collapsed && (
+                <div className="sider-user-info">
+                  <div className="sider-user-name">{auth.displayName}</div>
+                  <div className="sider-user-role">
+                    {auth.userRole === "ADMIN" ? "教务管理员" : "班主任教师"}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Dropdown>
         </div>
       </Sider>
 
       <Layout className="workspace-main" style={{ marginLeft: siderWidth }}>
-        <header className="workspace-header">
-          <div className="header-leading">
-            <Button
-              className="mobile-menu-button"
-              type="text"
-              aria-label="打开导航菜单"
-              icon={<MenuOutlined />}
-              onClick={() => setMobileMenuOpen(true)}
-            />
-            <Button
-              className="collapse-button"
-              type="text"
-              aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed((value) => !value)}
-            />
-          </div>
-
-          <div className="header-actions">
-            <Tooltip title="通知">
-              <Button type="text" aria-label="通知" icon={<BellOutlined />} onClick={() => void message.info("暂无新通知")} />
-            </Tooltip>
-            <Tooltip title="帮助">
-              <Button type="text" aria-label="帮助" icon={<QuestionCircleOutlined />} onClick={() => void message.info("帮助中心正在完善中")} />
-            </Tooltip>
-            <Tooltip title="设置">
-              <Button type="text" aria-label="设置" icon={<SettingOutlined />} onClick={() => void message.info("当前没有可调整的个人设置")} />
-            </Tooltip>
-            <Dropdown trigger={["click"]} menu={accountMenu}>
-              <Button className="account-button" type="text" aria-label={`${auth.displayName}，账户菜单`}>
-                <Avatar className="account-avatar">{auth.displayName.slice(0, 1)}</Avatar>
-                <span className="account-name">{auth.displayName}</span>
-                <DownOutlined className="account-chevron" />
-              </Button>
-            </Dropdown>
-          </div>
-        </header>
         <Content className="workspace-content">
           <div className="workspace-page-stack">{children}</div>
         </Content>
@@ -171,10 +153,10 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
         styles={{ body: { padding: 0 } }}
       >
         <div className="brand">
-          <div className="brand-mark"><BookOutlined /></div>
+          <div className="brand-mark-monogram">缺</div>
           <div className="brand-copy">
-            <div className="brand-title">智教办公系统</div>
-            <div className="brand-subtitle">效能版</div>
+            <div className="brand-title">缺我不转工作台</div>
+            <div className="brand-subtitle">SIS / REG. 2026</div>
           </div>
         </div>
         {navigation}

@@ -26,7 +26,6 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Checkbox,
   Input,
   InputNumber,
@@ -41,7 +40,7 @@ import {
 import type { MenuProps } from "antd";
 import { Fragment, type CSSProperties, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 
-import { PageHeading } from "@/components/layout/PageHeading";
+import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
@@ -1110,11 +1109,11 @@ export default function SeatingPage() {
 
   return (
     <>
-      <PageHeading
+      <LedgerSheet
         kicker="SEATING PLAN"
         title="班级座次表"
         description={isEditing ? "编辑模式：拖动学生或选择目标座位，完成后保存座次。" : "面向讲台查看教室布局，座次仅在编辑模式下可以调整。"}
-        action={(
+        actions={(
           <Space className="seating-heading-actions">
             <Space className="seating-output-actions" size={8}>
               <Tooltip title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}>
@@ -1159,14 +1158,19 @@ export default function SeatingPage() {
             )}
           </Space>
         )}
-      />
+        metrics={[
+          { label: "SEATS // 已安排", value: draft ? assignedCount : "—", unit: "席", detail: draft ? `共 ${studentCount} 名学生` : "正在读取座次", icon: <TeamOutlined /> },
+          { label: "CAPACITY // 座位容量", value: draft ? draft.rows * draft.columns : "—", unit: "席", detail: draft ? `${draft.rows} 排 × ${draft.columns} 列` : "等待布局", icon: <ColumnWidthOutlined /> },
+          { label: "ROOM // 环境标记", value: draft ? environmentFeatureCount : "—", unit: "项", detail: draft ? `过道 ${aisleAfterColumns.length} 条` : "等待教室配置", icon: <SettingOutlined /> },
+        ]}
+      >
       {error && <Alert type="error" showIcon title={error.message} />}
       {loading || !data || !draft ? (
-        <Card className="surface-card seating-loading-card">
+        <div className="seating-loading-card">
           <Skeleton active paragraph={{ rows: 12 }} />
-        </Card>
+        </div>
       ) : (
-        <Card className="surface-card seating-workspace-card" styles={{ body: { padding: 0 } }}>
+        <div className="seating-workspace-card">
           <div
             className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
           >
@@ -1489,8 +1493,9 @@ export default function SeatingPage() {
             <Space size={6}><SwapOutlined /><span>拖动已安排学生到其他座位可直接交换；拖回学生池即可取消安排。</span></Space>
             <span className="seating-footer-capacity">座位容量 {draft.rows * draft.columns} · 当前安排 {assignedCount}</span>
           </div>}
-        </Card>
+        </div>
       )}
+      </LedgerSheet>
       <Modal
         className="seating-settings-modal"
         title="座位布局"

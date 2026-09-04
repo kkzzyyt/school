@@ -5,7 +5,7 @@ import { Alert, Button, Input, Segmented, Tag } from "antd";
 import { Suspense, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/PageHeading";
+import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { useApiData } from "@/hooks/useApiData";
 
 import { StudentDetailDrawer } from "@/components/students/StudentDetailDrawer";
@@ -33,18 +33,20 @@ const statusOptions: Array<{ label: string; value: StatusFilter }> = [
 function StudentPageFallback() {
   return (
     <div className={styles.studentsPage}>
-      <PageHeading
+      <LedgerSheet
         kicker="STUDENT ROSTER"
         title="学生花名册"
         description="统一维护学生基本信息、学籍状态和联系人。"
-      />
-      <div className={`surface-card ${styles.rosterPanel}`} aria-busy="true">
-        <div className={styles.toolbar}>
-          <div className={styles.searchWrap} />
-          <div className={styles.filterWrap} />
-        </div>
-        <div className={styles.studentListState}>正在准备学生名单...</div>
-      </div>
+        metrics={[{ label: "REGISTRY // 在册", value: "—", unit: "人", detail: "正在读取档案", icon: <TeamOutlined /> }]}
+      >
+        <section className={styles.rosterPanel} aria-busy="true">
+          <div className={styles.toolbar}>
+            <div className={styles.searchWrap} />
+            <div className={styles.filterWrap} />
+          </div>
+          <div className={styles.studentListState}>正在准备学生名单...</div>
+        </section>
+      </LedgerSheet>
     </div>
   );
 }
@@ -118,82 +120,97 @@ function StudentsPageContent() {
 
   return (
     <div className={styles.studentsPage}>
-      <PageHeading
+      <LedgerSheet
         kicker="STUDENT ROSTER"
         title="学生花名册"
         description="统一维护学生基本信息、学籍状态和联系人。"
-        action={(
+        actions={(
           <div className={styles.headingAction}>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>
               新增学生
             </Button>
           </div>
         )}
-      />
+        metrics={[
+          {
+            label: "REGISTRY // 班级在册",
+            value: data?.meta.total ?? "—",
+            unit: "人",
+            detail: hasFilters ? "当前筛选结果" : "按学号顺序展示",
+            icon: <TeamOutlined />,
+          },
+          {
+            label: "FILTER // 当前状态",
+            value: status === "ALL" ? "全部" : statusMap[status].text,
+            detail: query.trim() ? `检索“${query.trim()}”` : "未启用筛选",
+            icon: <SearchOutlined />,
+          },
+        ]}
+      >
+        {error && (
+          <Alert
+            type="error"
+            showIcon
+            title={error.message}
+            action={<Button type="text" icon={<ReloadOutlined />} onClick={() => void refresh()}>重试</Button>}
+          />
+        )}
 
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          title={error.message}
-          action={<Button type="text" icon={<ReloadOutlined />} onClick={() => void refresh()}>重试</Button>}
-        />
-      )}
+        <section className={styles.rosterPanel}>
+          <div className={styles.toolbar}>
+            <div className={styles.searchWrap}>
+              <Input.Search
+                key={query}
+                allowClear
+                enterButton
+                defaultValue={query}
+                prefix={<SearchOutlined />}
+                placeholder="搜索姓名或学号"
+                aria-label="搜索姓名或学号"
+                onChange={(event) => {
+                  if (!event.target.value) replaceFilters({ search: "" });
+                }}
+                onSearch={(value) => replaceFilters({ search: value })}
+              />
+            </div>
+            <div className={styles.filterWrap}>
+              <span className={styles.filterLabel}>学籍状态</span>
+              <Segmented<StatusFilter>
+                className={styles.statusSegmented}
+                block
+                options={statusOptions}
+                value={status}
+                onChange={(value) => replaceFilters({ status: value })}
+              />
+            </div>
+          </div>
 
-      <section className={`surface-card ${styles.rosterPanel}`}>
-        <div className={styles.toolbar}>
-          <div className={styles.searchWrap}>
-            <Input.Search
-              key={query}
-              allowClear
-              enterButton
-              defaultValue={query}
-              prefix={<SearchOutlined />}
-              placeholder="搜索姓名或学号"
-              aria-label="搜索姓名或学号"
-              onChange={(event) => {
-                if (!event.target.value) replaceFilters({ search: "" });
-              }}
-              onSearch={(value) => replaceFilters({ search: value })}
-            />
+          <div className={styles.rosterMeta}>
+            <div className={styles.rosterCount}>
+              <strong>{data ? data.meta.total : "—"}</strong>
+              <span>{hasFilters ? "名匹配学生" : "名学生"}</span>
+            </div>
+            <div className={styles.rosterMetaDetails}>
+              <TeamOutlined aria-hidden="true" />
+              {query.trim() && <span>搜索“{query.trim()}”</span>}
+              {status !== "ALL" && <Tag color={statusMap[status].color}>{statusMap[status].text}</Tag>}
+              {!hasFilters && <span>按学号顺序展示</span>}
+            </div>
+            <Button type="link" disabled={!hasFilters} onClick={clearFilters}>清除筛选</Button>
           </div>
-          <div className={styles.filterWrap}>
-            <span className={styles.filterLabel}>学籍状态</span>
-            <Segmented<StatusFilter>
-              className={styles.statusSegmented}
-              block
-              options={statusOptions}
-              value={status}
-              onChange={(value) => replaceFilters({ status: value })}
-            />
-          </div>
-        </div>
 
-        <div className={styles.rosterMeta}>
-          <div className={styles.rosterCount}>
-            <strong>{data ? data.meta.total : "—"}</strong>
-            <span>{hasFilters ? "名匹配学生" : "名学生"}</span>
-          </div>
-          <div className={styles.rosterMetaDetails}>
-            <TeamOutlined aria-hidden="true" />
-            {query.trim() && <span>搜索“{query.trim()}”</span>}
-            {status !== "ALL" && <Tag color={statusMap[status].color}>{statusMap[status].text}</Tag>}
-            {!hasFilters && <span>按学号顺序展示</span>}
-          </div>
-          <Button type="link" disabled={!hasFilters} onClick={clearFilters}>清除筛选</Button>
-        </div>
-
-        <StudentList
-          students={data?.items ?? []}
-          loading={loading}
-          error={error}
-          hasFilters={hasFilters}
-          onOpenDetail={openDetail}
-          onEdit={openEditor}
-          onClearFilters={clearFilters}
-          onRetry={() => void refresh()}
-        />
-      </section>
+          <StudentList
+            students={data?.items ?? []}
+            loading={loading}
+            error={error}
+            hasFilters={hasFilters}
+            onOpenDetail={openDetail}
+            onEdit={openEditor}
+            onClearFilters={clearFilters}
+            onRetry={() => void refresh()}
+          />
+        </section>
+      </LedgerSheet>
 
       <StudentDetailDrawer
         student={detailStudent}

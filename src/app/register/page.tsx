@@ -3,7 +3,6 @@
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
-  BookOutlined,
   CheckCircleOutlined,
   LockOutlined,
   UserOutlined,
@@ -47,21 +46,42 @@ export default function RegisterPage() {
 
   return (
     <main className="login-page">
+      {/* Pear 原版高清动态循环视频 signal.mp4 (日光通透背景) */}
+      <video
+        className="login-video-backdrop"
+        autoPlay
+        loop
+        muted
+        playsInline
+        poster="/films/signal-poster.jpg"
+      >
+        <source src="/films/signal.mp4" type="video/mp4" />
+      </video>
+
+      {/* 学术公报索引标头 */}
+      <header className="login-meta-header">
+        <span>VOL. 2026 // ADMISSION</span>
+        <span>PEAR ARCHIVAL CORE</span>
+      </header>
+
       <section className="login-panel register-panel" aria-labelledby="register-title">
         <div className="login-brand">
-          <div className="login-logo"><BookOutlined /></div>
-          <h1 id="register-title">申请注册</h1>
-          <p>提交后由系统管理员审核并分配班级</p>
+          <div className="login-brand-strip">
+            <div className="login-logo">缺</div>
+            <span className="login-brand-meta">ADMISSION &amp; ROSTER</span>
+          </div>
+          <h1 id="register-title">申请学籍注册</h1>
+          <p>提交后由教务管理员审核并分配所属班级</p>
         </div>
 
         {submitted ? (
           <div className="register-success" role="status">
             <CheckCircleOutlined className="register-success-icon" />
             <h2>申请已提交</h2>
-            <p>管理员审核通过并分配班级后，你就可以使用账号登录。</p>
+            <p>教务处审核通过并分配班级后，你即可使用该凭据登录教务系统。</p>
             <Link href="/login">
-              <Button type="primary" size="large" block>
-                返回登录 <ArrowRightOutlined />
+              <Button type="primary" size="large" block className="login-submit-btn">
+                返回登录系统 <ArrowRightOutlined />
               </Button>
             </Link>
           </div>
@@ -76,30 +96,30 @@ export default function RegisterPage() {
             >
               <Form.Item
                 name="username"
-                label="账号"
+                label="登记账号"
                 extra="3-50 位字母、数字、点、短横线或下划线"
                 rules={[{ required: true, message: "请输入账号" }]}
               >
-                <Input prefix={<UserOutlined />} placeholder="请输入登录账号" autoComplete="username" />
+                <Input size="large" prefix={<UserOutlined />} placeholder="请输入登录账号" autoComplete="username" />
               </Form.Item>
               <Form.Item
                 name="displayName"
-                label="姓名"
+                label="真实姓名"
                 rules={[{ required: true, message: "请输入姓名" }]}
               >
-                <Input prefix={<UserOutlined />} placeholder="请输入真实姓名" autoComplete="name" />
+                <Input size="large" prefix={<UserOutlined />} placeholder="请输入真实姓名" autoComplete="name" />
               </Form.Item>
               <Form.Item
                 name="password"
-                label="密码"
+                label="通行密码"
                 extra="至少 8 位，同时包含字母和数字"
                 rules={[{ required: true, message: "请输入密码" }]}
               >
-                <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="new-password" />
+                <Input.Password size="large" prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="new-password" />
               </Form.Item>
               <Form.Item
                 name="confirmPassword"
-                label="确认密码"
+                label="再次确认密码"
                 dependencies={["password"]}
                 rules={[
                   { required: true, message: "请再次输入密码" },
@@ -111,18 +131,24 @@ export default function RegisterPage() {
                   }),
                 ]}
               >
-                <Input.Password prefix={<LockOutlined />} placeholder="请再次输入密码" autoComplete="new-password" />
+                <Input.Password size="large" prefix={<LockOutlined />} placeholder="请再次输入密码" autoComplete="new-password" />
               </Form.Item>
-              <Button type="primary" htmlType="submit" size="large" block loading={loading}>
-                提交注册申请 <ArrowRightOutlined />
+              <Button type="primary" htmlType="submit" size="large" block loading={loading} className="login-submit-btn">
+                提交学籍申请 <ArrowRightOutlined />
               </Button>
             </Form>
             <div className="login-register-link">
-              <Link href="/login"><ArrowLeftOutlined /> 返回登录</Link>
+              已有学府教务账号？<Link href="/login"><ArrowLeftOutlined /> 返回登录</Link>
             </div>
           </>
         )}
       </section>
+
+      {/* 学术公报底部索引标注 */}
+      <footer className="login-meta-footer">
+        <span>REG. 2026 // ACADEMIC DOSSIER</span>
+        <span>SECURITY &amp; ETHICS PROTOCOL</span>
+      </footer>
     </main>
   );
 }

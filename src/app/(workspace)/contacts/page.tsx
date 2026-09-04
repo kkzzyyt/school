@@ -11,12 +11,13 @@ import {
   PlusOutlined,
   SearchOutlined,
   StarFilled,
+  TeamOutlined,
   WechatOutlined,
 } from "@ant-design/icons";
 import { Alert, App, Button, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Skeleton, Space, Switch, Tag } from "antd";
 import { useMemo, useState } from "react";
 
-import { PageHeading } from "@/components/layout/PageHeading";
+import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
 
@@ -97,11 +98,11 @@ export default function ContactsPage() {
 
   return (
     <>
-      <PageHeading
+      <LedgerSheet
         kicker="FAMILY CONTACTS"
         title="家长联系名录"
         description="高效管理学生家长联系方式，支持姓名、学号或电话检索。"
-        action={(
+        actions={(
           <Space className="contacts-heading-actions" size={10}>
             <Button
               className="contacts-filter"
@@ -114,8 +115,14 @@ export default function ContactsPage() {
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>新增联系人</Button>
           </Space>
         )}
-      />
+        metrics={[
+          { label: "DIRECTORY // 当前联系人", value: visibleRows.length, unit: "位", detail: primaryOnly ? "仅显示主联系人" : "全部已维护联系人", icon: <TeamOutlined /> },
+          { label: "PRIMARY // 主联系人", value: rows.filter((contact) => contact.isPrimary).length, unit: "位", detail: "家校沟通首选对象", icon: <StarFilled /> },
+          { label: "STUDENT // 覆盖学生", value: data?.meta.total ?? "—", unit: "人", detail: query.trim() ? `检索“${query.trim()}”` : "当前班级学生", icon: <SearchOutlined /> },
+        ]}
+      >
       {error && <Alert type="error" showIcon title={error.message} style={{ marginBottom: 16 }} />}
+      <div className="contacts-directory-section">
       <div className="contacts-toolbar">
         <Input
           className="contacts-search"
@@ -201,6 +208,8 @@ export default function ContactsPage() {
       ) : (
         <Empty className="contact-empty" description={query || primaryOnly ? "没有匹配的联系人" : "暂无联系人"} />
       )}
+      </div>
+      </LedgerSheet>
       <Modal title={editing ? "编辑家长联系人" : "新增家长联系人"} open={modalOpen} onCancel={closeEditor} onOk={() => void saveContact()} confirmLoading={saving} okText="保存联系人" destroyOnHidden>
         <Form form={form} layout="vertical" requiredMark={false} style={{ marginTop: 18 }}>
           <Form.Item name="studentId" label="学生" rules={[{ required: true, message: "请选择学生" }]}><Select disabled={Boolean(editing)} showSearch optionFilterProp="label" options={(data?.items ?? []).map((student) => ({ value: student.id, label: `${student.name} · ${student.studentNo}` }))} /></Form.Item>
