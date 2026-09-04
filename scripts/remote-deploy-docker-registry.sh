@@ -162,7 +162,7 @@ run_compose() {
 
   SCHOOL_IMAGE="$image_ref" \
     SCHOOL_RUNTIME_ENV_FILE="$ENV_PATH" \
-    docker compose -f "$compose_path" -p "$PROJECT_NAME" "$@"
+    docker compose -f "$compose_path" -p "$PROJECT_NAME" "$@" </dev/null
 }
 
 pull_image() {
@@ -171,7 +171,7 @@ pull_image() {
   for (( attempt = 1; attempt <= IMAGE_PULL_ATTEMPTS; attempt += 1 )); do
     printf '拉取 Docker 镜像（第 %s/%s 次，超时 %s 秒）：%s\n' \
       "$attempt" "$IMAGE_PULL_ATTEMPTS" "$IMAGE_PULL_TIMEOUT_SECONDS" "$IMAGE_REF"
-    if timeout "$IMAGE_PULL_TIMEOUT_SECONDS" docker pull --platform linux/amd64 "$IMAGE_REF"; then
+    if timeout "$IMAGE_PULL_TIMEOUT_SECONDS" docker pull --platform linux/amd64 "$IMAGE_REF" </dev/null; then
       return 0
     fi
     if (( attempt < IMAGE_PULL_ATTEMPTS )); then

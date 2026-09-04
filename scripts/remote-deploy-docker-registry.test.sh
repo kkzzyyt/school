@@ -99,6 +99,11 @@ case "${1:-}" in
     command="${1:-}"
     case "$command" in
       config|run)
+        if [[ "$command" == run && "${DEPLOY_TEST_CONSUME_STDIN:-false}" == true ]]; then
+          while IFS= read -r line; do
+            :
+          done
+        fi
         ;;
       up)
         if [[ "${DEPLOY_TEST_UP_STALE:-false}" != true ]]; then
@@ -194,6 +199,7 @@ PATH="$FAKE_BIN:$ORIGINAL_PATH" \
   DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
   DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
   DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
+  DEPLOY_TEST_CONSUME_STDIN=true \
   DEPLOY_TEST_FAIL_PULL_FIRST=true \
   DEPLOY_TEST_ROLLBACK_IMAGE=school:first \
   DEPLOY_TEST_HEALTH_STATUS=200 \
@@ -219,6 +225,8 @@ assert_not_exists "$LEGACY_ACTIVE"
 assert_not_exists "$LEGACY_ENABLED"
 assert_contains 'timeout 30 docker pull --platform linux/amd64 school:first' "$COMMAND_LOG"
 assert_contains 'label=com.docker.compose.oneoff=False' "$COMMAND_LOG"
+assert_contains 'run --rm --no-deps app ./node_modules/.bin/prisma validate --config /app/prisma.config.ts' "$COMMAND_LOG"
+assert_contains 'run --rm --no-deps app ./node_modules/.bin/prisma migrate deploy --config /app/prisma.config.ts' "$COMMAND_LOG"
 assert_contains 'up --detach --no-deps --force-recreate app' "$COMMAND_LOG"
 assert_contains 'systemctl stop school-next.service' "$COMMAND_LOG"
 assert_contains 'systemctl disable school-next.service' "$COMMAND_LOG"
