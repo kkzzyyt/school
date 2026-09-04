@@ -78,6 +78,8 @@ install -m 600 /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime
 
 旧版 `npm run deploy` 的 PM2/systemd 源码发布脚本仍保留作兼容和人工回退使用，但它会依赖服务器本机 Node.js/npm，不是当前 GitHub Actions 的生产入口。
 
+生产发布完成判定、旧版本排查和 2026-09-04 的线上旧 release 事件记录见 [生产发布排查手册](./docs/deployment-runbook.md)。
+
 如果 SSH 需要通过本机 SOCKS5 代理，可在 workflow 的 SSH 配置中设置对应代理命令；固定 `known_hosts` 仍必须通过独立可信渠道核验，发布流程始终使用 `StrictHostKeyChecking=yes`。
 
 ## 常用命令
