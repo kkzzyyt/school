@@ -334,6 +334,7 @@ fi
 CURRENT_TMP="$DOCKER_STATE_DIR/.current.$$"
 rm -f "$CURRENT_TMP"
 ln -s "$RELEASE_DIR" "$CURRENT_TMP"
+rm -f "$CURRENT_LINK"
 mv -f "$CURRENT_TMP" "$CURRENT_LINK"
 CURRENT_LINK_UPDATED=true
 [[ "$(readlink "$CURRENT_LINK")" == "$RELEASE_DIR" ]] || die '当前 release 指针校验失败'
