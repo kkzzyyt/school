@@ -13,8 +13,8 @@ const pages = [
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "账号" }).fill("teacher");
-  await page.getByLabel("密码").fill("Teacher@123");
+  await page.getByRole("textbox", { name: "账号" }).fill("mx");
+  await page.getByLabel("密码").fill("123456");
   await page.getByRole("button", { name: "立即登录" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }

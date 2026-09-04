@@ -79,8 +79,6 @@ interface ClassroomListResponse {
 interface UserFormValues {
   username?: string;
   displayName: string;
-  password?: string;
-  confirmPassword?: string;
   role: UserRole;
   status?: Exclude<UserStatus, "PENDING">;
   classId?: string;
@@ -189,8 +187,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           body: JSON.stringify({
             username: values.username,
             displayName: values.displayName,
-            password: values.password,
-            confirmPassword: values.confirmPassword,
             role: values.role,
             classId: values.classId,
           }),
@@ -439,6 +435,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         confirmLoading={editorSaving}
         destroyOnHidden
       >
+        {editorMode === "create" && <Alert type="info" showIcon title="新用户初始密码为 123456，首次登录后请及时修改。" style={{ marginBottom: 18 }} />}
         {editorMode === "approve" && <Alert type="info" showIcon title="批准后该用户将获得班主任权限，并可以登录系统。" style={{ marginBottom: 18 }} />}
         <Form<UserFormValues> form={editorForm} layout="vertical" requiredMark={false}>
           {editorMode === "create" && (
@@ -464,24 +461,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
               <Select options={[{ value: "ACTIVE", label: "已启用" }, { value: "DISABLED", label: "已停用" }]} />
             </Form.Item>
           )}
-          {editorMode === "create" && (
-            <>
-              <Form.Item name="password" label="初始密码" rules={[{ required: true, message: "请输入初始密码" }]}>
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item
-                name="confirmPassword"
-                label="确认密码"
-                dependencies={["password"]}
-                rules={[
-                  { required: true, message: "请再次输入密码" },
-                  ({ getFieldValue }) => ({ validator(_, value: string) { return !value || getFieldValue("password") === value ? Promise.resolve() : Promise.reject(new Error("两次输入的密码不一致")); } }),
-                ]}
-              >
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-            </>
-          )}
           <Form.Item
             name="classId"
             label="默认班级"
@@ -489,6 +468,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
             rules={[
               ({ getFieldValue }) => ({
                 validator(_, value: string | undefined) {
+                  if (editorMode === "create" && !value) return Promise.reject(new Error("请选择默认班级"));
                   const role = editorMode === "approve" ? "HEAD_TEACHER" : getFieldValue("role");
                   const status = editorMode === "create" || editorMode === "approve" ? "ACTIVE" : getFieldValue("status");
                   if (role === "HEAD_TEACHER" && status === "ACTIVE" && !value) return Promise.reject(new Error("启用班主任必须分配默认班级"));

@@ -125,8 +125,6 @@ describe("admin user collection routes", () => {
     const response = await POST(jsonRequest("/api/admin/users", {
       username: "teacher2",
       displayName: "王老师",
-      password: "Teacher123",
-      confirmPassword: "Teacher123",
       role: "HEAD_TEACHER",
       classId: "class-1",
     }));
@@ -134,7 +132,7 @@ describe("admin user collection routes", () => {
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ success: true, data: { username: "teacher2", status: "ACTIVE" } });
-    expect(mocks.hash).toHaveBeenCalledWith("Teacher123", { type: 2 });
+    expect(mocks.hash).toHaveBeenCalledWith("123456", { type: 2 });
     expect(mocks.transaction.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         username: "teacher2",

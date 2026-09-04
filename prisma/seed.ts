@@ -16,6 +16,10 @@ import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ROWS,
 } from "../src/domain/seating";
+import {
+  DEFAULT_INITIAL_PASSWORD,
+  INITIAL_ACCOUNTS,
+} from "../src/server/auth/initial-accounts";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -93,20 +97,20 @@ async function resetDatabase() {
 async function seed() {
   await resetDatabase();
 
-  const teacher = await prisma.user.create({
+  const headTeacher = await prisma.user.create({
     data: {
-      username: "teacher",
-      passwordHash: await hash("Teacher@123", { type: 2 }),
-      displayName: "周老师",
+      username: INITIAL_ACCOUNTS.headTeacher.username,
+      passwordHash: await hash(DEFAULT_INITIAL_PASSWORD, { type: 2 }),
+      displayName: INITIAL_ACCOUNTS.headTeacher.displayName,
       role: UserRole.HEAD_TEACHER,
     },
   });
 
   const admin = await prisma.user.create({
     data: {
-      username: "admin",
-      passwordHash: await hash("admin123", { type: 2 }),
-      displayName: "系统管理员",
+      username: INITIAL_ACCOUNTS.administrator.username,
+      passwordHash: await hash(DEFAULT_INITIAL_PASSWORD, { type: 2 }),
+      displayName: INITIAL_ACCOUNTS.administrator.displayName,
       role: UserRole.ADMIN,
     },
   });
@@ -128,7 +132,7 @@ async function seed() {
       memberships: {
         create: [
           {
-            userId: teacher.id,
+            userId: headTeacher.id,
             role: MembershipRole.OWNER,
             isDefault: true,
           },
@@ -331,7 +335,7 @@ async function seed() {
 seed()
   .then(async () => {
     await prisma.$disconnect();
-    console.info("Seed completed. Login with admin / admin123");
+    console.info("Seed completed. Login with admin / 123456 or mx / 123456");
   })
   .catch(async (error: unknown) => {
     console.error(error);

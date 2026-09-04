@@ -1,0 +1,41 @@
+.page {
+  min-width: 0;
+}
+
+.toolbarCard {
+  margin-bottom: 18px;
+}
+
+.classGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  gap: 18px;
+}
+
+.classCard {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.classTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.classMeta {
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.studentTable :global(.ant-table) {
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .toolbarCard :global(.ant-input-search) {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}

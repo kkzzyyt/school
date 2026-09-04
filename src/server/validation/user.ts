@@ -49,22 +49,11 @@ export const resetPasswordSchema = withPasswordConfirmation({
   confirmPassword: z.string().min(1, "请再次输入密码"),
 });
 
-export const adminUserCreateSchema = withPasswordConfirmation({
+export const adminUserCreateSchema = z.object({
     username: usernameSchema,
     displayName: displayNameSchema,
-    password: passwordSchema,
-    confirmPassword: z.string().min(1, "请再次输入密码"),
     role: z.enum(["ADMIN", "HEAD_TEACHER"]).default("HEAD_TEACHER"),
-    classId: z.string().trim().min(1, "请选择默认班级").optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.role === "HEAD_TEACHER" && !value.classId) {
-      context.addIssue({
-        code: "custom",
-        path: ["classId"],
-        message: "班主任账号必须分配默认班级",
-      });
-    }
+    classId: z.string({ error: "请选择默认班级" }).trim().min(1, "请选择默认班级"),
   });
 
 export const adminUserPatchSchema = z

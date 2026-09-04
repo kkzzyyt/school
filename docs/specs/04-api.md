@@ -37,7 +37,7 @@
 | --- | --- | --- |
 | GET | `/api/admin/classrooms` | 返回可分配的班级摘要 |
 | GET | `/api/admin/users?q=&status=&role=&page=&pageSize=` | 分页返回用户，不返回密码哈希和会话令牌 |
-| POST | `/api/admin/users` | 创建启用中的用户，可设置角色和默认班级 |
+| POST | `/api/admin/users` | 创建启用中的用户，可设置角色和默认班级；密码由服务端统一初始化为 `123456` |
 | PATCH | `/api/admin/users/:id` | 更新姓名、角色、状态和默认班级 |
 | POST | `/api/admin/users/:id/reset-password` | 设置新密码并撤销目标用户全部会话 |
 | POST | `/api/admin/users/:id/revoke-sessions` | 撤销目标用户全部会话 |

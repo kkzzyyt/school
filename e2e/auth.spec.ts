@@ -18,7 +18,7 @@ test("用户名或密码错误时保留登录页并显示错误", async ({ page 
     if (request.resourceType() === "document") documentRequests.push(request.url());
   });
 
-  await page.locator('input[autocomplete="username"]').fill("teacher");
+  await page.locator('input[autocomplete="username"]').fill("mx");
   await page.getByLabel("密码").fill("wrong");
   await page.getByRole("button", { name: "立即登录" }).click();
 
@@ -31,8 +31,8 @@ test("班主任可以登录、进入工作台并退出", async ({ page }) => {
   await page.goto("/login");
 
   await expect(page.getByRole("heading", { name: "智教办公系统" })).toBeVisible();
-  await page.getByRole("textbox", { name: "账号" }).fill("teacher");
-  await page.getByLabel("密码").fill("Teacher@123");
+  await page.getByRole("textbox", { name: "账号" }).fill("mx");
+  await page.getByLabel("密码").fill("123456");
   await page.getByRole("button", { name: "立即登录" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -46,8 +46,8 @@ test("班主任可以登录、进入工作台并退出", async ({ page }) => {
 
 test("花名册支持搜索学生", async ({ page }) => {
   await page.goto("/login");
-  await page.getByRole("textbox", { name: "账号" }).fill("teacher");
-  await page.getByLabel("密码").fill("Teacher@123");
+  await page.getByRole("textbox", { name: "账号" }).fill("mx");
+  await page.getByLabel("密码").fill("123456");
   await page.getByRole("button", { name: "立即登录" }).click();
   await page.getByRole("menuitem", { name: "花名册" }).click();
 

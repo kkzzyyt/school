@@ -36,22 +36,25 @@ describe("user validation", () => {
     })).toThrow("两次输入的密码不一致");
   });
 
-  it("requires a class when an administrator creates an active head teacher", () => {
+  it("requires a class when an administrator creates any user", () => {
     expect(() => adminUserCreateSchema.parse({
       username: "teacher2",
       displayName: "王老师",
-      password: "Teacher123",
-      confirmPassword: "Teacher123",
       role: "HEAD_TEACHER",
-    })).toThrow("班主任账号必须分配默认班级");
+    })).toThrow("请选择默认班级");
+
+    expect(() => adminUserCreateSchema.parse({
+      username: "admin2",
+      displayName: "管理员二号",
+      role: "ADMIN",
+    })).toThrow("请选择默认班级");
 
     expect(adminUserCreateSchema.parse({
       username: "admin2",
       displayName: "管理员二号",
-      password: "Admin123",
-      confirmPassword: "Admin123",
       role: "ADMIN",
-    })).toMatchObject({ role: "ADMIN" });
+      classId: "class-1",
+    })).toMatchObject({ role: "ADMIN", classId: "class-1" });
   });
 
   it("only allows active or disabled states in an administrator patch", () => {

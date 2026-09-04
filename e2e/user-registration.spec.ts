@@ -20,9 +20,11 @@ test("注册申请经管理员审核并分配班级后可以登录", async ({ pa
   await page.getByRole("button", { name: /提交注册申请/ }).click();
   await expect(page.getByRole("status")).toContainText("申请已提交");
 
-  await login(page, "admin", "admin123");
+  await login(page, "admin", "123456");
   await page.goto("/admin/users");
   await expect(page.getByRole("heading", { name: "用户管理" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "工作台" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "班级管理" })).toBeVisible();
   await page.getByPlaceholder("搜索账号或姓名").fill(username);
   await page.getByPlaceholder("搜索账号或姓名").press("Enter");
   await expect(page.getByText(username, { exact: true })).toBeVisible();
@@ -42,8 +44,22 @@ test("注册申请经管理员审核并分配班级后可以登录", async ({ pa
 });
 
 test("班主任不能访问用户管理页面", async ({ page }) => {
-  await login(page, "teacher", "Teacher@123");
+  await login(page, "mx", "123456");
   await page.goto("/admin/users");
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: /早上好/ })).toBeVisible();
+});
+
+test("管理员可以在班级管理查看学生基础信息", async ({ page }) => {
+  await login(page, "admin", "123456");
+  await page.goto("/admin/classes");
+
+  await expect(page.getByRole("heading", { name: "班级管理" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "工作台" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "用户管理" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "班级管理" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "学号" }).first()).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "姓名" }).first()).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "学籍状态" }).first()).toBeVisible();
+  await expect(page.getByText("手机号", { exact: true })).toHaveCount(0);
 });

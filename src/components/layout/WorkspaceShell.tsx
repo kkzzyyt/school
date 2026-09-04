@@ -2,6 +2,7 @@
 
 import {
   AppstoreOutlined,
+  ApartmentOutlined,
   BellOutlined,
   BookOutlined,
   DownOutlined,
@@ -34,6 +35,7 @@ const workspaceMenuItems: NonNullable<MenuProps["items"]> = [
 
 const adminMenuItems: NonNullable<MenuProps["items"]> = [
   { key: "/admin/users", icon: <SafetyCertificateOutlined />, label: "用户管理" },
+  { key: "/admin/classes", icon: <ApartmentOutlined />, label: "班级管理" },
 ];
 
 interface WorkspaceShellProps {
@@ -51,7 +53,7 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
 
   const siderWidth = collapsed ? 80 : 248;
   const menuItems = mode === "admin"
-    ? adminMenuItems
+    ? [...workspaceMenuItems, { type: "divider" as const }, ...adminMenuItems]
     : auth.userRole === "ADMIN"
       ? [...workspaceMenuItems, { type: "divider" as const }, ...adminMenuItems]
       : workspaceMenuItems;

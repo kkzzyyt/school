@@ -5,6 +5,7 @@ import { handleApi, ApiError } from "@/server/api/errors";
 import { requireAdmin } from "@/server/auth/context";
 import { assertSameOrigin } from "@/server/auth/origin";
 import { prisma } from "@/server/db/prisma";
+import { DEFAULT_INITIAL_PASSWORD } from "@/server/auth/initial-accounts";
 import {
   adminUserCreateSchema,
   adminUserQuerySchema,
@@ -54,17 +55,15 @@ export async function POST(request: Request) {
     const administrator = await requireAdmin();
     const input = adminUserCreateSchema.parse(await request.json().catch(() => null));
 
-    const classroom = input.classId
-      ? await prisma.classroom.findUnique({
-          where: { id: input.classId },
-          select: { id: true },
-        })
-      : null;
-    if (input.classId && !classroom) {
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: input.classId },
+      select: { id: true },
+    });
+    if (!classroom) {
       throw new ApiError(404, "NOT_FOUND", "默认班级不存在");
     }
 
-    const passwordHash = await hash(input.password, { type: 2 });
+    const passwordHash = await hash(DEFAULT_INITIAL_PASSWORD, { type: 2 });
     return prisma.$transaction(async (transaction) => {
       const user = await transaction.user.create({
         data: {
