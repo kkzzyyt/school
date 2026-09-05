@@ -45,62 +45,81 @@ export function StudentCard({ student, onOpenDetail, onEdit }: StudentCardProps)
       onKeyDown={openFromKeyboard}
       aria-label={`查看${student.name}的学生档案`}
     >
-      <div className={styles.studentCardHeader}>
-        <div className={styles.studentIdentity}>
-          <div className={styles.studentAvatar} aria-hidden="true">
-            {student.name.slice(0, 1)}
-          </div>
-          <div className={styles.studentIdentityCopy}>
-            <div className={styles.studentNameRow}>
-              <h2>{student.name}</h2>
-              <Tag color={status.color}>{status.text}</Tag>
+      <div className={styles.studentCardTop}>
+        <div className={styles.studentCardHeader}>
+          <div className={styles.studentIdentity}>
+            <div
+              className={`${styles.studentAvatar} ${styles[`studentAvatar${gender.value}`]}`}
+              aria-hidden="true"
+            >
+              {student.name.slice(0, 1)}
             </div>
-            <p>
-              {student.studentNo} · <span className={`${styles.genderMark} ${styles[`genderMark${gender.value}`]}`}>
-                {gender.label}
-              </span>
-              {gender.inferred && <span className={styles.genderInference}>姓名推断</span>}
-            </p>
+            <div className={styles.studentIdentityCopy}>
+              <div className={styles.studentNameRow}>
+                <h2 title={student.name}>{student.name}</h2>
+                <Tag className={styles.studentStatusTag} color={status.color}>{status.text}</Tag>
+              </div>
+              <div className={styles.studentSubRow}>
+                <span className={styles.studentNoBadge} title={`学号：${student.studentNo}`}>
+                  {student.studentNo}
+                </span>
+                <span className={`${styles.genderMark} ${styles[`genderMark${gender.value}`]}`}>
+                  {gender.value === "MALE" ? "♂" : gender.value === "FEMALE" ? "♀" : ""} {gender.label}
+                </span>
+                {gender.inferred && <span className={styles.genderInference} title="根据姓名自动推断">推断</span>}
+              </div>
+            </div>
           </div>
+          <Tooltip title={`编辑${student.name}`}>
+            <Button
+              className={styles.studentCardEdit}
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              aria-label={`编辑${student.name}`}
+              onClick={(event) => {
+                stopCardClick(event);
+                onEdit(student);
+              }}
+            />
+          </Tooltip>
         </div>
-        <Tooltip title={`编辑${student.name}`}>
-          <Button
-            className={styles.studentCardEdit}
-            type="text"
-            icon={<EditOutlined />}
-            aria-label={`编辑${student.name}`}
-            onClick={(event) => {
-              stopCardClick(event);
-              onEdit(student);
-            }}
-          />
-        </Tooltip>
-      </div>
 
-      <div className={styles.studentFacts}>
-        <div className={styles.studentFact}>
-          <HomeOutlined aria-hidden="true" />
-          <span>{student.dormitory ? `宿舍 ${student.dormitory}` : "走读"}</span>
-        </div>
-        <div className={styles.studentFact}>
-          <PhoneOutlined aria-hidden="true" />
-          {student.phone ? (
-            <a href={`tel:${student.phone}`} onClick={stopCardClick}>{student.phone}</a>
-          ) : (
-            <span className={styles.mutedText}>未填写电话</span>
-          )}
+        <div className={styles.studentFacts}>
+          <div className={styles.studentFact}>
+            <HomeOutlined className={styles.factIcon} aria-hidden="true" />
+            <span className={styles.factLabel}>住宿：</span>
+            <span className={styles.factValue}>{student.dormitory ? `宿舍 ${student.dormitory}` : "走读生"}</span>
+          </div>
+          <div className={styles.studentFact}>
+            <PhoneOutlined className={styles.factIcon} aria-hidden="true" />
+            <span className={styles.factLabel}>电话：</span>
+            <span className={styles.factValue}>
+              {student.phone ? (
+                <a href={`tel:${student.phone}`} onClick={stopCardClick}>{student.phone}</a>
+              ) : (
+                <span className={styles.mutedText}>未登记电话</span>
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
       <div className={styles.studentContactSummary}>
-        <div className={styles.studentContactIcon} aria-hidden="true">
-          <UserOutlined />
+        <div className={styles.studentContactLead}>
+          <div className={styles.studentContactIcon} aria-hidden="true">
+            <UserOutlined />
+          </div>
+          <div className={styles.studentContactCopy}>
+            <span className={styles.studentContactLabel}>第一监护人</span>
+            <strong className={styles.studentContactName}>
+              {guardian ? `${guardian.name} · ${guardian.relationship}` : "未登记联系人"}
+            </strong>
+          </div>
         </div>
-        <div className={styles.studentContactCopy}>
-          <span>主联系人</span>
-          <strong>{guardian ? `${guardian.name} · ${guardian.relationship}` : "未维护联系人"}</strong>
+        <div className={styles.studentDetailHint} title="查看档案">
+          <RightOutlined className={styles.studentCardArrow} aria-hidden="true" />
         </div>
-        <RightOutlined className={styles.studentCardArrow} aria-hidden="true" />
       </div>
     </article>
   );

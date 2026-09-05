@@ -21,7 +21,7 @@ interface StudentListProps {
 function LoadingGrid() {
   return (
     <div className={styles.studentGrid} aria-busy="true" aria-label="正在加载学生名单">
-      {Array.from({ length: 6 }, (_, index) => (
+      {Array.from({ length: 8 }, (_, index) => (
         <div className={`${styles.studentCard} ${styles.studentCardLoading}`} key={`student-skeleton-${index}`}>
           <Skeleton active avatar paragraph={{ rows: 3 }} />
         </div>
