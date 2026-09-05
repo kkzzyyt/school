@@ -1,15 +1,12 @@
 "use client";
 
 import {
-  BarChartOutlined,
   BookOutlined,
   CheckCircleOutlined,
   EditOutlined,
-  FundOutlined,
   PlusOutlined,
   RiseOutlined,
   TeamOutlined,
-  TrophyOutlined,
 } from "@ant-design/icons";
 import {
   Alert,

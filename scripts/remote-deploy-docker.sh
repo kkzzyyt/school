@@ -88,7 +88,7 @@ COMPOSE_NAME="$(basename "$COMPOSE_UPLOAD_PATH")"
 [[ -f "$ENV_PATH" ]] || die "运行时 .env 不存在：$ENV_PATH"
 [[ -d "$DEPLOY_PATH" ]] || die "部署目录不存在：$DEPLOY_PATH"
 
-for command_name in bash cp curl docker ln ls mkdir mv rm readlink sed sha256sum sleep; do
+for command_name in bash cp curl docker head ln ls mkdir mv readlink rm sed sha256sum sleep; do
   require_command "$command_name"
 done
 docker compose version >/dev/null 2>&1 || die 'Docker Compose 插件不可用'
@@ -115,6 +115,38 @@ if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
   die "当前 release 路径已存在且不是符号链接"
 fi
 
+find_app_container_id() {
+  docker ps \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --filter 'label=com.docker.compose.service=app' \
+    --filter 'label=com.docker.compose.oneoff=False' \
+    --format '{{.ID}}' | head -n 1
+}
+
+# 兼容此前由手工 Compose 启动、但尚未建立 current 指针的服务器。
+find_previous_release_from_container() {
+  local container_id
+  local active_image
+  local candidate
+  local candidate_image
+
+  [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]] && return 0
+  container_id="$(find_app_container_id)"
+  [[ -n "$container_id" ]] || return 0
+  active_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
+
+  for candidate in "$RELEASES_DIR"/*/; do
+    [[ -d "$candidate" && -f "$candidate/image-ref" ]] || continue
+    candidate="${candidate%/}"
+    candidate_image="$(sed -n '1p' "$candidate/image-ref")"
+    if [[ "$candidate_image" == "$active_image" ]]; then
+      PREVIOUS_RELEASE_DIR="$candidate"
+      PREVIOUS_IMAGE_REF="$candidate_image"
+      break
+    fi
+  done
+}
+
 if [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]; then
   CURRENT_TARGET="$(readlink "$CURRENT_LINK")"
   case "$CURRENT_TARGET" in
@@ -125,6 +157,10 @@ if [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]; then
   [[ -f "$CURRENT_TARGET/image-ref" ]] || die "当前 release 缺少 image-ref：$CURRENT_TARGET"
   PREVIOUS_RELEASE_DIR="$CURRENT_TARGET"
   PREVIOUS_IMAGE_REF="$(sed -n '1p' "$CURRENT_TARGET/image-ref")"
+fi
+
+find_previous_release_from_container
+if [[ -n "$PREVIOUS_IMAGE_REF" ]]; then
   [[ "$PREVIOUS_IMAGE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] || die "当前 release 的镜像引用非法"
   docker image inspect "$PREVIOUS_IMAGE_REF" >/dev/null || die "当前 release 的 Docker 镜像不存在：$PREVIOUS_IMAGE_REF"
 fi
@@ -140,7 +176,7 @@ run_compose() {
 
   SCHOOL_IMAGE="$image_ref" \
     SCHOOL_RUNTIME_ENV_FILE="$ENV_PATH" \
-    docker compose -f "$compose_path" -p "$PROJECT_NAME" "$@"
+    docker compose -f "$compose_path" -p "$PROJECT_NAME" "$@" </dev/null
 }
 
 wait_for_health() {
@@ -163,6 +199,21 @@ wait_for_health() {
   return 1
 }
 
+verify_active_image() {
+  local container_id
+  local active_image
+  local expected_image_ref
+
+  container_id="$(find_app_container_id)"
+  [[ -n "$container_id" ]] || die "未找到运行中的 app 容器"
+  active_image="$(docker inspect --format '{{.Config.Image}}' "$container_id")"
+  expected_image_ref="$IMAGE_REF"
+  if [[ "$active_image" != "$expected_image_ref" ]]; then
+    printf '运行中的镜像不匹配：期望 %s，实际 %s\n' "$expected_image_ref" "$active_image" >&2
+    die "运行中的镜像不匹配"
+  fi
+}
+
 restore_previous() {
   local restore_status=0
 
@@ -176,6 +227,8 @@ restore_previous() {
       ln -s "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK" || restore_status=1
     fi
     CURRENT_LINK_UPDATED=false
+  elif [[ -n "$PREVIOUS_RELEASE_DIR" && ! -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
+    ln -s "$PREVIOUS_RELEASE_DIR" "$CURRENT_LINK" || restore_status=1
   fi
 
   if [[ -n "$PREVIOUS_RELEASE_DIR" ]]; then
@@ -313,6 +366,7 @@ echo '启动 Docker 应用容器'
 APP_SWITCH_ATTEMPTED=true
 run_compose "$RELEASE_COMPOSE_PATH" "$IMAGE_REF" \
   up --detach --no-deps --force-recreate app
+verify_active_image
 
 echo "等待健康检查：$HEALTHCHECK_URL"
 if ! wait_for_health "$HEALTHCHECK_URL"; then
@@ -322,8 +376,11 @@ fi
 CURRENT_TMP="$DOCKER_STATE_DIR/.current.$$"
 rm -f "$CURRENT_TMP"
 ln -s "$RELEASE_DIR" "$CURRENT_TMP"
+rm -f "$CURRENT_LINK"
 mv -f "$CURRENT_TMP" "$CURRENT_LINK"
 CURRENT_LINK_UPDATED=true
+[[ "$(readlink "$CURRENT_LINK")" == "$RELEASE_DIR" ]] || die '当前 release 指针校验失败'
+verify_active_image
 
 if [[ "$LEGACY_WAS_ENABLED" == true ]]; then
   systemctl disable "$LEGACY_SERVICE_NAME"

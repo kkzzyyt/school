@@ -29,7 +29,6 @@ import {
   Space,
   Spin,
   Table,
-  Tag,
   Tooltip,
 } from "antd";
 import type { TableColumnsType } from "antd";

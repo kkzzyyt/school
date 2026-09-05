@@ -52,7 +52,7 @@ describe("GET /api/health", () => {
 
     const responsePromise = GET();
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(5_000);
     const response = await responsePromise;
     const body = await response.json();
 

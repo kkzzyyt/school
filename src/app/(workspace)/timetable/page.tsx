@@ -21,7 +21,6 @@ import {
   Segmented,
   Select,
   Skeleton,
-  Tag,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -35,7 +34,6 @@ import {
   SCHEDULE_SLOTS,
   toTimetableWritePayload,
   WEEKDAYS,
-  type ScheduleSlot,
   type TimetableApiResponse,
   type TimetableData,
   type TimetableEntry,

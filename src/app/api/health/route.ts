@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/server/db/prisma";
 
-const HEALTHCHECK_TIMEOUT_MS = 2_000;
+const HEALTHCHECK_TIMEOUT_MS = 5_000;
 
 async function verifyDatabaseReadiness() {
   let timeout: ReturnType<typeof setTimeout> | undefined;

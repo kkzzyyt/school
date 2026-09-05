@@ -6,7 +6,6 @@ import {
   BarChartOutlined,
   CalendarOutlined,
   CloseOutlined,
-  DownOutlined,
   IdcardOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -124,28 +123,10 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
         ),
       },
       { type: "divider" },
-      ...(auth.userRole === "ADMIN"
-        ? [
-            {
-              key: "/admin/users",
-              icon: <SafetyCertificateOutlined />,
-              label: "用户管理",
-              onClick: () => navigate("/admin/users"),
-            },
-            {
-              key: "/admin/classes",
-              icon: <ApartmentOutlined />,
-              label: "班级管理",
-              onClick: () => navigate("/admin/classes"),
-            },
-            { type: "divider" as const },
-          ]
-        : []),
       { key: "logout", icon: <LogoutOutlined />, label: "退出登录", danger: true },
     ],
     onClick: ({ key }) => {
       if (key === "logout") void logout();
-      else if (key.startsWith("/")) navigate(key);
     },
   };
 
