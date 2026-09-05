@@ -60,7 +60,14 @@ case "${1:-}" in
     : > "$DEPLOY_TEST_IMAGE_LOADED"
     ;;
   image)
-    [[ "${2:-}" == inspect ]] || exit 22
+    case "${2:-}" in
+      inspect|prune) ;;
+      *) exit 22 ;;
+    esac
+    ;;
+  rmi)
+    ;;
+  builder)
     ;;
   compose)
     shift

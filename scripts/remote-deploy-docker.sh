@@ -197,6 +197,13 @@ cleanup() {
   local current_release
   local count=0
   local candidate
+  local candidate_image
+  local old_image
+  local is_retained
+  local retained
+  local ref_file
+  local -a pruned_images=()
+  local -a retained_images=()
 
   trap - EXIT HUP INT TERM
   set +e
@@ -218,9 +225,44 @@ cleanup() {
       [[ "$candidate" == "$current_release" ]] && continue
       count=$((count + 1))
       if (( count > KEEP_RELEASES )); then
+        candidate_image="$(cat "$candidate/image-ref" 2>/dev/null || true)"
+        if [[ -n "$candidate_image" ]]; then
+          pruned_images+=("$candidate_image")
+        fi
         rm -rf "$candidate"
       fi
     done < <(ls -dt "$RELEASES_DIR"/*/ 2>/dev/null || true)
+
+    if [[ -f "$CURRENT_LINK/image-ref" ]]; then
+      retained_images+=("$(cat "$CURRENT_LINK/image-ref" 2>/dev/null || true)")
+    fi
+    for ref_file in "$RELEASES_DIR"/*/image-ref; do
+      if [[ -f "$ref_file" ]]; then
+        retained_images+=("$(cat "$ref_file" 2>/dev/null || true)")
+      fi
+    done
+
+    if (( ${#pruned_images[@]} > 0 )); then
+      for old_image in "${pruned_images[@]}"; do
+        is_retained=false
+        if (( ${#retained_images[@]} > 0 )); then
+          for retained in "${retained_images[@]}"; do
+            if [[ "$old_image" == "$retained" ]]; then
+              is_retained=true
+              break
+            fi
+          done
+        fi
+        if [[ "$is_retained" == false && -n "$old_image" ]]; then
+          docker rmi "$old_image" >/dev/null 2>&1 || true
+        fi
+      done
+    fi
+
+    docker image prune -f >/dev/null 2>&1 || true
+    if docker builder prune --help >/dev/null 2>&1; then
+      docker builder prune -f --keep-storage 1GB >/dev/null 2>&1 || true
+    fi
   fi
 
   rm -f "$IMAGE_ARCHIVE_PATH" "$CHECKSUM_PATH" "$COMPOSE_UPLOAD_PATH"
@@ -239,6 +281,7 @@ echo '校验 Docker 镜像发布包'
 (cd "$(dirname "$IMAGE_ARCHIVE_PATH")" && sha256sum -c "$CHECKSUM_NAME")
 docker load --input "$IMAGE_ARCHIVE_PATH" >/dev/null
 docker image inspect "$IMAGE_REF" >/dev/null
+rm -f "$IMAGE_ARCHIVE_PATH" "$CHECKSUM_PATH"
 
 echo "准备 Docker release：$RELEASE_ID"
 mkdir "$RELEASE_DIR"

@@ -134,7 +134,7 @@ jobs:
           DEPLOY_PATH: ${{ vars.SCHOOL_DEPLOY_PATH || '/www/wwwroot/school.19soul.cn' }}
           DEPLOY_ENV_PATH: ${{ vars.SCHOOL_DEPLOY_ENV_PATH || '/www/wwwroot/school.19soul.cn/.deploy/runtime.env' }}
           DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
-          DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '5' }}
+          DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '2' }}
           DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
           DEPLOY_IMAGE_REF: school:${{ github.sha }}
           DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
