@@ -89,7 +89,20 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
   };
 
   return (
-    <Layout className="workspace-layout">
+    <>
+      {/* 工作台底层 1080p 60fps 循环艺术视频 (colossus.mp4) */}
+      <video
+        className="global-video-backdrop"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+      >
+        <source src="/films/colossus.mp4" type="video/mp4" />
+      </video>
+      <div className="global-video-overlay" />
+      <Layout className="workspace-layout">
       <Sider
         className="workspace-sider"
         width={248}
@@ -165,5 +178,6 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
         </div>
       </Drawer>
     </Layout>
+    </>
   );
 }

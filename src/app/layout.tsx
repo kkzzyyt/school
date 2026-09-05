@@ -14,17 +14,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="zh-CN">
       <body>
-        {/* 全局底层 1080p 60fps 循环艺术视频 (colossus.mp4) */}
-        <video
-          className="global-video-backdrop"
-          autoPlay
-          loop
-          muted
-          playsInline
-        >
-          <source src="/films/colossus.mp4" type="video/mp4" />
-        </video>
-        <div className="global-video-overlay" />
         <AntdRegistry>
           <AppProviders>{children}</AppProviders>
         </AntdRegistry>

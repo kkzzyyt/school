@@ -80,7 +80,6 @@ body {
   object-position: center 30%;
   z-index: -2;
   pointer-events: none;
-  filter: contrast(1.02) brightness(1.04);
 }
 
 .global-video-overlay {
@@ -1769,7 +1768,6 @@ select {
   object-position: 65% center; /* 雕塑向右侧偏置展示，左右互不遮挡 */
   z-index: 0;
   pointer-events: none;
-  filter: contrast(1.03) brightness(1.02);
 }
 
 /* 顶部与底部出版物坐标与学术索引标注 (高对比深碳色) */
@@ -1814,11 +1812,12 @@ select {
   padding: 44px 38px 36px;
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.68); /* 白色半透明磨砂质感 */
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: rgba(255, 255, 255, 0.72); /* 白色半透明磨砂质感 */
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   box-shadow: 0 20px 48px -10px rgba(17, 34, 56, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
   color: var(--ink);
+  transform: translateZ(0);
 }
 
 .login-brand {

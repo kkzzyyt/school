@@ -53,6 +53,7 @@ export default function RegisterPage() {
         loop
         muted
         playsInline
+        preload="metadata"
         poster="/films/signal-poster.jpg"
       >
         <source src="/films/signal.mp4" type="video/mp4" />
