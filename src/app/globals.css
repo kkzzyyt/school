@@ -41,6 +41,7 @@
 
   --surface: var(--canvas-surface);
   --surface-low: var(--canvas-subtle);
+  --surface-high: rgba(232, 242, 250, 0.9);
   --paper: var(--canvas-overlay);
 
   /* 几何尺度：方正、典雅、精密裁切感 */

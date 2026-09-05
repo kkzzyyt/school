@@ -1,0 +1,353 @@
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 顶部考试选择与状态条 */
+.summaryStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
+}
+
+.summaryLead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.summaryIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  font-size: 20px;
+  border: 1px solid rgba(1, 81, 134, 0.15);
+}
+
+.summaryCopy {
+  min-width: 0;
+}
+
+.summaryTitle {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.summaryDesc {
+  margin: 3px 0 0;
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+}
+
+.summaryActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* KPI 统计指标网格 */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpiCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 18px -3px rgba(10, 27, 42, 0.04);
+  transition: all 0.2s ease;
+}
+
+.kpiCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(1, 81, 134, 0.12);
+  border-color: var(--primary, #015186);
+}
+
+.kpiIcon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 20px;
+}
+
+.kpiIconBlue {
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  border: 1px solid rgba(1, 81, 134, 0.16);
+}
+
+.kpiIconPurple {
+  background: rgba(113, 96, 166, 0.08);
+  color: #7160a6;
+  border: 1px solid rgba(113, 96, 166, 0.18);
+}
+
+.kpiIconEmerald {
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.kpiIconAmber {
+  background: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.kpiBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpiLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted, #4f6e8a);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kpiValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.kpiValue {
+  font-family: var(--font-editorial, Georgia, serif);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink, #0a1b2a);
+  line-height: 1.15;
+}
+
+.kpiUnit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted, #4f6e8a);
+}
+
+/* 图表与科目概览卡片 */
+.chartSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 1080px) {
+  .chartSection {
+    grid-template-columns: 1fr;
+  }
+}
+
+.contentCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
+  overflow: hidden;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-low, rgba(240, 246, 252, 0.65));
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.cardLegend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11.5px;
+  color: var(--muted, #4f6e8a);
+}
+
+.legendDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+.cardBody {
+  padding: 16px 18px;
+}
+
+/* 图表自定义 Tooltip */
+.chartTooltip {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(182, 211, 232, 0.8);
+  box-shadow: 0 6px 20px -3px rgba(10, 27, 42, 0.12);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+}
+
+.chartTooltipTitle {
+  font-weight: 700;
+  color: var(--ink, #0a1b2a);
+  margin-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 3px;
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 0;
+  color: #475569;
+}
+
+.chartTooltipValue {
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  color: var(--ink, #0a1b2a);
+}
+
+/* 排名勋章样式 */
+.rankBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rank1 {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  box-shadow: 0 1px 4px rgba(180, 83, 9, 0.12);
+}
+
+.rank2 {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.rank3 {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.rankOther {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.studentNoBadge {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.totalScore {
+  font-family: var(--font-mono, monospace);
+  font-size: 14.5px;
+  font-weight: 750;
+  color: var(--primary, #015186);
+}
+
+.scoreItem {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: #1e293b;
+}
+
+.absentTag {
+  color: #e11d48;
+  background: #ffe4e6;
+  border: 1px solid #fecdd3;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .summaryStrip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .summaryActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

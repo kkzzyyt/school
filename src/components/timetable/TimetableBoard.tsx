@@ -92,7 +92,7 @@ function CourseCard({
     <button
       type="button"
       className={styles.courseCard}
-      style={{ "--course-color": entry.course.color } as React.CSSProperties}
+      style={{ "--course-color": entry.course?.color || "#015186" } as React.CSSProperties}
       draggable
       aria-label={label}
       onClick={() => onOpenCell(position)}

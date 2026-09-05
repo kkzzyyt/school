@@ -1,0 +1,433 @@
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 顶部统筹概览 */
+.summaryStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
+}
+
+.summaryLead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.summaryIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 20px;
+  border: 1px solid #fde68a;
+}
+
+.summaryTitle {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.summaryDesc {
+  margin: 3px 0 0;
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+}
+
+.summaryMetrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.metricBadge {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(1, 81, 134, 0.06);
+  border: 1px solid rgba(1, 81, 134, 0.12);
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+}
+
+.metricBadge strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--primary, #015186);
+  font-family: var(--font-mono, monospace);
+}
+
+/* 分组标题 */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sectionIcon {
+  color: var(--primary, #015186);
+  font-size: 16px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sectionCount {
+  margin-left: auto;
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 核心负责人 (双列布局) */
+.leadersGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 768px) {
+  .leadersGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.leaderCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 6px 24px -4px rgba(10, 27, 42, 0.06);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.leaderCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -4px rgba(1, 81, 134, 0.14);
+}
+
+/* 负责人 1：暖金尊崇饰条 */
+.leaderCardPrimary {
+  border-top: 4px solid #b45309;
+}
+
+.leaderCardPrimary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+/* 负责人 2：天青沉稳饰条 */
+.leaderCardSecondary {
+  border-top: 4px solid var(--primary, #015186);
+}
+
+.leaderCardSecondary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0284c7, #015186);
+}
+
+.leaderHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.leaderProfile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.leaderAvatar {
+  display: grid;
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.avatarGold {
+  background: #fef3c7;
+  color: #b45309;
+  border: 2px solid #fde68a;
+}
+
+.avatarBlue {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 2px solid #bae6fd;
+}
+
+.leaderMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.leaderNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.leaderName {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.leaderRoleTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.roleTagGold {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.roleTagBlue {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.leaderStudentNo {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--muted, #4f6e8a);
+  background: rgba(241, 245, 249, 0.8);
+  padding: 1px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.leaderResponsibility {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  color: #334155;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.leaderResponsibility p {
+  margin: 0;
+}
+
+.checkIcon {
+  color: #10b981;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.orderBadge {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted, #4f6e8a);
+}
+
+/* 班委委员网格 (最多 4 列，多端自适应) */
+.membersGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1280px) {
+  .membersGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .membersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .membersGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 班委委员独立卡片 */
+.memberCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 2px 12px -2px rgba(10, 27, 42, 0.04);
+  transition: all 0.2s ease;
+}
+
+.memberCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(1, 81, 134, 0.12);
+  border-color: var(--primary, #015186);
+}
+
+.memberCardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.memberAvatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  border: 1.5px solid rgba(1, 81, 134, 0.18);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.memberCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.memberNameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.memberName {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberRoleBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  border: 1px solid rgba(1, 81, 134, 0.15);
+  align-self: flex-start;
+}
+
+.memberResponsibility {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  color: #475569;
+  font-size: 11.5px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.memberStudentNo {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  color: var(--muted, #4f6e8a);
+}
+
+.emptyBox {
+  padding: 60px 24px;
+  text-align: center;
+}

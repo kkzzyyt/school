@@ -1,0 +1,369 @@
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 顶部状态汇总条 */
+.summaryStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
+}
+
+.summaryLead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.summaryIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  font-size: 20px;
+  border: 1px solid rgba(1, 81, 134, 0.15);
+}
+
+.summaryCopy {
+  min-width: 0;
+}
+
+.summaryTitle {
+  margin: 0;
+  color: var(--ink, #0a1b2a);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.summaryDesc {
+  margin: 3px 0 0;
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+}
+
+.summaryActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.todayIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.todayDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* 切换条与视图控制 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 周期卡片网格 (周一至周五自适应) */
+.dutyGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1280px) {
+  .dutyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 840px) {
+  .dutyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 580px) {
+  .dutyGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 单个值日卡片 */
+.dutyCard {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--line, rgba(182, 211, 232, 0.6));
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 18px -3px rgba(10, 27, 42, 0.05);
+  transition: all 0.2s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.dutyCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -4px rgba(1, 81, 134, 0.12);
+  border-color: var(--primary, #015186);
+}
+
+.dutyCardToday {
+  border: 1.5px solid #f59e0b;
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.35) 0%, rgba(255, 255, 255, 0.95) 100px);
+  box-shadow: 0 8px 24px -4px rgba(180, 83, 9, 0.15);
+}
+
+.dutyCardToday::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.dutyCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(182, 211, 232, 0.4);
+}
+
+.dutyWeekdayBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dutyDayNum {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(1, 81, 134, 0.08);
+  color: var(--primary, #015186);
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dutyCardToday .dutyDayNum {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.dutyWeekdayName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #0a1b2a);
+}
+
+.dutyTodayTag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.dutyGroupName {
+  font-size: 12px;
+  color: var(--muted, #4f6e8a);
+  font-weight: 500;
+}
+
+.dutyCardActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dutyCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  flex: 1;
+}
+
+/* 负责区域 */
+.dutyAreaBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.06);
+  border: 1px solid rgba(15, 118, 110, 0.15);
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dutyAreaIcon {
+  margin-top: 2px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.dutyAreaText {
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+/* 成员列表 */
+.dutyMembersSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dutySectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #4f6e8a);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dutyMembersList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dutyMemberChip {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s ease;
+}
+
+.dutyCardToday .dutyMemberChip {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
+.dutyMemberChip:hover {
+  border-color: var(--primary, #015186);
+  color: var(--primary, #015186);
+}
+
+.dutyMembersEmpty {
+  color: var(--ink-faint, #8da4ba);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* 清洁提醒/注意事项 */
+.dutyNotesBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: auto;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(241, 245, 249, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  color: #475569;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.dutyNotesIcon {
+  margin-top: 2px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+/* 表格视图样式 */
+.tableCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--paper, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.05);
+}
+
+.footerTips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-low, rgba(240, 246, 252, 0.65));
+  color: var(--muted, #4f6e8a);
+  font-size: 12px;
+}
+
+.footerTipsIcon {
+  color: var(--primary, #015186);
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .summaryStrip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .summaryActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

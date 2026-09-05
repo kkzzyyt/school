@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  AppstoreOutlined,
+  BarsOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
   DeleteOutlined,
@@ -8,13 +10,36 @@ import {
   EnvironmentOutlined,
   InfoCircleOutlined,
   PlusOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-import { Alert, App, Button, Card, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Space, Spin, Tag, Tooltip } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Col,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
+import type { TableColumnsType } from "antd";
 import { useState } from "react";
 
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
+
+import styles from "./duties.module.css";
 
 interface Student { id: string; name: string; studentNo: string }
 interface DutyGroup {
@@ -33,11 +58,14 @@ export default function DutiesPage() {
   const [editing, setEditing] = useState<DutyGroup | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const todayWeekday = new Date().getDay() || 7;
 
   const groups = [...(data?.groups ?? [])]
     .filter((group) => group.weekday >= 1 && group.weekday <= weekdays.length)
     .sort((a, b) => a.weekday - b.weekday || a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
+  const todayGroup = groups.find((g) => g.weekday === todayWeekday);
 
   function openEditor(group?: DutyGroup) {
     setEditing(group ?? null);
@@ -86,110 +114,261 @@ export default function DutiesPage() {
     }
   }
 
+  const tableColumns: TableColumnsType<DutyGroup> = [
+    {
+      title: "值日日期",
+      key: "weekday",
+      width: 140,
+      render: (_, group) => {
+        const isToday = group.weekday === todayWeekday;
+        return (
+          <Space orientation="horizontal" size={8}>
+            <span className={isToday ? `${styles.dutyDayNum} ${styles.dutyCardToday}` : styles.dutyDayNum}>
+              0{group.weekday}
+            </span>
+            <div>
+              <strong style={{ display: "block", color: isToday ? "var(--primary)" : "var(--ink)" }}>
+                {weekdays[group.weekday - 1]}
+              </strong>
+              <small style={{ color: "var(--muted)" }}>{group.name}</small>
+            </div>
+            {isToday && <span className={styles.dutyTodayTag}>今日</span>}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "负责区域",
+      dataIndex: "area",
+      key: "area",
+      width: 180,
+      render: (area: string) => (
+        <span className={styles.dutyAreaBox} style={{ display: "inline-flex" }}>
+          <EnvironmentOutlined className={styles.dutyAreaIcon} />
+          <span>{area}</span>
+        </span>
+      ),
+    },
+    {
+      title: "值日成员",
+      key: "assignments",
+      render: (_, group) => (
+        <div className={styles.dutyMembersList}>
+          {group.assignments.length > 0 ? (
+            group.assignments.map((item) => (
+              <span className={styles.dutyMemberChip} key={item.student.id}>
+                {item.student.name}
+              </span>
+            ))
+          ) : (
+            <span className={styles.dutyMembersEmpty}>待分配成员</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: "清洁提醒",
+      dataIndex: "notes",
+      key: "notes",
+      width: 200,
+      render: (notes: string | null) => (
+        <div className={styles.dutyNotesBox} style={{ margin: 0 }}>
+          <ClockCircleOutlined className={styles.dutyNotesIcon} />
+          <span>{notes || "按常规要求完成值日"}</span>
+        </div>
+      ),
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 90,
+      align: "right",
+      render: (_, group) => (
+        <Space size={2}>
+          <Tooltip title="编辑安排">
+            <Button
+              type="text"
+              size="small"
+              aria-label={`编辑${group.name}`}
+              icon={<EditOutlined />}
+              onClick={() => openEditor(group)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title="删除这个值日小组？"
+            okText="删除"
+            cancelText="取消"
+            onConfirm={() => void deleteGroup(group.id)}
+          >
+            <Tooltip title="删除安排">
+              <Button
+                type="text"
+                size="small"
+                danger
+                aria-label={`删除${group.name}`}
+                icon={<DeleteOutlined />}
+              />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   return (
-    <>
+    <div className={styles.page}>
       <PageHeading
         kicker="DUTY ROSTER"
         title="班级值日安排"
-        description="按周一至周五查看值日小组、负责区域和清洁提醒。"
+        description="按周一至周五清晰规划值日小组、负责区域及卫生提醒，保障日常班级环境。"
         action={<Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>新增小组</Button>}
       />
 
       {error && <Alert showIcon type="error" title={error.message} style={{ marginBottom: 16 }} />}
 
-      <Card className="surface-card duty-board" styles={{ body: { padding: 0 } }}>
-        <div className="duty-board-header">
-          <div className="duty-board-heading">
-            <div className="duty-board-title">
-              <CalendarOutlined className="duty-board-title-icon" />
-              <h2>一周值日安排总览</h2>
+      {/* 状态汇总条 */}
+      <section className={styles.summaryStrip}>
+        <div className={styles.summaryLead}>
+          <span className={styles.summaryIcon}><CalendarOutlined /></span>
+          <div className={styles.summaryCopy}>
+            <h2 className={styles.summaryTitle}>一周值日统筹管理</h2>
+            <p className={styles.summaryDesc}>
+              已安排 {groups.length} 个值日小组，共涵盖周一至周五的日常清洁与重点值勤。
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.summaryActions}>
+          {todayGroup ? (
+            <div className={styles.todayIndicator}>
+              <span className={styles.todayDot} />
+              <span>今日（{weekdays[todayGroup.weekday - 1]}）：{todayGroup.name} · {todayGroup.area}</span>
             </div>
-            <p className="duty-board-subtitle">共 {groups.length} 个值日小组，覆盖周一至周五的日常清洁任务。</p>
+          ) : (
+            <div className={styles.todayIndicator} style={{ background: "rgba(1, 81, 134, 0.08)", borderColor: "rgba(1, 81, 134, 0.2)", color: "var(--primary)" }}>
+              <span>今日暂无特别指定值日排班</span>
+            </div>
+          )}
+
+          <Segmented
+            value={viewMode}
+            onChange={(val) => setViewMode(val as "cards" | "table")}
+            options={[
+              { value: "cards", icon: <AppstoreOutlined />, label: "周卡片" },
+              { value: "table", icon: <BarsOutlined />, label: "列表" },
+            ]}
+          />
+        </div>
+      </section>
+
+      {loading && groups.length === 0 ? (
+        <Card className="surface-card" style={{ padding: 60, textAlign: "center" }}>
+          <Spin description="正在加载班级值日安排..." />
+        </Card>
+      ) : groups.length === 0 ? (
+        <Card className="surface-card" style={{ padding: 60, textAlign: "center" }}>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂未安排值日小组，点击上方“新增小组”开始规划" />
+        </Card>
+      ) : viewMode === "cards" ? (
+        /* 卡片视图 */
+        <div className={styles.dutyGrid}>
+          {groups.map((group) => {
+            const isToday = group.weekday === todayWeekday;
+            return (
+              <article
+                className={isToday ? `${styles.dutyCard} ${styles.dutyCardToday}` : styles.dutyCard}
+                key={group.id}
+              >
+                <div className={styles.dutyCardHeader}>
+                  <div className={styles.dutyWeekdayBadge}>
+                    <span className={styles.dutyDayNum}>0{group.weekday}</span>
+                    <div>
+                      <span className={styles.dutyWeekdayName}>{weekdays[group.weekday - 1]}</span>
+                      <span className={styles.dutyGroupName}> · {group.name}</span>
+                    </div>
+                  </div>
+                  <div className={styles.dutyCardActions}>
+                    {isToday && <span className={styles.dutyTodayTag}>今日</span>}
+                    <Tooltip title="编辑安排">
+                      <Button
+                        type="text"
+                        size="small"
+                        aria-label={`编辑${group.name}`}
+                        icon={<EditOutlined />}
+                        onClick={() => openEditor(group)}
+                      />
+                    </Tooltip>
+                    <Popconfirm
+                      title="删除这个值日小组？"
+                      okText="删除"
+                      cancelText="取消"
+                      onConfirm={() => void deleteGroup(group.id)}
+                    >
+                      <Tooltip title="删除安排">
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          aria-label={`删除${group.name}`}
+                          icon={<DeleteOutlined />}
+                        />
+                      </Tooltip>
+                    </Popconfirm>
+                  </div>
+                </div>
+
+                <div className={styles.dutyCardBody}>
+                  {/* 负责区域 */}
+                  <div className={styles.dutyAreaBox}>
+                    <EnvironmentOutlined className={styles.dutyAreaIcon} />
+                    <span className={styles.dutyAreaText}>{group.area}</span>
+                  </div>
+
+                  {/* 值日成员 */}
+                  <div className={styles.dutyMembersSection}>
+                    <div className={styles.dutySectionLabel}>值日学生 ({group.assignments.length}人)</div>
+                    <div className={styles.dutyMembersList}>
+                      {group.assignments.length > 0 ? (
+                        group.assignments.map((item) => (
+                          <span className={styles.dutyMemberChip} key={item.student.id}>
+                            {item.student.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className={styles.dutyMembersEmpty}>待分配成员</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 清洁提醒 */}
+                  <div className={styles.dutyNotesBox}>
+                    <ClockCircleOutlined className={styles.dutyNotesIcon} />
+                    <span>{group.notes || "按常规清洁规范完成值日"}</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        /* 表格视图 */
+        <div className={styles.tableCard}>
+          <Table
+            columns={tableColumns}
+            dataSource={groups}
+            rowKey="id"
+            pagination={false}
+            rowClassName={(record) => record.weekday === todayWeekday ? "duty-row-today" : ""}
+            scroll={{ x: 720 }}
+          />
+          <div className={styles.footerTips}>
+            <InfoCircleOutlined className={styles.footerTipsIcon} />
+            <span>若遇特殊情况或调课不能值日，请提前向组长或班主任说明并协调换班。</span>
           </div>
-          <div className="duty-board-legend" aria-label="值日安排图例">
-            <span className="duty-board-legend-item"><span className="duty-board-swatch duty-board-swatch-standard" />常规任务</span>
-            <span className="duty-board-legend-item"><span className="duty-board-swatch duty-board-swatch-review" />重点复查</span>
-          </div>
         </div>
+      )}
 
-        <div className="duty-table-wrap">
-          <table className="duty-table">
-            <caption className="sr-only">周一至周五班级值日安排</caption>
-            <thead>
-              <tr>
-                <th scope="col">值日日期</th>
-                <th scope="col">负责区域</th>
-                <th scope="col">值日成员</th>
-                <th scope="col">清洁提醒</th>
-                <th scope="col" className="duty-actions-column">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td className="duty-table-state" colSpan={5}><Spin size="small" description="正在加载值日安排" /></td>
-                </tr>
-              )}
-              {!loading && groups.length === 0 && (
-                <tr>
-                  <td className="duty-table-state" colSpan={5}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂未安排值日小组" /></td>
-                </tr>
-              )}
-              {!loading && groups.map((group) => {
-                const isToday = group.weekday === todayWeekday;
-                return (
-                  <tr className={isToday ? "duty-row duty-row-today" : "duty-row"} key={group.id}>
-                    <th scope="row" className="duty-date-cell">
-                      <span className="duty-day-number">{group.weekday}</span>
-                      <span className="duty-date-copy">
-                        <strong>{weekdays[group.weekday - 1]}</strong>
-                        <small>{group.name}{isToday ? " · 今日" : ""}</small>
-                      </span>
-                    </th>
-                    <td>
-                      <div className="duty-area">
-                        <span className="duty-cell-icon"><EnvironmentOutlined /></span>
-                        <span>{group.area}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="duty-members">
-                        {group.assignments.length > 0 ? group.assignments.map((item) => (
-                          <Tag className="duty-member-tag" color={isToday ? "blue" : undefined} key={item.student.id}>{item.student.name}</Tag>
-                        )) : <span className="muted">待分配成员</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <div className={group.notes ? "duty-note" : "duty-note duty-note-default"}>
-                        <ClockCircleOutlined />
-                        <span>{group.notes ?? "按常规要求完成值日"}</span>
-                      </div>
-                    </td>
-                    <td className="duty-actions-cell">
-                      <Space className="duty-actions" size={2}>
-                        <Tooltip title="编辑安排">
-                          <Button type="text" aria-label={`编辑${group.name}`} icon={<EditOutlined />} onClick={() => openEditor(group)} />
-                        </Tooltip>
-                        <Popconfirm title="删除这个值日小组？" okText="删除" cancelText="取消" onConfirm={() => void deleteGroup(group.id)}>
-                          <Tooltip title="删除安排">
-                            <Button type="text" danger aria-label={`删除${group.name}`} icon={<DeleteOutlined />} />
-                          </Tooltip>
-                        </Popconfirm>
-                      </Space>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="duty-board-footer">
-          <InfoCircleOutlined />
-          <span>若遇特殊情况不能值日，请提前向组长或班主任请假并安排换班。</span>
-        </div>
-      </Card>
-
+      {/* 新增/编辑弹窗 */}
       <Modal
         title={editing ? "编辑值日安排" : "新增值日小组"}
         open={modalOpen}
@@ -201,14 +380,36 @@ export default function DutiesPage() {
       >
         <Form form={form} layout="vertical" requiredMark={false} style={{ marginTop: 18 }}>
           <Row gutter={14}>
-            <Col xs={24} sm={12}><Form.Item name="name" label="小组名称" rules={[{ required: true, message: "请输入小组名称" }]}><Input placeholder="如：第一组" /></Form.Item></Col>
-            <Col xs={24} sm={12}><Form.Item name="weekday" label="值日日期" rules={[{ required: true, message: "请选择值日日期" }]}><Select options={weekdays.map((label, index) => ({ value: index + 1, label }))} /></Form.Item></Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="name" label="小组名称" rules={[{ required: true, message: "请输入小组名称" }]}>
+                <Input placeholder="如：第一组" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="weekday" label="值日日期" rules={[{ required: true, message: "请选择值日日期" }]}>
+                <Select options={weekdays.map((label, index) => ({ value: index + 1, label }))} />
+              </Form.Item>
+            </Col>
           </Row>
-          <Form.Item name="area" label="负责区域" rules={[{ required: true, message: "请输入负责区域" }]}><Input placeholder="教室、走廊、卫生区" /></Form.Item>
-          <Form.Item name="studentIds" label="成员"><Select mode="multiple" optionFilterProp="label" placeholder="选择值日成员" options={(data?.students ?? []).map((student) => ({ value: student.id, label: `${student.name} · ${student.studentNo}` }))} /></Form.Item>
-          <Form.Item name="notes" label="提醒"><Input.TextArea rows={2} placeholder="如：早读前完成" /></Form.Item>
+          <Form.Item name="area" label="负责区域" rules={[{ required: true, message: "请输入负责区域" }]}>
+            <Input placeholder="教室、走廊、卫生包干区" />
+          </Form.Item>
+          <Form.Item name="studentIds" label="值日成员">
+            <Select
+              mode="multiple"
+              optionFilterProp="label"
+              placeholder="选择值日成员"
+              options={(data?.students ?? []).map((student) => ({
+                value: student.id,
+                label: `${student.name} · ${student.studentNo}`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="notes" label="清洁提醒">
+            <Input.TextArea rows={2} placeholder="如：早读前完成黑板擦拭和地面保洁，放学后倒垃圾" />
+          </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
 }
