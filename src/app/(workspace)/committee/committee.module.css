@@ -5,6 +5,20 @@
   gap: 24px;
 }
 
+.contentWrap {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (max-width: 640px) {
+  .contentWrap {
+    padding: 16px;
+    gap: 16px;
+  }
+}
+
 /* 顶部统筹概览 */
 .summaryStrip {
   display: flex;

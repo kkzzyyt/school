@@ -5,100 +5,18 @@
   gap: 20px;
 }
 
-/* 顶部状态汇总条 */
-.summaryStrip {
+.contentWrap {
+  padding: 24px 28px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 20px;
-  padding: 16px 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--paper, rgba(255, 255, 255, 0.88));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
 }
 
-.summaryLead {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.summaryIcon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  place-items: center;
-  border-radius: 8px;
-  background: rgba(1, 81, 134, 0.08);
-  color: var(--primary, #015186);
-  font-size: 20px;
-  border: 1px solid rgba(1, 81, 134, 0.15);
-}
-
-.summaryCopy {
-  min-width: 0;
-}
-
-.summaryTitle {
-  margin: 0;
-  color: var(--ink, #0a1b2a);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.summaryDesc {
-  margin: 3px 0 0;
-  color: var(--muted, #4f6e8a);
-  font-size: 12px;
-}
-
-.summaryActions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
-}
-
-.todayIndicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-  color: #b45309;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.todayDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-}
-
-/* 切换条与视图控制 */
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+@media (max-width: 640px) {
+  .contentWrap {
+    padding: 16px;
+    gap: 16px;
+  }
 }
 
 /* 周期卡片网格 (周一至周五自适应) */
@@ -130,9 +48,10 @@
 .dutyCard {
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--line, rgba(182, 211, 232, 0.6));
-  background: var(--paper, rgba(255, 255, 255, 0.88));
+  border-radius: 10px;
+  border: 1px solid rgba(182, 211, 232, 0.7);
+  border-top: 3.5px solid var(--primary, #015186);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 4px 18px -3px rgba(10, 27, 42, 0.05);
@@ -143,14 +62,15 @@
 
 .dutyCard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px -4px rgba(1, 81, 134, 0.12);
+  box-shadow: 0 10px 28px -4px rgba(1, 81, 134, 0.14);
   border-color: var(--primary, #015186);
 }
 
 .dutyCardToday {
-  border: 1.5px solid #f59e0b;
-  background: linear-gradient(180deg, rgba(254, 243, 199, 0.35) 0%, rgba(255, 255, 255, 0.95) 100px);
-  box-shadow: 0 8px 24px -4px rgba(180, 83, 9, 0.15);
+  border: 2px solid #f59e0b;
+  border-top: 4px solid #d97706;
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.45) 0%, rgba(255, 255, 255, 0.97) 110px);
+  box-shadow: 0 8px 26px -4px rgba(180, 83, 9, 0.18);
 }
 
 .dutyCardToday::before {
@@ -159,7 +79,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(90deg, #f59e0b, #d97706);
 }
 
@@ -175,7 +95,7 @@
 .dutyWeekdayBadge {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .dutyDayNum {
@@ -189,16 +109,24 @@
   font-family: var(--font-mono, monospace);
   font-size: 13px;
   font-weight: 700;
+  border: 1px solid rgba(1, 81, 134, 0.15);
+}
+
+.dutyDayNumToday {
+  background: #f59e0b !important;
+  color: #ffffff !important;
+  border-color: #f59e0b !important;
 }
 
 .dutyCardToday .dutyDayNum {
   background: #f59e0b;
   color: #ffffff;
+  border-color: #f59e0b;
 }
 
 .dutyWeekdayName {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 15.5px;
+  font-weight: 750;
   color: var(--ink, #0a1b2a);
 }
 
@@ -239,9 +167,9 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(15, 118, 110, 0.06);
-  border: 1px solid rgba(15, 118, 110, 0.15);
-  color: #0f766e;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
   font-size: 12px;
   font-weight: 600;
 }
@@ -250,6 +178,7 @@
   margin-top: 2px;
   font-size: 13px;
   flex-shrink: 0;
+  color: #15803d;
 }
 
 .dutyAreaText {
@@ -284,7 +213,7 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #1e293b;
   border: 1px solid #e2e8f0;
   transition: all 0.15s ease;
@@ -315,16 +244,16 @@
   margin-top: auto;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(241, 245, 249, 0.7);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  color: #475569;
+  background: rgba(241, 245, 249, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  color: #334155;
   font-size: 11.5px;
   line-height: 1.45;
 }
 
 .dutyNotesIcon {
   margin-top: 2px;
-  color: #94a3b8;
+  color: #64748b;
   flex-shrink: 0;
 }
 
@@ -332,7 +261,7 @@
 .tableCard {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm, 8px);
-  background: var(--paper, rgba(255, 255, 255, 0.88));
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   overflow: hidden;
@@ -345,7 +274,7 @@
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid var(--line);
-  background: var(--surface-low, rgba(240, 246, 252, 0.65));
+  background: rgba(240, 246, 252, 0.7);
   color: var(--muted, #4f6e8a);
   font-size: 12px;
 }
@@ -353,17 +282,4 @@
 .footerTipsIcon {
   color: var(--primary, #015186);
   flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .summaryStrip {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .summaryActions {
-    width: 100%;
-    justify-content: space-between;
-  }
 }

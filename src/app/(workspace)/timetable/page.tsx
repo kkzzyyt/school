@@ -3,6 +3,7 @@
 import {
   CalendarOutlined,
   CheckCircleOutlined,
+  ClockCircleOutlined,
   CloseOutlined,
   DragOutlined,
   ExclamationCircleOutlined,
@@ -25,7 +26,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/PageHeading";
+import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { TimetableBoard, type TimetableViewMode } from "@/components/timetable/TimetableBoard";
 import {
   getSlot,
@@ -289,11 +290,11 @@ export default function TimetablePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeading
+      <LedgerSheet
         kicker="WEEKLY TIMETABLE"
         title="班级课程安排"
-        description="按天快速查看，按周集中调整；每个时间段都带有明确的上课时间。"
-        action={(
+        description="按天快速查看，按周集中调整；每个时间段都带有明确的上课时间与学科分类。"
+        actions={(
           <div className={styles.headingActions}>
             <Button icon={<TeamOutlined />} onClick={() => router.push("/teachers")}>任课老师</Button>
             <Button
@@ -308,107 +309,112 @@ export default function TimetablePage() {
             </Button>
           </div>
         )}
-      />
-
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          title={error.message}
-          action={<Button type="link" onClick={() => void refresh()}>重新加载</Button>}
-        />
-      )}
-
-      <section className={styles.statusStrip} aria-label="课表状态">
-        <div className={styles.statusLead}>
-          <span className={`${styles.statusIcon} ${isDirty ? styles.statusIconDirty : ""}`} aria-hidden="true">
-            {isDirty ? <ExclamationCircleOutlined /> : <CheckCircleOutlined />}
-          </span>
-          <div className={styles.statusText}>
-            <span className={styles.statusTitle}>{isDirty ? "有未保存修改" : "课表已同步"}</span>
-            <span className={styles.statusDescription}>{isDirty ? "拖动或编辑后的变更等待保存" : savedLabel}</span>
-          </div>
-          <Tag color={isDirty ? "gold" : "green"}>{isDirty ? "待保存" : "已保存"}</Tag>
-        </div>
-        <div className={styles.statusMeta}>
-          <div className={styles.summaryMetrics} aria-label="课表统计">
-            <span className={styles.metric}><strong className={styles.metricValue}>{assignedCount}</strong> 已排</span>
-            <span className={styles.metricDivider} aria-hidden="true" />
-            <span className={styles.metric}><strong className={styles.metricValue}>{emptyCount}</strong> 空余</span>
-            <span className={styles.metricDivider} aria-hidden="true" />
-            <span className={styles.metric}><strong className={styles.metricValue}>{specialCount}</strong> 特殊时段</span>
-          </div>
-          <div className={styles.legend} aria-label="时间段图例">
-            <span className={styles.legendItem}><i className={`${styles.legendDot} ${styles.legendRegular}`} />正常课程</span>
-            <span className={styles.legendItem}><i className={`${styles.legendDot} ${styles.legendSpecial}`} />早晚自习</span>
-            <span className={styles.legendItem}><i className={`${styles.legendDot} ${styles.legendRest}`} />午休</span>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.viewPanel} aria-label="课表视图切换">
-        <div className={styles.controlsRow}>
-          <div className={styles.viewControlGroup}>
-            <span className={styles.viewLabel}>查看方式</span>
-            <Segmented
-              aria-label="查看方式"
-              value={viewMode}
-              options={[
-                { value: "day", label: "日视图", icon: <CalendarOutlined /> },
-                { value: "week", label: "周视图", icon: <TeamOutlined /> },
-              ]}
-              onChange={(value) => setViewMode(value as TimetableViewMode)}
+        metrics={[
+          {
+            label: "ASSIGNED // 已排节次",
+            value: assignedCount,
+            unit: "节",
+            detail: "周一至周五实排节次",
+            icon: <CalendarOutlined />,
+          },
+          {
+            label: "AVAILABLE // 空余时段",
+            value: emptyCount,
+            unit: "节",
+            detail: "可编排新课程",
+            icon: <TeamOutlined />,
+          },
+          {
+            label: "SPECIAL // 特殊时段",
+            value: specialCount,
+            unit: "段",
+            detail: "早晚自习与固定午休",
+            icon: <ClockCircleOutlined />,
+          },
+          {
+            label: "STATUS // 课表同步",
+            value: isDirty ? "待保存" : "已同步",
+            detail: isDirty ? "变更尚未写入服务器" : savedLabel,
+            icon: isDirty ? <ExclamationCircleOutlined /> : <CheckCircleOutlined />,
+          },
+        ]}
+      >
+        <div className={styles.contentWrap}>
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              title={error.message}
+              action={<Button type="link" onClick={() => void refresh()}>重新加载</Button>}
+              style={{ marginBottom: 16 }}
             />
-          </div>
-          <span className={styles.viewLabel}>{viewMode === "day" ? "单日排课" : "一周总览"}</span>
-        </div>
+          )}
 
-        <div className={styles.dayPicker} role="tablist" aria-label="选择工作日">
-          {WEEKDAYS.map((weekday) => {
-            const isActive = weekday.value === activeWeekday;
-            const isToday = weekday.value === getInitialWeekday();
-            return (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`${styles.dayButton} ${isActive ? styles.dayButtonActive : ""}`}
-                key={weekday.value}
-                onClick={() => setActiveWeekday(weekday.value)}
-              >
-                <span className={styles.dayNumber}>{weekday.shortLabel}</span>
-                <span className={styles.dayText}>
-                  <span>{weekday.label}</span>
-                  {isToday && <span className={styles.dayToday}>今天</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+          <section className={styles.viewPanel} aria-label="课表视图切换">
+            <div className={styles.controlsRow}>
+              <div className={styles.viewControlGroup}>
+                <span className={styles.viewLabel}>查看方式</span>
+                <Segmented
+                  aria-label="查看方式"
+                  value={viewMode}
+                  options={[
+                    { value: "day", label: "日视图", icon: <CalendarOutlined /> },
+                    { value: "week", label: "周视图", icon: <TeamOutlined /> },
+                  ]}
+                  onChange={(value) => setViewMode(value as TimetableViewMode)}
+                />
+              </div>
+              <span className={styles.viewLabel}>{viewMode === "day" ? "单日排课" : "一周总览"}</span>
+            </div>
 
-      <section className={styles.boardSection} aria-label="课程表">
-        <div className={styles.boardMeta}>
-          <div>
-            <h2 className={styles.boardTitle}>{viewMode === "day" ? `${activeDay?.label ?? "今日"}课程` : "本周课程总览"}</h2>
-            <p className={styles.boardSubtitle}>早自习 · 上午课程 · 午休 · 下午课程 · 晚自习</p>
-          </div>
-          <div className={styles.boardHint}><DragOutlined aria-hidden="true" />拖动课程卡片可移动，点击卡片可编辑</div>
+            <div className={styles.dayPicker} role="tablist" aria-label="选择工作日">
+              {WEEKDAYS.map((weekday) => {
+                const isActive = weekday.value === activeWeekday;
+                const isToday = weekday.value === getInitialWeekday();
+                return (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`${styles.dayButton} ${isActive ? styles.dayButtonActive : ""}`}
+                    key={weekday.value}
+                    onClick={() => setActiveWeekday(weekday.value)}
+                  >
+                    <span className={styles.dayNumber}>{weekday.shortLabel}</span>
+                    <span className={styles.dayText}>
+                      <span>{weekday.label}</span>
+                      {isToday && <span className={styles.dayToday}>今天</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className={styles.boardSection} aria-label="课程表">
+            <div className={styles.boardMeta}>
+              <div>
+                <h2 className={styles.boardTitle}>{viewMode === "day" ? `${activeDay?.label ?? "今日"}课程` : "本周课程总览"}</h2>
+                <p className={styles.boardSubtitle}>早自习 · 上午课程 · 午休 · 下午课程 · 晚自习</p>
+              </div>
+              <div className={styles.boardHint}><DragOutlined aria-hidden="true" />拖动课程卡片可移动，点击卡片可编辑</div>
+            </div>
+            {loading || !timetable ? (
+              <div className={styles.loading}><Skeleton active paragraph={{ rows: 12 }} /></div>
+            ) : (
+              <TimetableBoard
+                mode={viewMode}
+                activeWeekday={activeWeekday}
+                weekdays={WEEKDAYS}
+                slots={slots}
+                entries={entries}
+                onOpenCell={openCell}
+                onMoveEntry={moveEntry}
+              />
+            )}
+          </section>
         </div>
-        {loading || !timetable ? (
-          <div className={styles.loading}><Skeleton active paragraph={{ rows: 12 }} /></div>
-        ) : (
-          <TimetableBoard
-            mode={viewMode}
-            activeWeekday={activeWeekday}
-            weekdays={WEEKDAYS}
-            slots={slots}
-            entries={entries}
-            onOpenCell={openCell}
-            onMoveEntry={moveEntry}
-          />
-        )}
-      </section>
+      </LedgerSheet>
 
       <Modal
         title={editingPosition && editingSlot

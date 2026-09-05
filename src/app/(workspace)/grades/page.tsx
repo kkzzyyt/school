@@ -42,7 +42,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { PageHeading } from "@/components/layout/PageHeading";
+import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
 
@@ -237,10 +237,10 @@ export default function GradesPage() {
         if (score?.absent) return <span className={styles.absentTag}>缺考</span>;
         if (score?.score === null || score?.score === undefined) return <span style={{ color: "var(--muted)" }}>—</span>;
         const isFailed = score.score < subject.passScore;
+        const isExcellent = score.score >= 90;
         return (
           <span
-            className={styles.scoreItem}
-            style={{ color: isFailed ? "#be123c" : "var(--ink)", fontWeight: isFailed ? 600 : 500 }}
+            className={`${styles.scoreItem} ${isFailed ? styles.scoreFailed : isExcellent ? styles.scoreExcellent : ""}`}
           >
             {score.score}
           </span>
@@ -291,12 +291,25 @@ export default function GradesPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeading
+      <LedgerSheet
         kicker="ACADEMIC INSIGHTS"
         title={analysis ? `${analysis.exam.name}分析` : "成绩分析"}
         description="全科成绩综合统计报告、班级均分与及格率分布，快速定位各科教学与学生学习变化。"
-        action={(
-          <Space>
+        actions={(
+          <Space wrap>
+            <span style={{ color: "var(--muted)", fontSize: 13 }}>选择考试：</span>
+            <Select
+              loading={examsLoading}
+              value={activeExamId}
+              onChange={setSelectedExamId}
+              style={{ minWidth: 200 }}
+              options={(examsData?.exams ?? []).map((exam) => ({ value: exam.id, label: exam.name }))}
+            />
+            {analysis && (
+              <Tag color={analysis.exam.status === "PUBLISHED" ? "green" : "orange"} style={{ margin: 0 }}>
+                {analysis.exam.status === "PUBLISHED" ? "已发布" : "草稿"}
+              </Tag>
+            )}
             <Button
               icon={<PlusOutlined />}
               onClick={() => {
@@ -316,163 +329,119 @@ export default function GradesPage() {
             </Button>
           </Space>
         )}
-      />
+        metrics={[
+          {
+            label: "STUDENTS // 参考学生",
+            value: analysis?.overview.studentCount ?? "—",
+            unit: "人",
+            detail: "实考在籍学生",
+            icon: <TeamOutlined />,
+          },
+          {
+            label: "SUBJECTS // 考试科目",
+            value: analysis?.overview.subjectCount ?? "—",
+            unit: "门",
+            detail: "全科纳统分析",
+            icon: <BookOutlined />,
+          },
+          {
+            label: "AVERAGE // 总分均值",
+            value: analysis?.overview.totalAverage ?? "—",
+            unit: "分",
+            detail: "班级平均总成绩",
+            icon: <RiseOutlined />,
+          },
+          {
+            label: "COVERAGE // 录入比例",
+            value: analysis?.overview.scoreCoverage ?? "—",
+            unit: "%",
+            detail: analysis?.exam.status === "PUBLISHED" ? "成绩已发布" : "成绩草稿状态",
+            icon: <CheckCircleOutlined />,
+          },
+        ]}
+      >
+        <div className={styles.contentWrap}>
+          {(examsError || analysisError) && (
+            <Alert type="error" showIcon title={examsError?.message ?? analysisError} style={{ marginBottom: 16 }} />
+          )}
 
-      {(examsError || analysisError) && (
-        <Alert type="error" showIcon title={examsError?.message ?? analysisError} style={{ marginBottom: 16 }} />
-      )}
+          {analysisLoading ? (
+            <Card className="surface-card" style={{ padding: 40 }}>
+              <Skeleton active paragraph={{ rows: 12 }} />
+            </Card>
+          ) : !analysis ? (
+            <Card className="surface-card" style={{ padding: 60, textAlign: "center" }}>
+              <Empty description="暂无考试数据，点击上方“新建考试”开始分析" />
+            </Card>
+          ) : (
+            <>
+              {/* 图表与科目概览 */}
+              <section className={styles.chartSection}>
+                <div className={styles.contentCard}>
+                  <div className={styles.cardHead}>
+                    <h3 className={styles.cardTitle}>各科平均分与及格率对比</h3>
+                    <div className={styles.cardLegend}>
+                      <span><span className={styles.legendDot} style={{ background: "#015186" }} />平均分</span>
+                      <span><span className={styles.legendDot} style={{ background: "#059669" }} />及格率%</span>
+                    </div>
+                  </div>
+                  <div className={styles.cardBody}>
+                    <div style={{ width: "100%", height: 320 }}>
+                      <ResponsiveContainer>
+                        <BarChart data={analysis.subjectStatistics} margin={{ top: 12, right: 12, left: -16, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(182, 211, 232, 0.45)" />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#4f6e8a", fontSize: 12 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: "#4f6e8a", fontSize: 11 }} />
+                          <Tooltip content={<CustomChartTooltip />} />
+                          <Bar dataKey="average" name="平均分" fill="#015186" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                          <Bar dataKey="passRate" name="及格率" fill="#059669" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
 
-      {/* 顶部考试选择与状态 */}
-      <section className={styles.summaryStrip}>
-        <div className={styles.summaryLead}>
-          <span className={styles.summaryIcon}><FundOutlined /></span>
-          <div className={styles.summaryCopy}>
-            <h2 className={styles.summaryTitle}>考试分析总览</h2>
-            <p className={styles.summaryDesc}>
-              {analysis ? `考试日期：${analysis.exam.examDate} · 共 ${analysis.subjectStatistics.length} 门科目` : "选择考试以查看全科图表分析"}
-            </p>
-          </div>
-        </div>
+                <div className={styles.contentCard}>
+                  <div className={styles.cardHead}>
+                    <h3 className={styles.cardTitle}>学科成绩详情</h3>
+                  </div>
+                  <Table
+                    rowKey="id"
+                    size="small"
+                    pagination={false}
+                    dataSource={analysis.subjectStatistics}
+                    columns={[
+                      { title: "科目", dataIndex: "name", render: (value: string) => <strong style={{ color: "var(--ink)" }}>{value}</strong> },
+                      { title: "均分", dataIndex: "average", align: "center", render: (v: number | null) => v ?? "—" },
+                      { title: "最高", dataIndex: "highest", align: "center", render: (v: number | null) => <span style={{ color: "#059669", fontWeight: 600 }}>{v ?? "—"}</span> },
+                      {
+                        title: "及格率",
+                        dataIndex: "passRate",
+                        align: "right",
+                        render: (value: number | null) => value === null ? "—" : `${value}%`,
+                      },
+                    ]}
+                  />
+                </div>
+              </section>
 
-        <div className={styles.summaryActions}>
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>切换考试：</span>
-          <Select
-            loading={examsLoading}
-            value={activeExamId}
-            onChange={setSelectedExamId}
-            style={{ minWidth: 220 }}
-            options={(examsData?.exams ?? []).map((exam) => ({ value: exam.id, label: exam.name }))}
-          />
-          {analysis && (
-            <Tag color={analysis.exam.status === "PUBLISHED" ? "green" : "orange"} style={{ margin: 0 }}>
-              {analysis.exam.status === "PUBLISHED" ? "已发布" : "草稿"}
-            </Tag>
+              {/* 学生总分排名表 */}
+              <div className={styles.contentCard}>
+                <div className={styles.cardHead}>
+                  <h3 className={styles.cardTitle}>学生全科总分排名榜</h3>
+                </div>
+                <Table
+                  rowKey="studentId"
+                  columns={rankingColumns}
+                  dataSource={analysis.rankings}
+                  pagination={{ pageSize: 10, showSizeChanger: false }}
+                  scroll={{ x: 760 }}
+                />
+              </div>
+            </>
           )}
         </div>
-      </section>
-
-      {analysisLoading ? (
-        <Card className="surface-card" style={{ padding: 40 }}>
-          <Skeleton active paragraph={{ rows: 12 }} />
-        </Card>
-      ) : !analysis ? (
-        <Card className="surface-card" style={{ padding: 60, textAlign: "center" }}>
-          <Empty description="暂无考试数据，点击上方“新建考试”开始分析" />
-        </Card>
-      ) : (
-        <>
-          {/* KPI 统计指标卡片 */}
-          <section className={styles.kpiGrid}>
-            <div className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconBlue}`}><TeamOutlined /></span>
-              <div className={styles.kpiBody}>
-                <span className={styles.kpiLabel}>参考学生</span>
-                <div className={styles.kpiValueRow}>
-                  <span className={styles.kpiValue}>{analysis.overview.studentCount}</span>
-                  <span className={styles.kpiUnit}>人</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconPurple}`}><BookOutlined /></span>
-              <div className={styles.kpiBody}>
-                <span className={styles.kpiLabel}>考试科目</span>
-                <div className={styles.kpiValueRow}>
-                  <span className={styles.kpiValue}>{analysis.overview.subjectCount}</span>
-                  <span className={styles.kpiUnit}>科</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconEmerald}`}><RiseOutlined /></span>
-              <div className={styles.kpiBody}>
-                <span className={styles.kpiLabel}>总分均值</span>
-                <div className={styles.kpiValueRow}>
-                  <span className={styles.kpiValue}>{analysis.overview.totalAverage ?? "—"}</span>
-                  <span className={styles.kpiUnit}>分</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconAmber}`}><CheckCircleOutlined /></span>
-              <div className={styles.kpiBody}>
-                <span className={styles.kpiLabel}>成绩录入率</span>
-                <div className={styles.kpiValueRow}>
-                  <span className={styles.kpiValue}>{analysis.overview.scoreCoverage}</span>
-                  <span className={styles.kpiUnit}>%</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 图表与科目概览 */}
-          <section className={styles.chartSection}>
-            <div className={styles.contentCard}>
-              <div className={styles.cardHead}>
-                <h3 className={styles.cardTitle}>各科平均分与及格率对比</h3>
-                <div className={styles.cardLegend}>
-                  <span><span className={styles.legendDot} style={{ background: "#015186" }} />平均分</span>
-                  <span><span className={styles.legendDot} style={{ background: "#059669" }} />及格率%</span>
-                </div>
-              </div>
-              <div className={styles.cardBody}>
-                <div style={{ width: "100%", height: 320 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={analysis.subjectStatistics} margin={{ top: 12, right: 12, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(182, 211, 232, 0.45)" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#4f6e8a", fontSize: 12 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "#4f6e8a", fontSize: 11 }} />
-                      <Tooltip content={<CustomChartTooltip />} />
-                      <Bar dataKey="average" name="平均分" fill="#015186" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                      <Bar dataKey="passRate" name="及格率" fill="#059669" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.contentCard}>
-              <div className={styles.cardHead}>
-                <h3 className={styles.cardTitle}>学科成绩详情</h3>
-              </div>
-              <Table
-                rowKey="id"
-                size="small"
-                pagination={false}
-                dataSource={analysis.subjectStatistics}
-                columns={[
-                  { title: "科目", dataIndex: "name", render: (value: string) => <strong style={{ color: "var(--ink)" }}>{value}</strong> },
-                  { title: "均分", dataIndex: "average", align: "center", render: (v: number | null) => v ?? "—" },
-                  { title: "最高", dataIndex: "highest", align: "center", render: (v: number | null) => <span style={{ color: "#059669", fontWeight: 600 }}>{v ?? "—"}</span> },
-                  {
-                    title: "及格率",
-                    dataIndex: "passRate",
-                    align: "right",
-                    render: (value: number | null) => value === null ? "—" : `${value}%`,
-                  },
-                ]}
-              />
-            </div>
-          </section>
-
-          {/* 学生总分排名表 */}
-          <div className={styles.contentCard}>
-            <div className={styles.cardHead}>
-              <h3 className={styles.cardTitle}>学生全科总分排名榜</h3>
-            </div>
-            <Table
-              rowKey="studentId"
-              columns={rankingColumns}
-              dataSource={analysis.rankings}
-              pagination={{ pageSize: 10, showSizeChanger: false }}
-              scroll={{ x: 760 }}
-            />
-          </div>
-        </>
-      )}
+      </LedgerSheet>
 
       {/* 新建考试弹窗 */}
       <Modal

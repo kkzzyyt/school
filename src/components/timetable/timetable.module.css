@@ -160,6 +160,20 @@
   background: #aab3bf;
 }
 
+.contentWrap {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@media (max-width: 640px) {
+  .contentWrap {
+    padding: 16px;
+    gap: 14px;
+  }
+}
+
 .viewPanel {
   display: flex;
   min-width: 0;
@@ -191,33 +205,34 @@
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
 .dayButton {
   min-width: 0;
   min-height: 52px;
   justify-content: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border: 1px solid transparent;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(182, 211, 232, 0.6);
   border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--muted, #4f6e8a);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .dayButton:hover {
-  border-color: var(--line-strong);
-  background: var(--paper);
-  color: var(--ink);
+  border-color: var(--primary, #015186);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink, #0a1b2a);
 }
 
 .dayButtonActive {
-  border-color: rgba(1, 81, 134, 0.35);
-  background: rgba(1, 81, 134, 0.08);
+  border: 1.5px solid var(--primary, #015186);
+  background: rgba(232, 242, 250, 0.95);
   color: var(--primary, #015186);
+  box-shadow: 0 2px 8px rgba(1, 81, 134, 0.12);
 }
 
 .dayNumber {
@@ -260,9 +275,12 @@
 .boardSection {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper);
+  border: 1px solid rgba(182, 211, 232, 0.7);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
 }
 
 .boardMeta {
@@ -471,31 +489,33 @@
 .courseCard {
   position: relative;
   display: flex;
-  min-height: 78px;
+  min-height: 80px;
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
-  padding: 11px 12px 9px;
+  gap: 5px;
+  padding: 10px 12px 10px 14px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--course-color, #015186) 42%, white);
+  border: 1.5px solid color-mix(in srgb, var(--course-color, #015186) 48%, white);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--course-color, #015186) 16%, white);
-  color: var(--ink, #0a1b2a);
+  background: color-mix(in srgb, var(--course-color, #015186) 16%, #ffffff);
+  color: #0a1b2a;
   cursor: grab;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px -2px rgba(10, 27, 42, 0.05);
 }
 
 .courseCard::before {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
+  width: 5px;
   background: var(--course-color, #015186);
   content: "";
 }
 
 .courseCard:hover {
+  background: color-mix(in srgb, var(--course-color, #015186) 24%, #ffffff);
   border-color: var(--course-color, #015186);
-  box-shadow: 0 6px 20px -2px color-mix(in srgb, var(--course-color, #015186) 35%, transparent);
+  box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--course-color, #015186) 40%, transparent);
   transform: translateY(-2px);
 }
 
@@ -509,11 +529,12 @@
 }
 
 .courseColor {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
   border-radius: 50%;
   background: var(--course-color, #015186);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
 }
 
 .courseName {

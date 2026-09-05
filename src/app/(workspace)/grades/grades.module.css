@@ -5,6 +5,20 @@
   gap: 20px;
 }
 
+.contentWrap {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .contentWrap {
+    padding: 16px;
+    gap: 16px;
+  }
+}
+
 /* 顶部考试选择与状态条 */
 .summaryStrip {
   display: flex;
@@ -187,9 +201,9 @@
 }
 
 .contentCard {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm, 8px);
-  background: var(--paper, rgba(255, 255, 255, 0.88));
+  border: 1px solid rgba(182, 211, 232, 0.7);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 4px 20px -2px rgba(10, 27, 42, 0.04);
@@ -200,9 +214,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-low, rgba(240, 246, 252, 0.65));
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(182, 211, 232, 0.5);
+  background: rgba(240, 246, 252, 0.85);
 }
 
 .cardTitle {
@@ -325,8 +339,29 @@
 
 .scoreItem {
   font-family: var(--font-mono, monospace);
-  font-size: 12px;
+  font-size: 13px;
   color: #1e293b;
+  display: inline-block;
+  min-width: 32px;
+  text-align: center;
+}
+
+.scoreFailed {
+  color: #be123c !important;
+  background: #ffe4e6;
+  border: 1px solid #fecdd3;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.scoreExcellent {
+  color: #059669 !important;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
 }
 
 .absentTag {
