@@ -1,20 +1,15 @@
 "use client";
 
 import {
-  ApartmentOutlined,
   CheckOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
   LockOutlined,
   PlusOutlined,
-  SaveOutlined,
-  SwapOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
 import {
-  Alert,
   Button,
-  Card,
   Checkbox,
   Col,
   Divider,
@@ -26,10 +21,9 @@ import {
   Select,
   Space,
   Tag,
-  Tooltip,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DEFAULT_ROTATION_SCHEME,
   PRESET_ROTATION_SCHEMES,
@@ -42,6 +36,22 @@ import {
 import type { SeatAssignment } from "@/domain/seating";
 
 const STORAGE_KEY = "seating_custom_rotation_schemes";
+
+function loadStoredSchemes(): SeatingRotationScheme[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
 
 interface StudentInfo {
   id: string;
@@ -71,26 +81,11 @@ export function SeatingSchemeModal({
   lockedSeatKeys,
   disabledSeatKeys = new Set(),
 }: SeatingSchemeModalProps) {
-  const [customSchemes, setCustomSchemes] = useState<SeatingRotationScheme[]>([]);
+  const [customSchemes, setCustomSchemes] = useState<SeatingRotationScheme[]>(loadStoredSchemes);
   const [selectedSchemeId, setSelectedSchemeId] = useState<string>(DEFAULT_ROTATION_SCHEME.id);
   const [activeScheme, setActiveScheme] = useState<SeatingRotationScheme>({ ...DEFAULT_ROTATION_SCHEME });
   const [saveNameInput, setSaveNameInput] = useState("");
   const [isSavingCustom, setIsSavingCustom] = useState(false);
-
-  // 加载自定义方案
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setCustomSchemes(parsed);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   const allSchemes = useMemo(() => {
     return [...PRESET_ROTATION_SCHEMES, ...customSchemes];

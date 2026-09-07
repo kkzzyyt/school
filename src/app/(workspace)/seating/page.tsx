@@ -137,10 +137,6 @@ function sortAssignments(assignments: Assignment[]) {
   );
 }
 
-function studentDisplayLabel(student: Student) {
-  return `${student.name} · ${student.studentNo.slice(-4)}`;
-}
-
 function cloneEnvironment(environment: SeatingEnvironment): SeatingEnvironment {
   return {
     aisleAfterColumns: [...new Set(environment.aisleAfterColumns)].sort((left, right) => left - right),
@@ -910,7 +906,7 @@ export default function SeatingPage() {
     const existingAssignment = assignmentByStudent.get(targetStudentId);
 
     if (currentStudent) {
-      let nextAssignments = draft.assignments.filter(
+      const nextAssignments = draft.assignments.filter(
         (a) => a.studentId !== currentStudent.id && a.studentId !== targetStudentId,
       );
 
@@ -941,7 +937,7 @@ export default function SeatingPage() {
       });
     } else {
       // 当前为空座：安排学生入座
-      let nextAssignments = draft.assignments.filter(
+      const nextAssignments = draft.assignments.filter(
         (a) => a.studentId !== targetStudentId && !(a.row === row && a.column === column),
       );
       nextAssignments.push({

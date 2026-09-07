@@ -3,7 +3,6 @@ import {
   calculateColumnShift,
   calculateRowShift,
   DEFAULT_ROTATION_SCHEME,
-  PRESET_ROTATION_SCHEMES,
   rotateSeatAssignments,
   seatKey,
 } from "./seating-rotation";
