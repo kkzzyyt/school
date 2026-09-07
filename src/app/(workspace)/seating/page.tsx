@@ -305,6 +305,12 @@ export default function SeatingPage() {
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
   const [lockedSeatKeys, setLockedSeatKeys] = useState<Set<string>>(new Set());
+  const [replaceModalTarget, setReplaceModalTarget] = useState<{
+    row: number;
+    column: number;
+    currentStudent: Student;
+  } | null>(null);
+  const [replaceSearchQuery, setReplaceSearchQuery] = useState("");
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
   const studentPoolCanvasRef = useRef<HTMLElement>(null);
   const studentPoolPanelRef = useRef<HTMLElement>(null);
@@ -741,23 +747,36 @@ export default function SeatingPage() {
     });
   }
 
-  function seatActionMenuItems(row: number, column: number, currentStudentId: string): NonNullable<MenuProps["items"]> {
+  function seatActionMenuItems(row: number, column: number): NonNullable<MenuProps["items"]> {
     const isLocked = lockedSeatKeys.has(seatKey(row, column));
     return [
+      {
+        key: "replace-student",
+        icon: <SwapOutlined style={{ color: "var(--primary)" }} />,
+        label: "更换学生...",
+      },
       {
         key: "toggle-lock",
         icon: <LockOutlined style={isLocked ? { color: "var(--gold-accent)" } : undefined} />,
         label: isLocked ? "解锁座位（允许自动排座）" : "锁定此座（自动排座不移动）",
       },
-      { key: "remove-seat", danger: true, label: "移出座位" },
       { type: "divider" },
-      ...(data?.students ?? [])
-        .filter((student) => student.id !== currentStudentId)
-        .map((student) => ({ key: student.id, label: studentDisplayLabel(student) })),
+      {
+        key: "remove-seat",
+        danger: true,
+        icon: <CloseOutlined />,
+        label: "移出座位",
+      },
     ];
   }
 
-  function handleSeatActionMenu(row: number, column: number, key: string) {
+  function handleSeatActionMenu(row: number, column: number, key: string, currentStudent: Student) {
+    if (key === "replace-student") {
+      setReplaceModalTarget({ row, column, currentStudent });
+      setReplaceSearchQuery("");
+      setSeatActionMenuKey(null);
+      return;
+    }
     if (key === "toggle-lock") {
       toggleSeatLock(row, column);
       setSeatActionMenuKey(null);
@@ -769,6 +788,46 @@ export default function SeatingPage() {
     }
     changeSeat(row, column, key);
     setSeatActionMenuKey(null);
+  }
+
+  function handleExecuteReplace(targetStudentId: string) {
+    if (!replaceModalTarget || !draft) return;
+    const { row, column, currentStudent } = replaceModalTarget;
+    const targetStudent = studentById.get(targetStudentId);
+    if (!targetStudent) return;
+
+    const existingAssignment = assignmentByStudent.get(targetStudentId);
+    let nextAssignments = draft.assignments.filter(
+      (a) => a.studentId !== currentStudent.id && a.studentId !== targetStudentId,
+    );
+
+    if (existingAssignment) {
+      nextAssignments.push({
+        studentId: currentStudent.id,
+        row: existingAssignment.row,
+        column: existingAssignment.column,
+      });
+      nextAssignments.push({
+        studentId: targetStudentId,
+        row,
+        column,
+      });
+      message.success(`已互换座次：${targetStudent.name} ↔ ${currentStudent.name}`);
+    } else {
+      nextAssignments.push({
+        studentId: targetStudentId,
+        row,
+        column,
+      });
+      message.success(`已将 第 ${row} 排 ${column} 座更换为 ${targetStudent.name}`);
+    }
+
+    commitDraft({
+      ...draft,
+      assignments: nextAssignments,
+    });
+    setReplaceModalTarget(null);
+    setReplaceSearchQuery("");
   }
 
   function clearSeatLongPressTimer() {
@@ -1512,8 +1571,8 @@ export default function SeatingPage() {
                                               open={seatActionMenuKey === positionKey}
                                               onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
                                               menu={{
-                                                items: seatActionMenuItems(row, column, student.id),
-                                                onClick: ({ key }) => handleSeatActionMenu(row, column, String(key)),
+                                                items: seatActionMenuItems(row, column),
+                                                onClick: ({ key }) => handleSeatActionMenu(row, column, String(key), student),
                                               }}
                                               classNames={{ root: "seat-replacement-menu" }}
                                             >
@@ -1680,6 +1739,78 @@ export default function SeatingPage() {
           students={data?.students ?? []}
           lockedSeatKeys={lockedSeatKeys}
         />
+      )}
+      {replaceModalTarget && (
+        <Modal
+          className="replace-student-modal"
+          title={
+            <Space>
+              <SwapOutlined style={{ color: "var(--primary)" }} />
+              <span>更换座位学生</span>
+            </Space>
+          }
+          open={Boolean(replaceModalTarget)}
+          onCancel={() => {
+            setReplaceModalTarget(null);
+            setReplaceSearchQuery("");
+          }}
+          footer={null}
+          width={480}
+          destroyOnHidden
+        >
+          <div className="replace-seat-info-bar">
+            <span>目标座位：<strong>第 {replaceModalTarget.row} 排 {replaceModalTarget.column} 座</strong></span>
+            <span>当前学生：<strong>{replaceModalTarget.currentStudent.name}</strong></span>
+          </div>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="输入姓名或学号快速搜索替换学生..."
+            allowClear
+            autoFocus
+            value={replaceSearchQuery}
+            onChange={(e) => setReplaceSearchQuery(e.target.value)}
+            style={{ marginBottom: 12 }}
+          />
+          <div className="replace-student-list">
+            {(data?.students ?? [])
+              .filter((s) => s.id !== replaceModalTarget.currentStudent.id)
+              .filter((s) => {
+                if (!replaceSearchQuery.trim()) return true;
+                const q = replaceSearchQuery.trim().toLowerCase();
+                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q);
+              })
+              .map((s) => {
+                const assignedPos = assignmentByStudent.get(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="replace-student-item"
+                    onClick={() => handleExecuteReplace(s.id)}
+                  >
+                    <div className="replace-student-meta">
+                      <span className="replace-student-name">{s.name}</span>
+                      <span className="replace-student-no">{s.studentNo}</span>
+                    </div>
+                    {assignedPos ? (
+                      <Tag color="blue">在 {assignedPos.row}排{assignedPos.column}座 · 互换</Tag>
+                    ) : (
+                      <Tag color="green">未安排 · 入座</Tag>
+                    )}
+                  </button>
+                );
+              })}
+            {(data?.students ?? [])
+              .filter((s) => s.id !== replaceModalTarget.currentStudent.id)
+              .filter((s) => {
+                if (!replaceSearchQuery.trim()) return true;
+                const q = replaceSearchQuery.trim().toLowerCase();
+                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q);
+              }).length === 0 && (
+              <div className="replace-student-empty">未搜索到匹配的学生</div>
+            )}
+          </div>
+        </Modal>
       )}
     </>
   );
