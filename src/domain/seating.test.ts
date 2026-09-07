@@ -242,6 +242,31 @@ describe("validateSeatingEnvironment", () => {
       left: { windows: [8], doorRows: [9] },
     });
   });
+
+  it("normalizes and preserves disabledSeats and lockedSeats", () => {
+    const env = validateSeatingEnvironment({
+      left: { windows: [], doorRows: [] },
+      right: { windows: [], doorRows: [] },
+      disabledSeats: [
+        { row: 2, column: 3 },
+        { row: 1, column: 1 },
+        { row: 1, column: 1 },
+        { row: 99, column: 99 },
+      ],
+      lockedSeats: [
+        { row: 3, column: 4 },
+        { row: 3, column: 4 },
+      ],
+    }, 7, 8);
+
+    expect(env.disabledSeats).toEqual([
+      { row: 1, column: 1 },
+      { row: 2, column: 3 },
+    ]);
+    expect(env.lockedSeats).toEqual([
+      { row: 3, column: 4 },
+    ]);
+  });
 });
 
 describe("swapStudentSeats", () => {

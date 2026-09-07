@@ -56,6 +56,18 @@ const seatingSchema = z.object({
       waterDispenser: fixedFacilityPlacementSchema.nullable().optional(),
       airConditioner: fixedFacilityPlacementSchema.nullable().optional(),
     }).optional(),
+    disabledSeats: z.array(
+      z.object({
+        row: z.number().int(),
+        column: z.number().int(),
+      }),
+    ).optional(),
+    lockedSeats: z.array(
+      z.object({
+        row: z.number().int(),
+        column: z.number().int(),
+      }),
+    ).optional(),
   }).optional(),
 });
 

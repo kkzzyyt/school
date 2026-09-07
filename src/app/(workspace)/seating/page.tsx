@@ -4,6 +4,7 @@ import {
   ApartmentOutlined,
   CloseOutlined,
   ColumnWidthOutlined,
+  DeleteOutlined,
   DragOutlined,
   EditOutlined,
   EyeInvisibleOutlined,
@@ -23,6 +24,7 @@ import {
   SyncOutlined,
   TeamOutlined,
   UndoOutlined,
+  UserAddOutlined,
   WindowsOutlined,
 } from "@ant-design/icons";
 import {
@@ -34,6 +36,7 @@ import {
   InputNumber,
   Modal,
   Dropdown,
+  Segmented,
   Skeleton,
   Space,
   Switch,
@@ -152,6 +155,8 @@ function cloneEnvironment(environment: SeatingEnvironment): SeatingEnvironment {
     rear: { ...environment.rear },
     // Preserve legacy payloads without exposing them to the seating editor.
     ...(environment.fixedFacilities ? { fixedFacilities: environment.fixedFacilities } : {}),
+    ...(environment.disabledSeats ? { disabledSeats: environment.disabledSeats.map((s) => ({ ...s })) } : {}),
+    ...(environment.lockedSeats ? { lockedSeats: environment.lockedSeats.map((s) => ({ ...s })) } : {}),
   };
 }
 
@@ -304,14 +309,16 @@ export default function SeatingPage() {
   const [draggingStudentPool, setDraggingStudentPool] = useState(false);
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
-  const [lockedSeatKeys, setLockedSeatKeys] = useState<Set<string>>(new Set());
+  const [showStudentPool, setShowStudentPool] = useState(false);
   const [replaceModalTarget, setReplaceModalTarget] = useState<{
     row: number;
     column: number;
-    currentStudent: Student;
+    currentStudent: Student | null;
   } | null>(null);
   const [replaceSearchQuery, setReplaceSearchQuery] = useState("");
+  const [replaceGenderFilter, setReplaceGenderFilter] = useState<"ALL" | "MALE" | "FEMALE">("ALL");
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
+
   const studentPoolCanvasRef = useRef<HTMLElement>(null);
   const studentPoolPanelRef = useRef<HTMLElement>(null);
   const studentPoolDrag = useRef<{
@@ -375,6 +382,20 @@ export default function SeatingPage() {
   }, [isEditing, seatActionMenuKey]);
 
   const draft = editor.draft;
+  const disabledSeatKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const seat of draft?.environment.disabledSeats ?? []) {
+      set.add(seatKey(seat.row, seat.column));
+    }
+    return set;
+  }, [draft?.environment.disabledSeats]);
+  const lockedSeatKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const seat of draft?.environment.lockedSeats ?? []) {
+      set.add(seatKey(seat.row, seat.column));
+    }
+    return set;
+  }, [draft?.environment.lockedSeats]);
   const savedDraft = useMemo(() => (data ? toDraft(data) : null), [data]);
   const pendingDimensions = editor.pendingDimensions;
   const studentById = useMemo(
@@ -695,6 +716,11 @@ export default function SeatingPage() {
       placeStudent(selectedStudentId, row, column);
     } else if (assignment) {
       selectStudent(assignment.studentId);
+    } else {
+      // 点击空座：直接打开安排学生弹窗
+      setReplaceModalTarget({ row, column, currentStudent: null });
+      setReplaceSearchQuery("");
+      setReplaceGenderFilter("ALL");
     }
   }
 
@@ -705,18 +731,68 @@ export default function SeatingPage() {
   }
 
   function toggleSeatLock(row: number, column: number) {
-    const key = seatKey(row, column);
-    setLockedSeatKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-        message.info(`已解锁 第 ${row} 排 ${column} 座`);
-      } else {
-        next.add(key);
-        message.success(`已锁定 第 ${row} 排 ${column} 座（自动排座不移动）`);
-      }
-      return next;
+    if (!isEditing || !draft) return;
+    const currentLocked = draft.environment.lockedSeats ?? [];
+    const exists = currentLocked.some((s) => s.row === row && s.column === column);
+    let nextLocked: Array<{ row: number; column: number }>;
+
+    if (exists) {
+      nextLocked = currentLocked.filter((s) => !(s.row === row && s.column === column));
+      message.info(`已解锁 第 ${row} 排 ${column} 座`);
+    } else {
+      nextLocked = [...currentLocked, { row, column }];
+      message.success(`已锁定 第 ${row} 排 ${column} 座（自动排座不移动）`);
+    }
+
+    commitDraft({
+      ...draft,
+      environment: {
+        ...draft.environment,
+        lockedSeats: nextLocked.length > 0 ? nextLocked : undefined,
+      },
     });
+    setSeatActionMenuKey(null);
+  }
+
+  function handleDeleteSeat(row: number, column: number) {
+    if (!isEditing || !draft) return;
+    const currentDisabled = draft.environment.disabledSeats ?? [];
+    if (currentDisabled.some((s) => s.row === row && s.column === column)) return;
+
+    const nextDisabled = [...currentDisabled, { row, column }];
+    const nextAssignments = draft.assignments.filter(
+      (a) => !(a.row === row && a.column === column),
+    );
+
+    const currentLocked = draft.environment.lockedSeats ?? [];
+    const nextLocked = currentLocked.filter((s) => !(s.row === row && s.column === column));
+
+    commitDraft({
+      ...draft,
+      assignments: nextAssignments,
+      environment: {
+        ...draft.environment,
+        disabledSeats: nextDisabled,
+        lockedSeats: nextLocked.length > 0 ? nextLocked : undefined,
+      },
+    });
+    setSeatActionMenuKey(null);
+    message.success(`已从画布中删除 第 ${row} 排 ${column} 座`);
+  }
+
+  function handleRestoreSeat(row: number, column: number) {
+    if (!isEditing || !draft) return;
+    const currentDisabled = draft.environment.disabledSeats ?? [];
+    const nextDisabled = currentDisabled.filter((s) => !(s.row === row && s.column === column));
+
+    commitDraft({
+      ...draft,
+      environment: {
+        ...draft.environment,
+        disabledSeats: nextDisabled.length > 0 ? nextDisabled : undefined,
+      },
+    });
+    message.success(`已恢复 第 ${row} 排 ${column} 座`);
   }
 
   function applyQuickScheme(scheme: SeatingRotationScheme) {
@@ -727,6 +803,7 @@ export default function SeatingPage() {
       draft.columns,
       scheme,
       lockedSeatKeys,
+      disabledSeatKeys,
     );
     commitDraft({
       ...draft,
@@ -765,15 +842,45 @@ export default function SeatingPage() {
         key: "remove-seat",
         danger: true,
         icon: <CloseOutlined />,
-        label: "移出座位",
+        label: "移出座位（变为空座）",
+      },
+      {
+        key: "delete-seat",
+        danger: true,
+        icon: <DeleteOutlined />,
+        label: "删除此座（从画布移除）",
       },
     ];
   }
 
-  function handleSeatActionMenu(row: number, column: number, key: string, currentStudent: Student) {
-    if (key === "replace-student") {
+  function emptySeatActionMenuItems(row: number, column: number): NonNullable<MenuProps["items"]> {
+    const isLocked = lockedSeatKeys.has(seatKey(row, column));
+    return [
+      {
+        key: "assign-student",
+        icon: <UserAddOutlined style={{ color: "var(--primary)" }} />,
+        label: "安排学生...",
+      },
+      {
+        key: "toggle-lock",
+        icon: <LockOutlined style={isLocked ? { color: "var(--gold-accent)" } : undefined} />,
+        label: isLocked ? "解锁此空座" : "锁定此空座（保留空位）",
+      },
+      { type: "divider" },
+      {
+        key: "delete-seat",
+        danger: true,
+        icon: <DeleteOutlined />,
+        label: "删除此座（从画布移除）",
+      },
+    ];
+  }
+
+  function handleSeatActionMenu(row: number, column: number, key: string, currentStudent: Student | null) {
+    if (key === "replace-student" || key === "assign-student") {
       setReplaceModalTarget({ row, column, currentStudent });
       setReplaceSearchQuery("");
+      setReplaceGenderFilter("ALL");
       setSeatActionMenuKey(null);
       return;
     }
@@ -786,7 +893,13 @@ export default function SeatingPage() {
       clearSeat(row, column);
       return;
     }
-    changeSeat(row, column, key);
+    if (key === "delete-seat") {
+      handleDeleteSeat(row, column);
+      return;
+    }
+    if (currentStudent) {
+      changeSeat(row, column, key);
+    }
     setSeatActionMenuKey(null);
   }
 
@@ -797,37 +910,61 @@ export default function SeatingPage() {
     if (!targetStudent) return;
 
     const existingAssignment = assignmentByStudent.get(targetStudentId);
-    let nextAssignments = draft.assignments.filter(
-      (a) => a.studentId !== currentStudent.id && a.studentId !== targetStudentId,
-    );
 
-    if (existingAssignment) {
-      nextAssignments.push({
-        studentId: currentStudent.id,
-        row: existingAssignment.row,
-        column: existingAssignment.column,
+    if (currentStudent) {
+      let nextAssignments = draft.assignments.filter(
+        (a) => a.studentId !== currentStudent.id && a.studentId !== targetStudentId,
+      );
+
+      if (existingAssignment) {
+        nextAssignments.push({
+          studentId: currentStudent.id,
+          row: existingAssignment.row,
+          column: existingAssignment.column,
+        });
+        nextAssignments.push({
+          studentId: targetStudentId,
+          row,
+          column,
+        });
+        message.success(`已互换座次：${targetStudent.name} ↔ ${currentStudent.name}`);
+      } else {
+        nextAssignments.push({
+          studentId: targetStudentId,
+          row,
+          column,
+        });
+        message.success(`已将 第 ${row} 排 ${column} 座更换为 ${targetStudent.name}`);
+      }
+
+      commitDraft({
+        ...draft,
+        assignments: nextAssignments,
       });
-      nextAssignments.push({
-        studentId: targetStudentId,
-        row,
-        column,
-      });
-      message.success(`已互换座次：${targetStudent.name} ↔ ${currentStudent.name}`);
     } else {
+      // 当前为空座：安排学生入座
+      let nextAssignments = draft.assignments.filter(
+        (a) => a.studentId !== targetStudentId && !(a.row === row && a.column === column),
+      );
       nextAssignments.push({
         studentId: targetStudentId,
         row,
         column,
       });
-      message.success(`已将 第 ${row} 排 ${column} 座更换为 ${targetStudent.name}`);
+      if (existingAssignment) {
+        message.success(`已将 ${targetStudent.name} 从第 ${existingAssignment.row} 排 ${existingAssignment.column} 座调至 第 ${row} 排 ${column} 座`);
+      } else {
+        message.success(`已安排 ${targetStudent.name} 入座 第 ${row} 排 ${column} 座`);
+      }
+      commitDraft({
+        ...draft,
+        assignments: nextAssignments,
+      });
     }
 
-    commitDraft({
-      ...draft,
-      assignments: nextAssignments,
-    });
     setReplaceModalTarget(null);
     setReplaceSearchQuery("");
+    setReplaceGenderFilter("ALL");
   }
 
   function clearSeatLongPressTimer() {
@@ -1267,7 +1404,17 @@ export default function SeatingPage() {
         )}
         metrics={[
           { label: "SEATS // 已安排", value: draft ? assignedCount : "—", unit: "席", detail: draft ? `共 ${studentCount} 名学生` : "正在读取座次", icon: <TeamOutlined /> },
-          { label: "CAPACITY // 座位容量", value: draft ? draft.rows * draft.columns : "—", unit: "席", detail: draft ? `${draft.rows} 排 × ${draft.columns} 列` : "等待布局", icon: <ColumnWidthOutlined /> },
+          {
+            label: "CAPACITY // 座位容量",
+            value: draft ? (draft.rows * draft.columns - disabledSeatKeys.size) : "—",
+            unit: "席",
+            detail: draft
+              ? disabledSeatKeys.size > 0
+                ? `${draft.rows}×${draft.columns} 网格 · 已移除 ${disabledSeatKeys.size} 空座`
+                : `${draft.rows} 排 × ${draft.columns} 列`
+              : "等待布局",
+            icon: <ColumnWidthOutlined />,
+          },
           { label: "ROOM // 环境标记", value: draft ? environmentFeatureCount : "—", unit: "项", detail: draft ? `过道 ${aisleAfterColumns.length} 条` : "等待教室配置", icon: <SettingOutlined /> },
         ]}
       >
@@ -1281,7 +1428,7 @@ export default function SeatingPage() {
           <div
             className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
           >
-            {isEditing && unassignedStudentCount > 0 && <aside
+            {isEditing && showStudentPool && unassignedStudentCount > 0 && <aside
               ref={studentPoolPanelRef}
               className={`seating-sidebar seating-sidebar-floating ${studentPoolOpen ? "seating-sidebar-floating-open" : "seating-sidebar-floating-collapsed"} ${studentPoolPosition ? "seating-sidebar-floating-positioned" : ""} ${draggingStudentPool ? "seating-sidebar-floating-dragging" : ""}`}
               style={studentPoolPosition ? { left: `${studentPoolPosition.x}px`, top: `${studentPoolPosition.y}px` } : undefined}
@@ -1509,6 +1656,13 @@ export default function SeatingPage() {
                     >
                       座位布局与过道
                     </Button>
+                    <Button
+                      className="seating-settings-button"
+                      icon={<TeamOutlined />}
+                      onClick={() => setShowStudentPool((prev) => !prev)}
+                    >
+                      {showStudentPool ? "隐藏学生池" : "展开学生池"}
+                    </Button>
                   </Space>}
                   <div className="seating-view-controls" aria-label="画布显示选项">
                     <span className="seating-view-controls-label"><EyeOutlined /> 显示侧边</span>
@@ -1550,81 +1704,152 @@ export default function SeatingPage() {
                                 const assignment = assignmentByPosition.get(`${row}-${column}`);
                                 const student = assignment ? studentById.get(assignment.studentId) : undefined;
                                 const positionKey = `${row}-${column}`;
+                                const isDisabled = disabledSeatKeys.has(positionKey);
                                 const isTarget = dropTarget === positionKey;
                                 return (
                                   <Fragment key={positionKey}>
-                                    <div
-                                      className={`seat-cell ${student ? "seat-cell-filled" : "seat-cell-empty"} ${isEditing ? "seat-cell-editable" : "seat-cell-readonly"} ${isTarget ? "seat-cell-drop-target" : ""}`}
-                                      data-seat-row={row}
-                                      data-seat-column={column}
-                                      onClick={isEditing ? () => handleSeatClick(row, column) : undefined}
-                                      onDragEnter={isEditing ? () => setDropTarget(positionKey) : undefined}
-                                      onDragOver={isEditing ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(positionKey); } : undefined}
-                                      onDragLeave={isEditing ? () => setDropTarget((current) => current === positionKey ? null : current) : undefined}
-                                      onDrop={isEditing ? (event) => handleSeatDrop(event, row, column) : undefined}
-                                    >
-                                      {student ? (
-                                        <div className="seat-student-row">
-                                          {isEditing ? (
-                                            <Dropdown
-                                              trigger={["click"]}
-                                              open={seatActionMenuKey === positionKey}
-                                              onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
-                                              menu={{
-                                                items: seatActionMenuItems(row, column),
-                                                onClick: ({ key }) => handleSeatActionMenu(row, column, String(key), student),
-                                              }}
-                                              classNames={{ root: "seat-replacement-menu" }}
-                                            >
-                                              <button
-                                                type="button"
-                                                className={`seat-student ${studentToneClass(student)} ${selectedStudentId === student.id ? "seat-student-selected" : ""}`}
-                                                draggable
-                                                aria-label={`第 ${row} 排 ${column} 座，${student.name}。打开座位操作`}
-                                                aria-haspopup="menu"
-                                                onClick={handleSeatStudentClick}
-                                                onKeyDown={(event) => {
-                                                  if (event.key !== "Escape") return;
-                                                  event.preventDefault();
-                                                  setSeatActionMenuKey(null);
+                                    {isDisabled ? (
+                                      isEditing ? (
+                                        <div
+                                          className="seat-cell seat-cell-disabled"
+                                          data-seat-row={row}
+                                          data-seat-column={column}
+                                        >
+                                          <button
+                                            type="button"
+                                            className="seat-cell-restore-btn"
+                                            onClick={() => handleRestoreSeat(row, column)}
+                                            title="点击恢复此座位到画布"
+                                            aria-label={`恢复第 ${row} 排 ${column} 座`}
+                                          >
+                                            <PlusOutlined />
+                                            <span>恢复此座</span>
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="seat-cell seat-cell-removed"
+                                          data-seat-row={row}
+                                          data-seat-column={column}
+                                          aria-hidden="true"
+                                        />
+                                      )
+                                    ) : (
+                                      <div
+                                        className={`seat-cell ${student ? "seat-cell-filled" : "seat-cell-empty"} ${isEditing ? "seat-cell-editable" : "seat-cell-readonly"} ${isTarget ? "seat-cell-drop-target" : ""} ${lockedSeatKeys.has(positionKey) ? "seat-cell-locked" : ""}`}
+                                        data-seat-row={row}
+                                        data-seat-column={column}
+                                        onClick={isEditing ? () => handleSeatClick(row, column) : undefined}
+                                        onDragEnter={isEditing ? () => setDropTarget(positionKey) : undefined}
+                                        onDragOver={isEditing ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(positionKey); } : undefined}
+                                        onDragLeave={isEditing ? () => setDropTarget((current) => current === positionKey ? null : current) : undefined}
+                                        onDrop={isEditing ? (event) => handleSeatDrop(event, row, column) : undefined}
+                                      >
+                                        {student ? (
+                                          <div className="seat-student-row">
+                                            {isEditing ? (
+                                              <Dropdown
+                                                trigger={["click"]}
+                                                open={seatActionMenuKey === positionKey}
+                                                onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
+                                                menu={{
+                                                  items: seatActionMenuItems(row, column),
+                                                  onClick: ({ key }) => handleSeatActionMenu(row, column, String(key), student),
                                                 }}
-                                                onContextMenu={(event) => handleSeatStudentContextMenu(event, positionKey)}
-                                                onPointerDown={(event) => startSeatLongPress(event, positionKey)}
-                                                onPointerMove={moveSeatLongPress}
-                                                onPointerUp={endSeatLongPress}
-                                                onPointerCancel={endSeatLongPress}
-                                                onPointerLeave={endSeatLongPress}
-                                                onDragStart={(event) => { setSeatActionMenuKey(null); startStudentDrag(event, student.id); }}
-                                                onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                                                classNames={{ root: "seat-replacement-menu" }}
                                               >
+                                                <button
+                                                  type="button"
+                                                  className={`seat-student ${studentToneClass(student)} ${selectedStudentId === student.id ? "seat-student-selected" : ""} ${lockedSeatKeys.has(positionKey) ? "seat-student-locked" : ""}`}
+                                                  draggable
+                                                  aria-label={`第 ${row} 排 ${column} 座，${student.name}。打开座位操作`}
+                                                  aria-haspopup="menu"
+                                                  onClick={handleSeatStudentClick}
+                                                  onKeyDown={(event) => {
+                                                    if (event.key !== "Escape") return;
+                                                    event.preventDefault();
+                                                    setSeatActionMenuKey(null);
+                                                  }}
+                                                  onContextMenu={(event) => handleSeatStudentContextMenu(event, positionKey)}
+                                                  onPointerDown={(event) => startSeatLongPress(event, positionKey)}
+                                                  onPointerMove={moveSeatLongPress}
+                                                  onPointerUp={endSeatLongPress}
+                                                  onPointerCancel={endSeatLongPress}
+                                                  onPointerLeave={endSeatLongPress}
+                                                  onDragStart={(event) => { setSeatActionMenuKey(null); startStudentDrag(event, student.id); }}
+                                                  onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
+                                                >
+                                                  {lockedSeatKeys.has(positionKey) && (
+                                                    <span className="seat-lock-badge" title="已锁定座位（自动排座不移动）">
+                                                      <LockOutlined />
+                                                    </span>
+                                                  )}
+                                                  <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
+                                                </button>
+                                              </Dropdown>
+                                            ) : (
+                                              <div className={`seat-student seat-student-readonly ${studentToneClass(student)} ${lockedSeatKeys.has(positionKey) ? "seat-student-locked" : ""}`} aria-label={`${row}排${column}座，${student.name}`}>
                                                 {lockedSeatKeys.has(positionKey) && (
                                                   <span className="seat-lock-badge" title="已锁定座位（自动排座不移动）">
                                                     <LockOutlined />
                                                   </span>
                                                 )}
                                                 <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
-                                              </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          isEditing ? (
+                                            <Dropdown
+                                              trigger={["contextMenu"]}
+                                              open={seatActionMenuKey === positionKey}
+                                              onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
+                                              menu={{
+                                                items: emptySeatActionMenuItems(row, column),
+                                                onClick: ({ key }) => handleSeatActionMenu(row, column, String(key), null),
+                                              }}
+                                              classNames={{ root: "seat-replacement-menu" }}
+                                            >
+                                              <div className="seat-empty-editor">
+                                                <button
+                                                  type="button"
+                                                  className="seat-cell-delete-btn"
+                                                  title="从画布中删除此空座"
+                                                  aria-label={`删除第 ${row} 排 ${column} 空座`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteSeat(row, column);
+                                                  }}
+                                                >
+                                                  <CloseOutlined />
+                                                </button>
+                                                {lockedSeatKeys.has(positionKey) && (
+                                                  <span className="seat-lock-badge" title="已锁定空座（保留空位）">
+                                                    <LockOutlined />
+                                                  </span>
+                                                )}
+                                                <div className="seat-empty-trigger">
+                                                  <UserAddOutlined />
+                                                  <span>安排学生</span>
+                                                </div>
+                                              </div>
                                             </Dropdown>
                                           ) : (
-                                            <div className={`seat-student seat-student-readonly ${studentToneClass(student)}`} aria-label={`${row}排${column}座，${student.name}`}>
+                                            <div className="seat-empty-editor">
                                               {lockedSeatKeys.has(positionKey) && (
-                                                <span className="seat-lock-badge" title="已锁定座位（自动排座不移动）">
+                                                <span className="seat-lock-badge" title="已锁定空座（保留空位）">
                                                   <LockOutlined />
                                                 </span>
                                               )}
-                                              <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
+                                              <div className="seat-empty-trigger">
+                                                <DragOutlined />
+                                                <span>空座</span>
+                                              </div>
                                             </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div className="seat-empty-editor">
-                                          <div className="seat-empty-trigger">
-                                            <DragOutlined />
-                                            <span>{isEditing ? "选择学生" : "空座"}</span>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
+                                          )
+                                        )}
+                                      </div>
+                                    )}
                                     {isSeatingAisleAfterColumn(column, draft.columns, aisleAfterColumns) && (
                                       <div className="seat-aisle" aria-hidden="true">
                                         {row === 1 && <span>过道</span>}
@@ -1738,6 +1963,7 @@ export default function SeatingPage() {
           columns={draft.columns}
           students={data?.students ?? []}
           lockedSeatKeys={lockedSeatKeys}
+          disabledSeatKeys={disabledSeatKeys}
         />
       )}
       {replaceModalTarget && (
@@ -1746,41 +1972,81 @@ export default function SeatingPage() {
           title={
             <Space>
               <SwapOutlined style={{ color: "var(--primary)" }} />
-              <span>更换座位学生</span>
+              <span>{replaceModalTarget.currentStudent ? "更换座位学生" : "安排座位学生"}</span>
             </Space>
           }
           open={Boolean(replaceModalTarget)}
           onCancel={() => {
             setReplaceModalTarget(null);
             setReplaceSearchQuery("");
+            setReplaceGenderFilter("ALL");
           }}
           footer={null}
-          width={480}
+          width={500}
           destroyOnHidden
         >
           <div className="replace-seat-info-bar">
-            <span>目标座位：<strong>第 {replaceModalTarget.row} 排 {replaceModalTarget.column} 座</strong></span>
-            <span>当前学生：<strong>{replaceModalTarget.currentStudent.name}</strong></span>
+            <span>
+              目标座位：<strong>第 {replaceModalTarget.row} 排 {replaceModalTarget.column} 座</strong>
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span>当前学生：</span>
+              {replaceModalTarget.currentStudent ? (
+                <>
+                  <strong>{replaceModalTarget.currentStudent.name}</strong>
+                  {(() => {
+                    const g = resolveStudentGender(
+                      replaceModalTarget.currentStudent.gender,
+                      replaceModalTarget.currentStudent.name,
+                    );
+                    return (
+                      <span className={`student-gender-badge student-gender-badge-${g.value.toLowerCase()}`}>
+                        {g.label}
+                      </span>
+                    );
+                  })()}
+                </>
+              ) : (
+                <Tag color="default">空座</Tag>
+              )}
+            </span>
           </div>
-          <Input
-            prefix={<SearchOutlined />}
-            placeholder="输入姓名或学号快速搜索替换学生..."
-            allowClear
-            autoFocus
-            value={replaceSearchQuery}
-            onChange={(e) => setReplaceSearchQuery(e.target.value)}
-            style={{ marginBottom: 12 }}
-          />
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <Input
+              prefix={<SearchOutlined />}
+              placeholder="输入姓名、学号或“男”/“女”快速搜索..."
+              allowClear
+              autoFocus
+              value={replaceSearchQuery}
+              onChange={(e) => setReplaceSearchQuery(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <Segmented
+              value={replaceGenderFilter}
+              onChange={(val) => setReplaceGenderFilter(val as "ALL" | "MALE" | "FEMALE")}
+              options={[
+                { label: "全部", value: "ALL" },
+                { label: "男", value: "MALE" },
+                { label: "女", value: "FEMALE" },
+              ]}
+            />
+          </div>
           <div className="replace-student-list">
             {(data?.students ?? [])
-              .filter((s) => s.id !== replaceModalTarget.currentStudent.id)
+              .filter((s) => !replaceModalTarget.currentStudent || s.id !== replaceModalTarget.currentStudent.id)
               .filter((s) => {
+                const g = resolveStudentGender(s.gender, s.name);
+                if (replaceGenderFilter !== "ALL" && g.value !== replaceGenderFilter) {
+                  return false;
+                }
                 if (!replaceSearchQuery.trim()) return true;
                 const q = replaceSearchQuery.trim().toLowerCase();
-                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q);
+                const matchGender = (q === "男" && g.value === "MALE") || (q === "女" && g.value === "FEMALE");
+                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q) || matchGender;
               })
               .map((s) => {
                 const assignedPos = assignmentByStudent.get(s.id);
+                const g = resolveStudentGender(s.gender, s.name);
                 return (
                   <button
                     key={s.id}
@@ -1790,10 +2056,15 @@ export default function SeatingPage() {
                   >
                     <div className="replace-student-meta">
                       <span className="replace-student-name">{s.name}</span>
+                      <span className={`student-gender-badge student-gender-badge-${g.value.toLowerCase()}`}>
+                        {g.label}
+                      </span>
                       <span className="replace-student-no">{s.studentNo}</span>
                     </div>
                     {assignedPos ? (
-                      <Tag color="blue">在 {assignedPos.row}排{assignedPos.column}座 · 互换</Tag>
+                      <Tag color="blue">
+                        在 {assignedPos.row}排{assignedPos.column}座 · {replaceModalTarget.currentStudent ? "互换" : "调座"}
+                      </Tag>
                     ) : (
                       <Tag color="green">未安排 · 入座</Tag>
                     )}
@@ -1801,11 +2072,16 @@ export default function SeatingPage() {
                 );
               })}
             {(data?.students ?? [])
-              .filter((s) => s.id !== replaceModalTarget.currentStudent.id)
+              .filter((s) => !replaceModalTarget.currentStudent || s.id !== replaceModalTarget.currentStudent.id)
               .filter((s) => {
+                const g = resolveStudentGender(s.gender, s.name);
+                if (replaceGenderFilter !== "ALL" && g.value !== replaceGenderFilter) {
+                  return false;
+                }
                 if (!replaceSearchQuery.trim()) return true;
                 const q = replaceSearchQuery.trim().toLowerCase();
-                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q);
+                const matchGender = (q === "男" && g.value === "MALE") || (q === "女" && g.value === "FEMALE");
+                return s.name.toLowerCase().includes(q) || s.studentNo.toLowerCase().includes(q) || matchGender;
               }).length === 0 && (
               <div className="replace-student-empty">未搜索到匹配的学生</div>
             )}

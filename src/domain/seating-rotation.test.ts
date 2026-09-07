@@ -109,5 +109,23 @@ describe("seating-rotation domain engine", () => {
       const occupiedPositions = new Set(result.newAssignments.map((a) => `${a.row}-${a.column}`));
       expect(occupiedPositions.size).toBe(mockAssignments.length);
     });
+
+    it("respects disabled seats and does not place students into removed seats", () => {
+      const disabled = new Set([seatKey(2, 3)]);
+      const result = rotateSeatAssignments(
+        mockAssignments,
+        7,
+        8,
+        DEFAULT_ROTATION_SCHEME,
+        new Set(),
+        disabled,
+      );
+
+      const inDisabled = result.newAssignments.some((a) => a.row === 2 && a.column === 3);
+      expect(inDisabled).toBe(false);
+
+      const occupiedPositions = new Set(result.newAssignments.map((a) => `${a.row}-${a.column}`));
+      expect(occupiedPositions.size).toBe(mockAssignments.length);
+    });
   });
 });

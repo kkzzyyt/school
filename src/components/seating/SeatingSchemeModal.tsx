@@ -57,6 +57,7 @@ export interface SeatingSchemeModalProps {
   columns: number;
   students: readonly StudentInfo[];
   lockedSeatKeys: ReadonlySet<string>;
+  disabledSeatKeys?: ReadonlySet<string>;
 }
 
 export function SeatingSchemeModal({
@@ -68,6 +69,7 @@ export function SeatingSchemeModal({
   columns,
   students,
   lockedSeatKeys,
+  disabledSeatKeys = new Set(),
 }: SeatingSchemeModalProps) {
   const [customSchemes, setCustomSchemes] = useState<SeatingRotationScheme[]>([]);
   const [selectedSchemeId, setSelectedSchemeId] = useState<string>(DEFAULT_ROTATION_SCHEME.id);
@@ -116,8 +118,9 @@ export function SeatingSchemeModal({
       columns,
       activeScheme,
       lockedSeatKeys,
+      disabledSeatKeys,
     );
-  }, [currentAssignments, rows, columns, activeScheme, lockedSeatKeys]);
+  }, [currentAssignments, rows, columns, activeScheme, lockedSeatKeys, disabledSeatKeys]);
 
   // 原位置与新位置映射对比
   const positionDiffMap = useMemo(() => {

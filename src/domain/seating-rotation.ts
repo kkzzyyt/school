@@ -225,6 +225,7 @@ export function rotateSeatAssignments(
   columns: number,
   scheme: SeatingRotationScheme,
   lockedSeatKeys: ReadonlySet<string> = new Set(),
+  disabledSeatKeys: ReadonlySet<string> = new Set(),
 ): {
   newAssignments: SeatAssignment[];
   movedCount: number;
@@ -250,21 +251,25 @@ export function rotateSeatAssignments(
     }
   }
 
-  // 2. 处理锁定约束
+  // 2. 处理锁定与已删除空座约束
   const effectiveLockedKeys = scheme.options.respectLocks ? lockedSeatKeys : new Set<string>();
+  const cannotOccupy = (key: string) => effectiveLockedKeys.has(key) || disabledSeatKeys.has(key);
   const finalPositionMap = new Map<string, string>();
 
   for (let r = 1; r <= rows; r++) {
     for (let c = 1; c <= columns; c++) {
       const originKey = seatKey(r, c);
-      if (effectiveLockedKeys.has(originKey)) {
+      if (disabledSeatKeys.has(originKey)) {
+        // 已从画布删除的座位不参与分配
+        finalPositionMap.set(originKey, originKey);
+      } else if (effectiveLockedKeys.has(originKey)) {
         // 锁定座位保持不动
         finalPositionMap.set(originKey, originKey);
       } else {
-        // 沿置换环追踪直到找到未被锁定的目标位置
+        // 沿置换环追踪直到找到未被锁定且未被删除的目标位置
         let candidate = idealMap.get(originKey) ?? originKey;
         const visited = new Set<string>([originKey]);
-        while (effectiveLockedKeys.has(candidate) && !visited.has(candidate)) {
+        while (cannotOccupy(candidate) && !visited.has(candidate)) {
           visited.add(candidate);
           candidate = idealMap.get(candidate) ?? candidate;
         }

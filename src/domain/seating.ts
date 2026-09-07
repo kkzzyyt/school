@@ -93,12 +93,24 @@ export function createFixedFacilitiesFromLegacyRear(
   };
 }
 
+export interface DisabledSeatPosition {
+  row: number;
+  column: number;
+}
+
+export interface LockedSeatPosition {
+  row: number;
+  column: number;
+}
+
 export interface SeatingEnvironment {
   aisleAfterColumns: number[];
   left: SeatingSideLayout;
   right: SeatingSideLayout;
   rear: SeatingRearLayout;
   fixedFacilities?: SeatingFixedFacilities;
+  disabledSeats?: DisabledSeatPosition[];
+  lockedSeats?: LockedSeatPosition[];
 }
 
 export interface SeatingEnvironmentInput {
@@ -109,6 +121,8 @@ export interface SeatingEnvironmentInput {
   right: SeatingSideLayoutInput;
   rear?: SeatingRearLayoutInput;
   fixedFacilities?: SeatingFixedFacilitiesInput;
+  disabledSeats?: readonly DisabledSeatPosition[];
+  lockedSeats?: readonly LockedSeatPosition[];
 }
 
 export interface SeatingEnvironmentValidationOptions {
@@ -272,6 +286,52 @@ function normalizeLegacyAisleColumns(columns: readonly number[]): number[] {
   return sortedColumns.map((column, index) => column - index - 1);
 }
 
+function normalizeDisabledSeats(
+  input: readonly DisabledSeatPosition[] | undefined,
+  rows: number,
+  columns: number | undefined,
+): DisabledSeatPosition[] | undefined {
+  if (!input || !input.length) return undefined;
+  const maxCol = columns ?? MAX_SEAT_DIMENSION;
+  const seen = new Set<string>();
+  const normalized: DisabledSeatPosition[] = [];
+
+  for (const item of input) {
+    if (!Number.isInteger(item.row) || !Number.isInteger(item.column)) continue;
+    if (item.row < 1 || item.row > rows || item.column < 1 || item.column > maxCol) continue;
+    const key = `${item.row}:${item.column}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({ row: item.row, column: item.column });
+  }
+
+  normalized.sort((a, b) => a.row - b.row || a.column - b.column);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeLockedSeats(
+  input: readonly LockedSeatPosition[] | undefined,
+  rows: number,
+  columns: number | undefined,
+): LockedSeatPosition[] | undefined {
+  if (!input || !input.length) return undefined;
+  const maxCol = columns ?? MAX_SEAT_DIMENSION;
+  const seen = new Set<string>();
+  const normalized: LockedSeatPosition[] = [];
+
+  for (const item of input) {
+    if (!Number.isInteger(item.row) || !Number.isInteger(item.column)) continue;
+    if (item.row < 1 || item.row > rows || item.column < 1 || item.column > maxCol) continue;
+    const key = `${item.row}:${item.column}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({ row: item.row, column: item.column });
+  }
+
+  normalized.sort((a, b) => a.row - b.row || a.column - b.column);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export function validateSeatingEnvironment(
   environment: SeatingEnvironmentInput,
   rows: number,
@@ -332,6 +392,8 @@ export function validateSeatingEnvironment(
     throw new SeatingValidationError("INVALID_REAR_FEATURES");
   }
   const fixedFacilities = normalizeFixedFacilities(environment.fixedFacilities, rows, columns);
+  const disabledSeats = normalizeDisabledSeats(environment.disabledSeats, rows, columns);
+  const lockedSeats = normalizeLockedSeats(environment.lockedSeats, rows, columns);
 
   return {
     aisleAfterColumns,
@@ -339,6 +401,8 @@ export function validateSeatingEnvironment(
     right: normalizedSides[1],
     rear,
     ...(fixedFacilities === undefined ? {} : { fixedFacilities }),
+    ...(disabledSeats === undefined ? {} : { disabledSeats }),
+    ...(lockedSeats === undefined ? {} : { lockedSeats }),
   };
 }
 
