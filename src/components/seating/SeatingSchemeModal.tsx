@@ -208,8 +208,13 @@ export function SeatingSchemeModal({
       open={open}
       onCancel={onCancel}
       width={860}
+      centered
       destroyOnHidden
       className="seating-scheme-modal"
+      style={{ top: 16, paddingBottom: 16 }}
+      styles={{
+        body: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingRight: 6 },
+      }}
       footer={[
         <Button key="cancel" onClick={onCancel}>
           取消

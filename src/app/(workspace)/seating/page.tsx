@@ -303,7 +303,6 @@ export default function SeatingPage() {
   const [studentPoolQuery, setStudentPoolQuery] = useState("");
   const [draggingStudentPool, setDraggingStudentPool] = useState(false);
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
-  const [aisleSettingsModalOpen, setAisleSettingsModalOpen] = useState(false);
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
   const [lockedSeatKeys, setLockedSeatKeys] = useState<Set<string>>(new Set());
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
@@ -989,6 +988,10 @@ export default function SeatingPage() {
     const nextRows = pendingDimensions.rows;
     const nextColumns = pendingDimensions.columns;
     const nextEnvironment = cloneEnvironment(pendingDimensions.environment);
+    nextEnvironment.aisleAfterColumns = nextEnvironment.aisleAfterColumns.filter(
+      (column) => column < nextColumns,
+    );
+
     if (
       nextRows === draft.rows
       && nextColumns === draft.columns
@@ -1019,7 +1022,7 @@ export default function SeatingPage() {
         displacedAssignments.length ? `${displacedAssignments.length} 位学生将回到待安排` : "",
       ].filter(Boolean).join("；");
       modal.confirm({
-        title: "确认应用新的座位规格？",
+        title: "确认应用新的座位规格与过道？",
         content: details,
         okText: "继续调整",
         cancelText: "取消",
@@ -1028,17 +1031,6 @@ export default function SeatingPage() {
       return;
     }
     apply();
-  }
-
-  function openAisleSettings() {
-    if (!draft) return;
-    dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
-    setAisleSettingsModalOpen(true);
-  }
-
-  function cancelAisleSettings() {
-    if (draft) dispatch({ type: "setPendingDimensions", dimensions: pendingDimensionsFor(draft) });
-    setAisleSettingsModalOpen(false);
   }
 
   function updatePendingAisles(values: readonly unknown[]) {
@@ -1057,17 +1049,6 @@ export default function SeatingPage() {
       type: "setPendingDimensions",
       dimensions: { ...pendingDimensions, environment },
     });
-  }
-
-  function applyAisleSettings() {
-    if (!isEditing || !draft) return;
-    const environment = cloneEnvironment(pendingDimensions.environment);
-    if (sameNumberList(environment.aisleAfterColumns, draft.environment.aisleAfterColumns)) {
-      setAisleSettingsModalOpen(false);
-      return;
-    }
-    commitDraft({ ...draft, environment });
-    setAisleSettingsModalOpen(false);
   }
 
   async function saveLayout() {
@@ -1467,14 +1448,7 @@ export default function SeatingPage() {
                       icon={<SettingOutlined />}
                       onClick={openLayoutSettings}
                     >
-                      座位布局
-                    </Button>
-                    <Button
-                      className="seating-settings-button"
-                      icon={<ColumnWidthOutlined />}
-                      onClick={openAisleSettings}
-                    >
-                      过道设置
+                      座位布局与过道
                     </Button>
                   </Space>}
                   <div className="seating-view-controls" aria-label="画布显示选项">
@@ -1622,9 +1596,9 @@ export default function SeatingPage() {
       </LedgerSheet>
       <Modal
         className="seating-settings-modal"
-        title="座位布局"
+        title="座位布局与过道设置"
         open={layoutSettingsModalOpen}
-        width={560}
+        width={580}
         destroyOnHidden
         onCancel={cancelLayoutSettings}
         onOk={applyDimensions}
@@ -1636,8 +1610,8 @@ export default function SeatingPage() {
             <section className="seating-settings-section">
               <div className="seating-settings-section-heading">
                 <div>
-                  <h3>座位布局</h3>
-                  <p>调整座位排数与列数，过道设置保持独立。</p>
+                  <h3>座位规格</h3>
+                  <p>调整座位排数与列数（最大 12 排 × 12 列）。</p>
                 </div>
                 <Tag>{pendingDimensions.rows} × {pendingDimensions.columns}</Tag>
               </div>
@@ -1663,34 +1637,15 @@ export default function SeatingPage() {
                   />
                 </label>
               </div>
-              <div className="seating-settings-capacity">
-                <span>可用座位</span>
-                <strong>{pendingDimensions.rows * pendingDimensions.columns} 个</strong>
-              </div>
             </section>
-          </div>
-        )}
-      </Modal>
-      <Modal
-        className="seating-settings-modal"
-        title="过道设置"
-        open={aisleSettingsModalOpen}
-        width={560}
-        destroyOnHidden
-        onCancel={cancelAisleSettings}
-        onOk={applyAisleSettings}
-        okText="应用过道"
-        cancelText="取消"
-      >
-        {draft && (
-          <div className="seating-settings-content">
+
             <section className="seating-settings-section">
               <div className="seating-settings-section-heading">
                 <div>
                   <h3>过道插入位置</h3>
-                  <p>过道插入在指定座位列之后，不占用座位列。</p>
+                  <p>过道插入在指定座位列之后，形成学生通行的走道。</p>
                 </div>
-                <Tag>{pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条</Tag>
+                <Tag>{pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条过道</Tag>
               </div>
               <div className="seating-aisle-options">
                 <Checkbox.Group
@@ -1704,12 +1659,13 @@ export default function SeatingPage() {
                   onChange={updatePendingAisles}
                 />
               </div>
-              <div className="seating-settings-capacity">
-                <span>座位容量</span>
-                <strong>{pendingDimensions.rows * pendingDimensions.columns} 个</strong>
-                <small>当前绘制 {pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条过道</small>
-              </div>
             </section>
+
+            <div className="seating-settings-capacity">
+              <span>座位容量</span>
+              <strong>{pendingDimensions.rows * pendingDimensions.columns} 个</strong>
+              <small>当前绘制 {pendingDimensions.environment.aisleAfterColumns.filter((column) => column < pendingDimensions.columns).length} 条过道</small>
+            </div>
           </div>
         )}
       </Modal>

@@ -617,27 +617,21 @@ test("座次页可以打印并在打印媒体隐藏编辑工具", async ({ page 
   expect(printStyles.mapFilter).toContain("grayscale");
 });
 
-test("座位布局、过道与教室标记使用独立交互", async ({ page }) => {
+test("座位布局与过道设置合并交互", async ({ page }) => {
   await login(page);
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
-  await page.getByRole("button", { name: "座位布局" }).click();
+  await page.getByRole("button", { name: "座位布局与过道" }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "座位布局" })).toBeVisible();
-  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
-  await expect(dialog.getByText("教室标记", { exact: true })).toHaveCount(0);
-  await page.locator(".ant-modal-footer").getByRole("button", { name: /取\s*消/ }).click();
-  await expect(page.getByText("有未保存修改", { exact: true })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "过道设置" }).click();
-  const aisleDialog = page.getByRole("dialog");
-  await expect(aisleDialog.getByRole("heading", { name: "过道插入位置" })).toBeVisible();
-  await expect(aisleDialog.getByRole("checkbox", { name: "第 2 列后" })).toBeVisible();
-  await aisleDialog.getByRole("checkbox", { name: "第 1 列后" }).click();
-  await aisleDialog.locator(".ant-modal-footer").getByRole("button", { name: "应用过道" }).click();
-  await expect(aisleDialog).toBeHidden();
+  await expect(dialog.getByRole("heading", { name: "座位布局与过道设置" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "座位规格" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "过道插入位置" })).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: "第 2 列后" })).toBeVisible();
+  await dialog.getByRole("checkbox", { name: "第 1 列后" }).click();
+  await dialog.locator(".ant-modal-footer").getByRole("button", { name: "应用设置" }).click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByText("有未保存修改", { exact: true })).toBeVisible();
 
   await expect(page.locator('[data-side="left"][data-marker-row="1"]')).toHaveCount(1);
