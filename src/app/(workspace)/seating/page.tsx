@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ApartmentOutlined,
   CloseOutlined,
   ColumnWidthOutlined,
   DragOutlined,
@@ -9,6 +10,7 @@ import {
   EyeOutlined,
   FileExcelOutlined,
   HolderOutlined,
+  LockOutlined,
   LoginOutlined,
   PlusOutlined,
   PrinterOutlined,
@@ -18,6 +20,7 @@ import {
   SaveOutlined,
   SettingOutlined,
   SwapOutlined,
+  SyncOutlined,
   TeamOutlined,
   UndoOutlined,
   WindowsOutlined,
@@ -41,6 +44,7 @@ import type { MenuProps } from "antd";
 import { Fragment, type CSSProperties, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { LedgerSheet } from "@/components/layout/LedgerSheet";
+import { SeatingSchemeModal } from "@/components/seating/SeatingSchemeModal";
 import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
@@ -53,6 +57,13 @@ import {
   type SeatingEnvironment,
   type SeatingSideLayout,
 } from "@/domain/seating";
+import {
+  DEFAULT_ROTATION_SCHEME,
+  PRESET_ROTATION_SCHEMES,
+  rotateSeatAssignments,
+  seatKey,
+  type SeatingRotationScheme,
+} from "@/domain/seating-rotation";
 import { resolveStudentGender, type StudentGenderValue } from "@/domain/student-gender";
 import { useApiData } from "@/hooks/useApiData";
 import { apiRequest } from "@/lib/api";
@@ -293,6 +304,8 @@ export default function SeatingPage() {
   const [draggingStudentPool, setDraggingStudentPool] = useState(false);
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
   const [aisleSettingsModalOpen, setAisleSettingsModalOpen] = useState(false);
+  const [schemeModalOpen, setSchemeModalOpen] = useState(false);
+  const [lockedSeatKeys, setLockedSeatKeys] = useState<Set<string>>(new Set());
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
   const studentPoolCanvasRef = useRef<HTMLElement>(null);
   const studentPoolPanelRef = useRef<HTMLElement>(null);
@@ -686,8 +699,57 @@ export default function SeatingPage() {
     else clearSeat(row, column);
   }
 
-  function seatActionMenuItems(currentStudentId: string): NonNullable<MenuProps["items"]> {
+  function toggleSeatLock(row: number, column: number) {
+    const key = seatKey(row, column);
+    setLockedSeatKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        message.info(`已解锁 第 ${row} 排 ${column} 座`);
+      } else {
+        next.add(key);
+        message.success(`已锁定 第 ${row} 排 ${column} 座（自动排座不移动）`);
+      }
+      return next;
+    });
+  }
+
+  function applyQuickScheme(scheme: SeatingRotationScheme) {
+    if (!draft) return;
+    const result = rotateSeatAssignments(
+      draft.assignments,
+      draft.rows,
+      draft.columns,
+      scheme,
+      lockedSeatKeys,
+    );
+    commitDraft({
+      ...draft,
+      assignments: result.newAssignments,
+    });
+    message.success(
+      `已应用「${scheme.name}」：轮换 ${result.movedCount} 名学生${
+        result.lockedCount > 0 ? `，保持锁定 ${result.lockedCount} 席` : ""
+      }`,
+    );
+  }
+
+  function handleApplySchemeModal(newAssignments: Assignment[]) {
+    if (!draft) return;
+    commitDraft({
+      ...draft,
+      assignments: newAssignments,
+    });
+  }
+
+  function seatActionMenuItems(row: number, column: number, currentStudentId: string): NonNullable<MenuProps["items"]> {
+    const isLocked = lockedSeatKeys.has(seatKey(row, column));
     return [
+      {
+        key: "toggle-lock",
+        icon: <LockOutlined style={isLocked ? { color: "var(--gold-accent)" } : undefined} />,
+        label: isLocked ? "解锁座位（允许自动排座）" : "锁定此座（自动排座不移动）",
+      },
       { key: "remove-seat", danger: true, label: "移出座位" },
       { type: "divider" },
       ...(data?.students ?? [])
@@ -697,6 +759,11 @@ export default function SeatingPage() {
   }
 
   function handleSeatActionMenu(row: number, column: number, key: string) {
+    if (key === "toggle-lock") {
+      toggleSeatLock(row, column);
+      setSeatActionMenuKey(null);
+      return;
+    }
     if (key === "remove-seat") {
       clearSeat(row, column);
       return;
@@ -1348,6 +1415,53 @@ export default function SeatingPage() {
                 </div>
                 <div className="seating-canvas-options">
                   {isEditing && <Space className="seating-settings-actions">
+                    <Dropdown
+                      menu={{
+                        items: [
+                          {
+                            key: "quick-default",
+                            icon: <SyncOutlined style={{ color: "var(--primary)" }} />,
+                            label: "边列进中 · 集体后移一排（默认）",
+                            onClick: () => applyQuickScheme(DEFAULT_ROTATION_SCHEME),
+                          },
+                          {
+                            key: "quick-cycle",
+                            icon: <ApartmentOutlined />,
+                            label: "大组向右循环 · 集体后移一排",
+                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[1]),
+                          },
+                          {
+                            key: "quick-mirror",
+                            icon: <SwapOutlined />,
+                            label: "左右大组对调 · 排数不动",
+                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[2]),
+                          },
+                          {
+                            key: "quick-forward",
+                            icon: <RollbackOutlined style={{ transform: "rotate(90deg)" }} />,
+                            label: "全班集体前移一排",
+                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[3]),
+                          },
+                          { type: "divider" },
+                          {
+                            key: "open-custom-modal",
+                            icon: <SettingOutlined />,
+                            label: "自定义轮换方案...",
+                            onClick: () => setSchemeModalOpen(true),
+                          },
+                        ],
+                      }}
+                      trigger={["click"]}
+                    >
+                      <Button
+                        className="seating-settings-button"
+                        icon={<SyncOutlined />}
+                        type="primary"
+                        ghost
+                      >
+                        自动排座
+                      </Button>
+                    </Dropdown>
                     <Button
                       className="seating-settings-button"
                       icon={<SettingOutlined />}
@@ -1424,7 +1538,7 @@ export default function SeatingPage() {
                                               open={seatActionMenuKey === positionKey}
                                               onOpenChange={(open) => setSeatActionMenuKey(open ? positionKey : null)}
                                               menu={{
-                                                items: seatActionMenuItems(student.id),
+                                                items: seatActionMenuItems(row, column, student.id),
                                                 onClick: ({ key }) => handleSeatActionMenu(row, column, String(key)),
                                               }}
                                               classNames={{ root: "seat-replacement-menu" }}
@@ -1450,11 +1564,21 @@ export default function SeatingPage() {
                                                 onDragStart={(event) => { setSeatActionMenuKey(null); startStudentDrag(event, student.id); }}
                                                 onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
                                               >
+                                                {lockedSeatKeys.has(positionKey) && (
+                                                  <span className="seat-lock-badge" title="已锁定座位（自动排座不移动）">
+                                                    <LockOutlined />
+                                                  </span>
+                                                )}
                                                 <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
                                               </button>
                                             </Dropdown>
                                           ) : (
                                             <div className={`seat-student seat-student-readonly ${studentToneClass(student)}`} aria-label={`${row}排${column}座，${student.name}`}>
+                                              {lockedSeatKeys.has(positionKey) && (
+                                                <span className="seat-lock-badge" title="已锁定座位（自动排座不移动）">
+                                                  <LockOutlined />
+                                                </span>
+                                              )}
                                               <span className="seat-student-copy"><strong className="seat-student-name" title={student.name}>{student.name}</strong></span>
                                             </div>
                                           )}
@@ -1589,6 +1713,18 @@ export default function SeatingPage() {
           </div>
         )}
       </Modal>
+      {draft && (
+        <SeatingSchemeModal
+          open={schemeModalOpen}
+          onCancel={() => setSchemeModalOpen(false)}
+          onApply={handleApplySchemeModal}
+          currentAssignments={draft.assignments}
+          rows={draft.rows}
+          columns={draft.columns}
+          students={data?.students ?? []}
+          lockedSeatKeys={lockedSeatKeys}
+        />
+      )}
     </>
   );
 }
