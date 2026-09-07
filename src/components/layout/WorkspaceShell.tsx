@@ -3,8 +3,6 @@
 import {
   AppstoreOutlined,
   ApartmentOutlined,
-  BarChartOutlined,
-  CalendarOutlined,
   CloseOutlined,
   IdcardOutlined,
   LogoutOutlined,
@@ -12,10 +10,8 @@ import {
   MenuOutlined,
   MenuUnfoldOutlined,
   PhoneOutlined,
-  ReadOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
 import { App, Avatar, Button, Drawer, Dropdown, Layout, Menu } from "antd";
 import type { MenuProps } from "antd";
@@ -31,10 +27,6 @@ const workspaceMenuItems: NonNullable<MenuProps["items"]> = [
   { key: "/seating", icon: <IdcardOutlined />, label: "座次表" },
   { key: "/students", icon: <TeamOutlined />, label: "花名册" },
   { key: "/contacts", icon: <PhoneOutlined />, label: "家长通讯录" },
-  { key: "/duties", icon: <CalendarOutlined />, label: "值日表" },
-  { key: "/grades", icon: <BarChartOutlined />, label: "成绩分析" },
-  { key: "/committee", icon: <UserOutlined />, label: "班委名单" },
-  { key: "/timetable", icon: <ReadOutlined />, label: "课程表" },
 ];
 
 const adminMenuItems: NonNullable<MenuProps["items"]> = [

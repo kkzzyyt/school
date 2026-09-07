@@ -83,10 +83,12 @@ describe("WorkspaceShell Mobile Responsive Navigation", () => {
     // 3. 点击顶部系统菜单按钮打开移动端抽屉
     fireEvent.click(menuButtons[0]);
     expect(screen.getByText("全部功能导航")).toBeInTheDocument();
-    expect(screen.getAllByText("值日表").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("成绩分析").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("班委名单").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("课程表").length).toBeGreaterThan(0);
+    expect(screen.queryByText("值日表")).toBeNull();
+    expect(screen.queryByText("成绩分析")).toBeNull();
+    expect(screen.queryByText("班委名单")).toBeNull();
+    expect(screen.queryByText("课程表")).toBeNull();
+    expect(screen.getAllByText("座次表").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("家长通讯录").length).toBeGreaterThan(0);
 
     // 4. 验证主体内容正常渲染
     expect(screen.getByText("页面主体内容")).toBeInTheDocument();
