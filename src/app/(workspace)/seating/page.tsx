@@ -756,6 +756,10 @@ export default function SeatingPage() {
 
   function handleDeleteSeat(row: number, column: number) {
     if (!isEditing || !draft) return;
+    if (assignmentByPosition.has(`${row}-${column}`)) {
+      message.warning("只有空座才可以删除，请先将学生移出座位");
+      return;
+    }
     const currentDisabled = draft.environment.disabledSeats ?? [];
     if (currentDisabled.some((s) => s.row === row && s.column === column)) return;
 
@@ -843,12 +847,6 @@ export default function SeatingPage() {
         danger: true,
         icon: <CloseOutlined />,
         label: "移出座位（变为空座）",
-      },
-      {
-        key: "delete-seat",
-        danger: true,
-        icon: <DeleteOutlined />,
-        label: "删除此座（从画布移除）",
       },
     ];
   }
