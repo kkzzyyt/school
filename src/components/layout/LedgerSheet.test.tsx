@@ -29,4 +29,24 @@ describe("LedgerSheet", () => {
     expect(screen.getByText("学生名录内容")).toBeInTheDocument();
     expect(screen.getByText("SEC. A-01")).toBeInTheDocument();
   });
+
+  it("triggers onTitleClick callback when title is clicked", () => {
+    let clicked = false;
+    render(
+      <LedgerSheet
+        kicker="SEATING"
+        title="班级座次表"
+        description="座次说明"
+        onTitleClick={() => {
+          clicked = true;
+        }}
+      >
+        <div>内容</div>
+      </LedgerSheet>,
+    );
+
+    const titleEl = screen.getByRole("heading", { level: 1, name: "班级座次表" });
+    titleEl.click();
+    expect(clicked).toBe(true);
+  });
 });

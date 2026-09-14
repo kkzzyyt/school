@@ -62,7 +62,7 @@ test("座位和课程格具有唯一可访问名称", async ({ page }) => {
   await login(page);
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
-  await expect(page.locator(".seating-sidebar-floating")).toBeVisible();
+  await expect(page.getByText("编辑中")).toBeVisible();
   const assignedSeats = page.getByRole("button", { name: /第 \d+ 排 \d+ 座，.+。打开座位操作/ });
   await expect(assignedSeats).not.toHaveCount(0);
   const assignedSeat = assignedSeats.first();

@@ -126,5 +126,41 @@ describe("seating-rotation domain engine", () => {
       const occupiedPositions = new Set(result.newAssignments.map((a) => `${a.row}-${a.column}`));
       expect(occupiedPositions.size).toBe(mockAssignments.length);
     });
+
+    it("mirrors rows with mirror-rows scheme", () => {
+      const mirrorRowsScheme = {
+        id: "mirror-rows",
+        name: "前后排镜像对调",
+        description: "",
+        rowShift: { direction: "MIRROR" as const, step: 0 },
+        columnShift: { mode: "NONE" as const, groupWidth: 2 },
+        options: { respectLocks: true },
+      };
+      const result = rotateSeatAssignments(mockAssignments, 7, 8, mirrorRowsScheme);
+      // (1, 1) -> (7, 1)
+      const s1 = result.newAssignments.find((a) => a.studentId === "s1");
+      expect(s1).toEqual({ studentId: "s1", row: 7, column: 1 });
+      // (7, 1) -> (1, 1)
+      const s7 = result.newAssignments.find((a) => a.studentId === "s7");
+      expect(s7).toEqual({ studentId: "s7", row: 1, column: 1 });
+    });
+
+    it("mirrors both rows and columns with mirror-both scheme", () => {
+      const mirrorBothScheme = {
+        id: "mirror-both",
+        name: "整班180度翻转",
+        description: "",
+        rowShift: { direction: "MIRROR" as const, step: 0 },
+        columnShift: { mode: "COLUMN_MIRROR" as const, groupWidth: 2 },
+        options: { respectLocks: true },
+      };
+      const result = rotateSeatAssignments(mockAssignments, 7, 8, mirrorBothScheme);
+      // (1, 1) -> (7, 8)
+      const s1 = result.newAssignments.find((a) => a.studentId === "s1");
+      expect(s1).toEqual({ studentId: "s1", row: 7, column: 8 });
+      // (7, 1) -> (1, 8)
+      const s7 = result.newAssignments.find((a) => a.studentId === "s7");
+      expect(s7).toEqual({ studentId: "s7", row: 1, column: 8 });
+    });
   });
 });

@@ -6,7 +6,8 @@ export type RotationColumnMode =
   | "GROUP_CYCLE_RIGHT" // 大组向右循环
   | "GROUP_CYCLE_LEFT" // 大组向左循环
   | "COLUMN_MIRROR" // 左右镜像翻转
-  | "CUSTOM_MAP"; // 自定义列映射
+  | "CUSTOM_MAP" // 自定义列映射
+  | "NONE"; // 列数保持不变
 
 export interface SeatingRotationScheme {
   id: string;
@@ -96,6 +97,40 @@ export const PRESET_ROTATION_SCHEMES: readonly SeatingRotationScheme[] = [
       respectLocks: true,
     },
   },
+  {
+    id: "mirror-rows",
+    name: "前后排镜像对调 · 讲台朝向互换",
+    description: "全班前后排镜像翻转（第 1 排与末排互换），左右列数保持不变，适用于讲台朝向切换。",
+    isPreset: true,
+    rowShift: {
+      direction: "MIRROR",
+      step: 0,
+    },
+    columnShift: {
+      mode: "NONE",
+      groupWidth: 2,
+    },
+    options: {
+      respectLocks: true,
+    },
+  },
+  {
+    id: "mirror-both",
+    name: "整班180度翻转 · 讲台与左右均对调",
+    description: "全班前后与左右同时镜像对调，适用于从讲台视角全景翻转重排座次。",
+    isPreset: true,
+    rowShift: {
+      direction: "MIRROR",
+      step: 0,
+    },
+    columnShift: {
+      mode: "COLUMN_MIRROR",
+      groupWidth: 2,
+    },
+    options: {
+      respectLocks: true,
+    },
+  },
 ];
 
 export const DEFAULT_ROTATION_SCHEME = PRESET_ROTATION_SCHEMES[0];
@@ -142,6 +177,10 @@ export function calculateColumnShift(
   if (mode === "CUSTOM_MAP" && customMap && customMap[column]) {
     const target = customMap[column];
     if (target >= 1 && target <= totalColumns) return target;
+  }
+
+  if (mode === "NONE") {
+    return column;
   }
 
   if (mode === "COLUMN_MIRROR") {

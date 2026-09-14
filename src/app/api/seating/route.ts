@@ -231,8 +231,9 @@ export async function GET() {
     const context = await requireAuthContext();
     const classroom = await prisma.classroom.findUnique({
       where: { id: context.classId },
-      select: { seatRows: true, seatColumns: true, seatingEnvironment: true, updatedAt: true },
+      select: { name: true, seatRows: true, seatColumns: true, seatingEnvironment: true, updatedAt: true },
     });
+    const className = classroom?.name || context.className || "";
     const rows = classroom?.seatRows ?? DEFAULT_SEATING_ROWS;
     const storedColumns = classroom?.seatColumns ?? DEFAULT_SEATING_COLUMNS;
     const [students, assignments] = await Promise.all([
@@ -256,6 +257,7 @@ export async function GET() {
       : storedColumns;
 
     return {
+      className,
       rows,
       columns,
       revision: classroom?.updatedAt ? classroom.updatedAt.toISOString() : null,

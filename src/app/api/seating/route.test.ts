@@ -351,6 +351,7 @@ describe("seating route handlers", () => {
     expect(body).toMatchObject({
       success: true,
       data: {
+        className: "高二（3）班",
         rows: 2,
         columns: 4,
       environment: {

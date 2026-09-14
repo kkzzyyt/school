@@ -10,8 +10,9 @@ export interface LedgerMetric {
 
 interface LedgerSheetProps {
   kicker: string;
-  title: string;
+  title: ReactNode;
   description: string;
+  onTitleClick?: () => void;
   actions?: ReactNode;
   metrics?: LedgerMetric[];
   footer?: ReactNode;
@@ -23,6 +24,7 @@ export function LedgerSheet({
   kicker,
   title,
   description,
+  onTitleClick,
   actions,
   metrics = [],
   footer,
@@ -39,7 +41,13 @@ export function LedgerSheet({
             <span className="ledger-sheet-vol-tag font-mono">VOL. 2026 // DOSSIER</span>
             <span className="ledger-sheet-kicker font-mono">ACADEMIC LEDGER · {kicker}</span>
           </div>
-          <h1 className="ledger-sheet-title">{title}</h1>
+          <h1
+            className="ledger-sheet-title"
+            onClick={onTitleClick}
+            style={onTitleClick ? { cursor: "pointer", userSelect: "none" } : undefined}
+          >
+            {title}
+          </h1>
           <p className="ledger-sheet-description">{description}</p>
         </div>
 

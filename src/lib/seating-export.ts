@@ -1,5 +1,4 @@
 import {
-  DEFAULT_SEATING_SIDE_MARKER_ROWS,
   createFixedFacilitiesFromLegacyRear,
   getSeatingAisleAfterColumns,
   type SeatingEnvironment,
@@ -19,11 +18,14 @@ export interface SeatingExportAssignment {
 }
 
 export interface SeatingExportInput {
+  className?: string;
   rows: number;
   columns: number;
   students: readonly SeatingExportStudent[];
   assignments: readonly SeatingExportAssignment[];
   environment?: SeatingEnvironment;
+  podiumPosition?: "TOP" | "BOTTOM";
+  mirrorColumns?: boolean;
 }
 
 export type SeatingExportTrack =
@@ -100,7 +102,7 @@ function seatValue(
 ) {
   const assignment = assignmentByPosition.get(`${row}-${column}`);
   const student = assignment ? studentById.get(assignment.studentId) : undefined;
-  return student ? safeCellText(student.name) : assignment ? "未知学生" : "空座";
+  return student ? safeCellText(student.name) : assignment ? "未知学生" : "";
 }
 
 interface SeatingExportFacility {
@@ -144,50 +146,92 @@ function boundaryLabel(
 
 export function buildSeatingMatrix(input: SeatingExportInput): string[][] {
   const { rows, columns, studentById, assignmentByPosition } = createIndexes(input);
+  const isPodiumBottom = input.podiumPosition === "BOTTOM";
+  const mirrorColumns = Boolean(input.mirrorColumns);
 
   if (input.environment) {
-    const tracks = getSeatingExportTracks(input);
+    const originalTracks = getSeatingExportTracks(input);
+    const tracks = mirrorColumns ? [...originalTracks].reverse() : originalTracks;
     const facilities = getFixedFacilities(input.environment, rows, columns);
-    const visualRowCount = Math.max(rows, DEFAULT_SEATING_SIDE_MARKER_ROWS);
     const physicalColumnCount = tracks.length + 3;
-    const matrix: string[][] = [
-      ["班级座次表", ...emptyCells(physicalColumnCount - 1)],
-      [`面向讲台 · ${rows} 排 · ${columns} 个座位/排`, ...emptyCells(physicalColumnCount - 1)],
-      ["前方", boundaryLabel("讲台", facilities, "FRONT"), ...emptyCells(physicalColumnCount - 2)],
-      [
-        "左侧",
-        "排\\座",
-        ...tracks.map((track) => track.type === "SEAT" ? `第 ${track.seatColumn} 座` : "过道"),
-        "右侧",
-      ],
+
+    const rowList = isPodiumBottom
+      ? Array.from({ length: rows }, (_, index) => rows - index)
+      : Array.from({ length: rows }, (_, index) => index + 1);
+
+    const leftSide = mirrorColumns ? "right" : "left";
+    const rightSide = mirrorColumns ? "left" : "right";
+
+    const podiumRow = ["", boundaryLabel("讲台", facilities, "FRONT"), ...emptyCells(physicalColumnCount - 2)];
+
+    const headerRow = [
+      "",
+      "排\\座",
+      ...tracks.map((track) => track.type === "SEAT" ? `第 ${track.seatColumn} 座` : "过道"),
+      "",
     ];
 
-    for (let row = 1; row <= visualRowCount; row += 1) {
-      matrix.push([
-        sideMarker(input.environment, facilities, "left", row),
-        `第 ${row} 排`,
-        ...tracks.map((track) => (
-          track.type === "AISLE" || row > rows
-            ? ""
-            : seatValue(row, track.seatColumn, assignmentByPosition, studentById)
-        )),
-        sideMarker(input.environment, facilities, "right", row),
-      ]);
+    const bodyRows = rowList.map((row) => [
+      sideMarker(input.environment!, facilities, leftSide, row),
+      `第 ${row} 排`,
+      ...tracks.map((track) => (
+        track.type === "AISLE" || row > rows
+          ? ""
+          : seatValue(row, track.seatColumn, assignmentByPosition, studentById)
+      )),
+      sideMarker(input.environment!, facilities, rightSide, row),
+    ]);
+
+    const rawClass = input.className?.trim();
+    const title = rawClass
+      ? (rawClass.endsWith("班") ? `${rawClass}座次表` : `${rawClass}班座次表`)
+      : "班级座次表";
+
+    const matrix: string[][] = [
+      [title, ...emptyCells(physicalColumnCount - 1)],
+    ];
+
+    const hasBackFacility = facilities.some((f) => f.placement.side === "BACK");
+    const backRow = hasBackFacility
+      ? ["", boundaryLabel("教室后墙", facilities, "BACK"), ...emptyCells(physicalColumnCount - 2)]
+      : null;
+
+    if (isPodiumBottom) {
+      if (backRow) matrix.push(backRow);
+      matrix.push(headerRow);
+      matrix.push(...bodyRows);
+      matrix.push(podiumRow);
+    } else {
+      matrix.push(podiumRow);
+      matrix.push(headerRow);
+      matrix.push(...bodyRows);
+      if (backRow) matrix.push(backRow);
     }
 
-    matrix.push(["后方", boundaryLabel("教室后墙", facilities, "BACK"), ...emptyCells(physicalColumnCount - 2)]);
     return matrix;
   }
 
+  const rawClass = input.className?.trim();
+  const title = rawClass
+    ? (rawClass.endsWith("班") ? `${rawClass}座次表` : `${rawClass}班座次表`)
+    : "班级座次表";
+
+  const colList = mirrorColumns
+    ? Array.from({ length: columns }, (_, index) => columns - index)
+    : Array.from({ length: columns }, (_, index) => index + 1);
+
+  const rowList = isPodiumBottom
+    ? Array.from({ length: rows }, (_, index) => rows - index)
+    : Array.from({ length: rows }, (_, index) => index + 1);
+
   const matrix: string[][] = [
-    ["班级座次表", ...Array.from({ length: columns }, () => "")],
-    [`面向讲台 · ${rows} 排 · ${columns} 个座位/排`, ...Array.from({ length: columns }, () => "")],
-    ["排\\座", ...Array.from({ length: columns }, (_, index) => `第 ${index + 1} 座`)],
+    [title, ...Array.from({ length: columns }, () => "")],
+    ["排\\座", ...colList.map((column) => `第 ${column} 座`)],
   ];
 
-  for (let row = 1; row <= rows; row += 1) {
+  for (const row of rowList) {
     const values = [`第 ${row} 排`];
-    for (let column = 1; column <= columns; column += 1) {
+    for (const column of colList) {
       values.push(seatValue(row, column, assignmentByPosition, studentById));
     }
     matrix.push(values);
@@ -221,9 +265,13 @@ export function buildSeatingRosterRows(input: SeatingExportInput): SeatingExport
     });
 }
 
-export function getSeatingExportFilename(now = new Date()) {
+export function getSeatingExportFilename(now = new Date(), className?: string) {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  return `班级座次表-${year}${month}${day}.xlsx`;
+  const rawClass = className?.trim();
+  const baseName = rawClass
+    ? (rawClass.endsWith("班") ? `${rawClass}座次表` : `${rawClass}班座次表`)
+    : "班级座次表";
+  return `${baseName}-${year}${month}${day}.xlsx`;
 }

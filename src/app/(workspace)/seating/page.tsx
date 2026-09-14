@@ -7,10 +7,7 @@ import {
   DeleteOutlined,
   DragOutlined,
   EditOutlined,
-  EyeInvisibleOutlined,
-  EyeOutlined,
   FileExcelOutlined,
-  HolderOutlined,
   LockOutlined,
   LoginOutlined,
   PlusOutlined,
@@ -39,12 +36,11 @@ import {
   Segmented,
   Skeleton,
   Space,
-  Switch,
   Tag,
   Tooltip,
 } from "antd";
 import type { MenuProps } from "antd";
-import { Fragment, type CSSProperties, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, type CSSProperties, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { SeatingSchemeModal } from "@/components/seating/SeatingSchemeModal";
@@ -52,7 +48,6 @@ import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
   DEFAULT_SEATING_ROWS,
-  DEFAULT_SEATING_SIDE_MARKER_ROWS,
   MAX_DOORS_PER_SIDE,
   createDefaultSeatingEnvironment,
   getSeatingAisleAfterColumns,
@@ -80,6 +75,7 @@ import {
 interface Student { id: string; name: string; studentNo: string; gender: StudentGenderValue }
 interface Assignment { studentId: string; row: number; column: number }
 interface SeatingData {
+  className?: string;
   rows: number;
   columns: number;
   revision: string | null;
@@ -101,11 +97,6 @@ interface PendingDimensions {
   environment: SeatingEnvironment;
 }
 
-interface FloatingPanelPosition {
-  x: number;
-  y: number;
-}
-
 interface EditorState {
   draft: SeatingDraft | null;
   past: SeatingDraft[];
@@ -124,7 +115,6 @@ type EditorAction =
 type SideKey = "left" | "right";
 type SideFeature = "WINDOW" | "DOOR";
 
-const sideLabels: Record<SideKey, string> = { left: "左侧", right: "右侧" };
 const featureLabels: Record<SideFeature, string> = { WINDOW: "窗户", DOOR: "门口" };
 const maxHistoryLength = 30;
 const seatGridMinimumSeatWidth = 76;
@@ -167,18 +157,6 @@ function pendingDimensionsFor(draft: SeatingDraft) {
 
 function sameNumberList(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function clampFloatingPanelPosition(
-  panel: HTMLElement,
-  position: FloatingPanelPosition,
-): FloatingPanelPosition {
-  const maxX = Math.max(12, window.innerWidth - panel.offsetWidth - 12);
-  const maxY = Math.max(12, window.innerHeight - panel.offsetHeight - 12);
-  return {
-    x: Math.min(maxX, Math.max(12, position.x)),
-    y: Math.min(maxY, Math.max(12, position.y)),
-  };
 }
 
 function sameSideLayout(left: SeatingSideLayout, right: SeatingSideLayout) {
@@ -297,15 +275,32 @@ export default function SeatingPage() {
   const [draggingStudentId, setDraggingStudentId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [showLeftSide, setShowLeftSide] = useState(true);
-  const [showRightSide, setShowRightSide] = useState(true);
-  const [studentPoolPosition, setStudentPoolPosition] = useState<FloatingPanelPosition | null>(null);
-  const [studentPoolOpen, setStudentPoolOpen] = useState(false);
-  const [studentPoolQuery, setStudentPoolQuery] = useState("");
-  const [draggingStudentPool, setDraggingStudentPool] = useState(false);
+  const podiumPosition: "TOP" | "BOTTOM" = "BOTTOM";
+  const mirrorColumns = true;
   const [layoutSettingsModalOpen, setLayoutSettingsModalOpen] = useState(false);
+  const titleClickCountRef = useRef(0);
+  const titleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleTitleClick() {
+    titleClickCountRef.current += 1;
+    if (titleClickTimerRef.current) {
+      clearTimeout(titleClickTimerRef.current);
+    }
+
+    if (titleClickCountRef.current >= 5) {
+      titleClickCountRef.current = 0;
+      if (!isEditing) {
+        enterEditing();
+      }
+      openLayoutSettings();
+      return;
+    }
+
+    titleClickTimerRef.current = setTimeout(() => {
+      titleClickCountRef.current = 0;
+    }, 2500);
+  }
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
-  const [showStudentPool, setShowStudentPool] = useState(false);
   const [replaceModalTarget, setReplaceModalTarget] = useState<{
     row: number;
     column: number;
@@ -315,13 +310,6 @@ export default function SeatingPage() {
   const [replaceGenderFilter, setReplaceGenderFilter] = useState<"ALL" | "MALE" | "FEMALE">("ALL");
   const [seatActionMenuKey, setSeatActionMenuKey] = useState<string | null>(null);
 
-  const studentPoolCanvasRef = useRef<HTMLElement>(null);
-  const studentPoolPanelRef = useRef<HTMLElement>(null);
-  const studentPoolDrag = useRef<{
-    panel: HTMLElement;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
   const seatLongPressTimer = useRef<number | null>(null);
   const seatLongPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const suppressNextSeatClick = useRef(false);
@@ -334,37 +322,6 @@ export default function SeatingPage() {
     dispatch({ type: "load", draft: nextDraft });
   }, [data]);
 
-  useLayoutEffect(() => {
-    if (!isEditing || studentPoolPosition !== null) return;
-    const canvas = studentPoolCanvasRef.current;
-    if (!canvas) return;
-    const canvasRect = canvas.getBoundingClientRect();
-    setStudentPoolPosition({ x: canvasRect.left + 12, y: canvasRect.top + 12 });
-  }, [isEditing, studentPoolPosition]);
-
-  useEffect(() => {
-    if (!isEditing || studentPoolPosition === null) return;
-    const panel = studentPoolPanelRef.current;
-    if (!panel) return;
-
-    const clampPosition = () => {
-      setStudentPoolPosition((current) => {
-        if (!current) return current;
-        const next = clampFloatingPanelPosition(panel, current);
-        return next.x === current.x && next.y === current.y ? current : next;
-      });
-    };
-
-    clampPosition();
-    const observer = new ResizeObserver(clampPosition);
-    observer.observe(panel);
-    window.addEventListener("resize", clampPosition);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", clampPosition);
-    };
-  }, [isEditing, studentPoolOpen, studentPoolPosition]);
-
   useEffect(() => {
     if (!isEditing || !seatActionMenuKey) return;
     const closeSeatActionMenu = (event: KeyboardEvent) => {
@@ -376,6 +333,42 @@ export default function SeatingPage() {
     window.addEventListener("keydown", closeSeatActionMenu, true);
     return () => window.removeEventListener("keydown", closeSeatActionMenu, true);
   }, [isEditing, seatActionMenuKey]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleUndoRedoKeys = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const modifier = isMac ? event.metaKey : event.ctrlKey;
+      if (!modifier || event.altKey) return;
+
+      if (event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          if (editor.future.length > 0) {
+            dispatch({ type: "redo" });
+            setSelectedStudentId(null);
+          }
+        } else {
+          if (editor.past.length > 0) {
+            dispatch({ type: "undo" });
+            setSelectedStudentId(null);
+          }
+        }
+      } else if (event.key.toLowerCase() === "y" && !isMac) {
+        event.preventDefault();
+        if (editor.future.length > 0) {
+          dispatch({ type: "redo" });
+          setSelectedStudentId(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleUndoRedoKeys);
+    return () => window.removeEventListener("keydown", handleUndoRedoKeys);
+  }, [isEditing, editor.past.length, editor.future.length]);
 
   const draft = editor.draft;
   const disabledSeatKeys = useMemo(() => {
@@ -413,15 +406,34 @@ export default function SeatingPage() {
     ),
     [draft?.columns, draft?.environment.aisleAfterColumns],
   );
+  const orderedRows = useMemo(() => {
+    const rows = draft?.rows ?? DEFAULT_SEATING_ROWS;
+    if (podiumPosition === "BOTTOM") {
+      return Array.from({ length: rows }, (_, index) => rows - index);
+    }
+    return Array.from({ length: rows }, (_, index) => index + 1);
+  }, [draft?.rows, podiumPosition]);
+
+  const orderedColumns = useMemo(() => {
+    const cols = draft?.columns ?? DEFAULT_SEATING_COLUMNS;
+    if (mirrorColumns) {
+      return Array.from({ length: cols }, (_, index) => cols - index);
+    }
+    return Array.from({ length: cols }, (_, index) => index + 1);
+  }, [draft?.columns, mirrorColumns]);
+
+
   const seatGridTemplate = useMemo(
-    () => Array.from({ length: draft?.columns ?? DEFAULT_SEATING_COLUMNS }, (_, index) => {
-      const column = index + 1;
+    () => orderedColumns.map((column) => {
+      const hasAisle = mirrorColumns
+        ? aisleAfterColumns.includes(column - 1)
+        : aisleAfterColumns.includes(column);
       return [
         `minmax(var(--seat-grid-min-seat-width, ${seatGridMinimumSeatWidth}px), 1fr)`,
-        ...(aisleAfterColumns.includes(column) ? [`${seatGridAisleWidth}px`] : []),
+        ...(hasAisle ? [`${seatGridAisleWidth}px`] : []),
       ];
     }).flat().join(" "),
-    [aisleAfterColumns, draft?.columns],
+    [aisleAfterColumns, mirrorColumns, orderedColumns],
   );
   const seatGridMinimumWidth = useMemo(() => {
     const seatColumnCount = draft?.columns ?? DEFAULT_SEATING_COLUMNS;
@@ -430,61 +442,24 @@ export default function SeatingPage() {
       + aisleAfterColumns.length * seatGridAisleWidth
       + Math.max(0, gridTrackCount - 1) * seatGridGap;
   }, [aisleAfterColumns.length, draft?.columns]);
-  const poolStudents = useMemo(() => {
-    if (!data || !draft) return [];
-    return [...data.students].sort((left, right) => {
-      const leftAssigned = assignmentByStudent.has(left.id);
-      const rightAssigned = assignmentByStudent.has(right.id);
-      if (leftAssigned !== rightAssigned) return Number(leftAssigned) - Number(rightAssigned);
-      return left.studentNo.localeCompare(right.studentNo, "zh-CN");
-    });
-  }, [assignmentByStudent, data, draft]);
-  const filteredPoolStudents = useMemo(() => {
-    const query = studentPoolQuery.trim().toLocaleLowerCase();
-    if (!query) return poolStudents;
-    return poolStudents.filter((student) => (
-      student.name.toLocaleLowerCase().includes(query)
-      || student.studentNo.toLocaleLowerCase().includes(query)
-    ));
-  }, [poolStudents, studentPoolQuery]);
   const assignedCount = draft?.assignments.length ?? 0;
   const studentCount = data?.students.length ?? 0;
   const unassignedStudentCount = data?.students.filter((student) => !assignmentByStudent.has(student.id)).length ?? 0;
-  const availableSeatCount = draft
-    ? draft.rows * draft.columns - assignedCount
-    : 0;
-  const environmentFeatureCount = draft
-    ? draft.environment.left.windows.length
-      + draft.environment.right.windows.length
-      + draft.environment.left.doorRows.length
-      + draft.environment.right.doorRows.length
-    : 0;
   const isDirty = Boolean(draft && savedDraft && !draftsEqual(draft, savedDraft));
 
-  function closeStudentPool() {
-    setStudentPoolOpen(false);
-    setStudentPoolQuery("");
-  }
-
-  function toggleStudentPool() {
-    if (studentPoolOpen) closeStudentPool();
-    else setStudentPoolOpen(true);
-  }
+  const pageTitle = useMemo(() => {
+    const rawClass = data?.className?.trim();
+    if (!rawClass) return "班级座次表";
+    return rawClass.endsWith("班") ? `${rawClass}座次表` : `${rawClass}班座次表`;
+  }, [data?.className]);
 
   function enterEditing() {
-    const canvas = studentPoolCanvasRef.current;
-    const canvasRect = canvas?.getBoundingClientRect();
-    setStudentPoolPosition(canvasRect ? { x: canvasRect.left + 12, y: canvasRect.top + 12 } : null);
-    setStudentPoolQuery("");
-    setStudentPoolOpen(false);
     setIsEditing(true);
   }
 
   function leaveEditing() {
     if (!isDirty) {
       setIsEditing(false);
-      setStudentPoolPosition(null);
-      closeStudentPool();
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -499,8 +474,6 @@ export default function SeatingPage() {
       onOk: () => {
         if (savedDraft) dispatch({ type: "reset", draft: savedDraft });
         setIsEditing(false);
-        setStudentPoolPosition(null);
-        closeStudentPool();
         setSelectedStudentId(null);
         setDropTarget(null);
         setSeatActionMenuKey(null);
@@ -527,84 +500,154 @@ export default function SeatingPage() {
     try {
       const { default: writeExcelFile } = await import("write-excel-file/browser");
       const input = {
+        className: data.className,
         rows: draft.rows,
         columns: draft.columns,
         students: data.students,
         assignments: draft.assignments,
         environment: draft.environment,
+        podiumPosition,
+        mirrorColumns,
       };
       const seatMatrix = buildSeatingMatrix(input);
-      const seatTracks = getSeatingExportTracks(input);
+      const originalTracks = getSeatingExportTracks(input);
+      const seatTracks = mirrorColumns ? [...originalTracks].reverse() : originalTracks;
       const aisleColumnIndexes = new Set(
         seatTracks.flatMap((track, index) => track.type === "AISLE" ? [index + 2] : []),
       );
-      const rearRowIndex = seatMatrix.length - 1;
       const seatSheetData = seatMatrix.map((row, rowIndex) => row.map((value, columnIndex) => {
-        if (rowIndex < 2) {
+        if (rowIndex === 0) {
           return columnIndex === 0
             ? {
               value,
               columnSpan: row.length,
               align: "center" as const,
               alignVertical: "center" as const,
-              fontWeight: rowIndex === 0 ? "bold" as const : undefined,
-              fontSize: rowIndex === 0 ? 16 : 10,
-              height: rowIndex === 0 ? 28 : 20,
-              textColor: rowIndex === 0 ? "#191c1e" : "#5f6368",
+              fontWeight: "bold" as const,
+              fontSize: 16,
+              height: 34,
+              textColor: "#0f2942",
+              backgroundColor: "#f8fafc",
             }
             : null;
         }
 
-        if (rowIndex === 2 || rowIndex === rearRowIndex) {
-          if (columnIndex === 0 || columnIndex === row.length - 1) {
-            return {
-              value,
-              align: "center" as const,
-              alignVertical: "center" as const,
-              fontWeight: "bold" as const,
-              backgroundColor: "#f1f3f6",
-              borderColor: "#bcc5d3",
-              borderStyle: "thin" as const,
-              height: 24,
-            };
-          }
-          if (columnIndex === 1) {
-            return {
-              value,
-              columnSpan: row.length - 2,
-              align: "center" as const,
-              alignVertical: "center" as const,
-              fontWeight: "bold" as const,
-              backgroundColor: rowIndex === 2 ? "#e8eef8" : "#f1f3f6",
-              borderColor: "#bcc5d3",
-              borderStyle: "thin" as const,
-              height: 24,
-            };
-          }
-          return null;
-        }
+        const isHeaderRow = row[1] === "排\\座";
+        const isPodiumRow = typeof row[1] === "string" && row[1].startsWith("讲台");
+        const isBackRow = typeof row[1] === "string" && row[1].startsWith("教室后墙");
 
-        if (rowIndex === 3) {
+        if (isHeaderRow) {
+          // 表头行
+          const isSideCol = columnIndex === 0 || columnIndex === row.length - 1;
           return {
             value,
             align: "center" as const,
             alignVertical: "center" as const,
             fontWeight: "bold" as const,
-            backgroundColor: aisleColumnIndexes.has(columnIndex) ? "#e8ebf0" : "#f1f3f6",
-            borderColor: "#bcc5d3",
+            fontSize: 11,
+            backgroundColor: isSideCol ? "#f8fafc" : aisleColumnIndexes.has(columnIndex) ? "#f1f5f9" : "#e2e8f0",
+            textColor: "#1e293b",
+            borderColor: isSideCol && !value ? "#e2e8f0" : "#cbd5e1",
             borderStyle: "thin" as const,
-            height: 22,
+            height: 26,
           };
+        }
+
+        if (isPodiumRow) {
+          // 讲台行：居中合并展示
+          if (columnIndex === 1) {
+            return {
+              value: row[1] === "讲台" ? "【 讲 台 】" : `【 ${row[1]} 】`,
+              columnSpan: row.length - 2,
+              align: "center" as const,
+              alignVertical: "center" as const,
+              fontWeight: "bold" as const,
+              fontSize: 12,
+              backgroundColor: "#e0f2fe",
+              textColor: "#0369a1",
+              borderColor: "#7dd3fc",
+              borderStyle: "thin" as const,
+              height: 28,
+            };
+          }
+          if (columnIndex === 0 || columnIndex === row.length - 1) {
+            return {
+              value: "",
+              align: "center" as const,
+              alignVertical: "center" as const,
+              backgroundColor: "#ffffff",
+              borderColor: "#e2e8f0",
+              borderStyle: "thin" as const,
+              height: 28,
+            };
+          }
+          return null;
+        }
+
+        if (isBackRow) {
+          // 后方设施行（仅当存在后方设施时展示）
+          if (columnIndex === 1) {
+            return {
+              value: row[1],
+              columnSpan: row.length - 2,
+              align: "center" as const,
+              alignVertical: "center" as const,
+              fontSize: 10,
+              backgroundColor: "#f8fafc",
+              textColor: "#64748b",
+              borderColor: "#e2e8f0",
+              borderStyle: "thin" as const,
+              height: 22,
+            };
+          }
+          return null;
+        }
+
+        // 座位数据行
+        const isSideCol = columnIndex === 0 || columnIndex === row.length - 1;
+        const isRowLabel = columnIndex === 1;
+        const isAisle = aisleColumnIndexes.has(columnIndex);
+        const hasStudent = Boolean(value) && !isSideCol && !isRowLabel && !isAisle;
+
+        let bgColor = "#ffffff";
+        let textColor = "#0f172a";
+        let borderColor = "#e2e8f0";
+
+        if (isRowLabel) {
+          bgColor = "#f8fafc";
+          textColor = "#334155";
+          borderColor = "#cbd5e1";
+        } else if (isAisle) {
+          bgColor = "#f8fafc";
+          borderColor = "#f1f5f9";
+        } else if (isSideCol) {
+          if (value.includes("门")) {
+            bgColor = "#fffbeb";
+            textColor = "#92400e";
+            borderColor = "#fde68a";
+          } else if (value.includes("窗")) {
+            bgColor = "#f0fdf4";
+            textColor = "#166534";
+            borderColor = "#bbf7d0";
+          } else {
+            bgColor = "#ffffff";
+            borderColor = "#f1f5f9";
+          }
+        } else if (hasStudent) {
+          borderColor = "#94a3b8";
         }
 
         return {
           value,
           align: "center" as const,
           alignVertical: "center" as const,
-          fontWeight: columnIndex === 1 ? "bold" as const : undefined,
-          backgroundColor: aisleColumnIndexes.has(columnIndex) ? "#f7f9fc" : "#ffffff",
-          borderColor: "#bcc5d3",
+          fontWeight: (isRowLabel || hasStudent) ? "bold" as const : undefined,
+          fontSize: isSideCol ? 10 : 11,
+          backgroundColor: bgColor,
+          textColor,
+          borderColor,
           borderStyle: "thin" as const,
+          height: 26,
         };
       }));
       const rosterRows = buildSeatingRosterRows(input);
@@ -635,7 +678,7 @@ export default function SeatingPage() {
             { width: 10 },
           ],
           orientation: "landscape",
-          stickyRowsCount: 4,
+          stickyRowsCount: 2,
           showGridLines: false,
         },
         {
@@ -645,7 +688,7 @@ export default function SeatingPage() {
           stickyRowsCount: 1,
           showGridLines: false,
         },
-      ]).toFile(getSeatingExportFilename());
+      ]).toFile(getSeatingExportFilename(new Date(), data.className));
       message.success("座次表 Excel 已导出");
     } catch {
       message.error("Excel 导出失败，请稍后重试");
@@ -1031,84 +1074,6 @@ export default function SeatingPage() {
     setDropTarget(null);
   }
 
-  function removeStudentFromLayout(studentId: string) {
-    if (!isEditing || !draft || !assignmentByStudent.has(studentId)) return;
-    commitDraft({
-      ...draft,
-      assignments: draft.assignments.filter((assignment) => assignment.studentId !== studentId),
-    });
-    setSelectedStudentId(null);
-  }
-
-  function handlePoolDrop(event: React.DragEvent<HTMLDivElement>) {
-    if (!isEditing) return;
-    event.preventDefault();
-    const studentId = getDraggedStudentId(event);
-    if (studentId) removeStudentFromLayout(studentId);
-    setDraggingStudentId(null);
-    setDropTarget(null);
-  }
-
-  function startStudentPoolDrag(event: React.PointerEvent<HTMLElement>) {
-    const panel = event.currentTarget.closest<HTMLElement>(".seating-sidebar-floating");
-    if (!panel) return;
-
-    const panelRect = panel.getBoundingClientRect();
-    studentPoolDrag.current = {
-      panel,
-      offsetX: event.clientX - panelRect.left,
-      offsetY: event.clientY - panelRect.top,
-    };
-    setDraggingStudentPool(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function moveStudentPool(event: React.PointerEvent<HTMLElement>) {
-    const drag = studentPoolDrag.current;
-    if (!drag) return;
-
-    setStudentPoolPosition(clampFloatingPanelPosition(drag.panel, {
-      x: event.clientX - drag.offsetX,
-      y: event.clientY - drag.offsetY,
-    }));
-  }
-
-  function endStudentPoolDrag(event: React.PointerEvent<HTMLElement>) {
-    studentPoolDrag.current = null;
-    setDraggingStudentPool(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  function moveStudentPoolBy(horizontal: number, vertical: number) {
-    const panel = studentPoolPanelRef.current;
-    if (!panel) return;
-    const panelRect = panel.getBoundingClientRect();
-    const current = studentPoolPosition ?? {
-      x: panelRect.left,
-      y: panelRect.top,
-    };
-    setStudentPoolPosition(clampFloatingPanelPosition(panel, {
-      x: current.x + horizontal,
-      y: current.y + vertical,
-    }));
-  }
-
-  function handleStudentPoolHandleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    const step = event.shiftKey ? 24 : 8;
-    const movements: Record<string, [number, number]> = {
-      ArrowLeft: [-step, 0],
-      ArrowRight: [step, 0],
-      ArrowUp: [0, -step],
-      ArrowDown: [0, step],
-    };
-    const movement = movements[event.key];
-    if (!movement) return;
-    event.preventDefault();
-    moveStudentPoolBy(...movement);
-  }
-
   function setSideFeature(side: SideKey, row: number, feature: SideFeature | null) {
     if (!isEditing || !draft) return;
     const environment = cloneEnvironment(draft.environment);
@@ -1261,8 +1226,6 @@ export default function SeatingPage() {
       });
       message.success("座次与教室标记已保存");
       setIsEditing(false);
-      setStudentPoolPosition(null);
-      closeStudentPool();
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -1277,20 +1240,22 @@ export default function SeatingPage() {
   function renderSideRail(side: SideKey) {
     if (!draft) return null;
     return (
-      <div className="room-side-column">
-        <div className="room-column-label">{sideLabels[side]}</div>
-        <div
-          className="room-side-track"
-          style={{ gridTemplateRows: `repeat(${DEFAULT_SEATING_SIDE_MARKER_ROWS}, minmax(96px, 1fr))` }}
-        >
-          {Array.from({ length: DEFAULT_SEATING_SIDE_MARKER_ROWS }, (_, index) => {
-            const row = index + 1;
+      <div className="room-side-column" aria-label="教室门窗标记">
+        <div className="room-side-track">
+          {orderedRows.map((row) => {
             const feature = sideFeatureForRow(draft.environment[side], row);
             const markerClass = `room-side-marker ${feature ? `room-side-marker-${feature.toLowerCase()}` : ""}`;
+            const hasFeature = feature !== null;
             const markerContent = (
               <>
-                <span className="room-side-marker-icon">{featureIcon(feature)}</span>
-                <span>{feature ? featureLabels[feature] : `第 ${row} 排`}</span>
+                {(isEditing || hasFeature) && (
+                  <span className="room-side-marker-icon">{featureIcon(feature)}</span>
+                )}
+                {hasFeature ? (
+                  <span className="room-side-marker-text">{featureLabels[feature]}</span>
+                ) : (
+                  <span className="room-side-marker-row-label">第 {row} 排</span>
+                )}
               </>
             );
 
@@ -1301,7 +1266,7 @@ export default function SeatingPage() {
                   className={`${markerClass} room-side-marker-static`}
                   data-side={side}
                   data-marker-row={row}
-                  aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
+                  aria-label={`第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}`}
                 >
                   {markerContent}
                 </div>
@@ -1315,7 +1280,7 @@ export default function SeatingPage() {
                 className={markerClass}
                 data-side={side}
                 data-marker-row={row}
-                aria-label={`${sideLabels[side]}第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}。点击切换标记`}
+                aria-label={`第 ${row} 排，${feature ? featureLabels[feature] : "未设置"}。点击切换标记`}
                 title={feature === null ? "添加窗户" : feature === "WINDOW" ? "改为门口" : "移除门口"}
                 onClick={() => cycleSideFeature(side, row)}
               >
@@ -1328,19 +1293,15 @@ export default function SeatingPage() {
     );
   }
 
-  function renderBackRail() {
-    if (!draft) return null;
+  function renderFrontRail() {
     return (
-      <div className="room-back" data-orientation="rear" aria-label="后方固定边界">
-        <div className="room-end-label">
-          <strong>后方</strong>
-          <small>固定</small>
+      <div className="room-front room-front-bottom">
+        <span aria-hidden="true" />
+        <div className="blackboard">
+          <strong>讲台</strong>
+          <small>BLACKBOARD</small>
         </div>
-        <div className="room-back-boundary">
-          <span className="room-back-boundary-line" aria-hidden="true" />
-          <span>后侧固定</span>
-        </div>
-        <span className="room-end-hint">教室后墙</span>
+        <span aria-hidden="true" />
       </div>
     );
   }
@@ -1349,7 +1310,8 @@ export default function SeatingPage() {
     <>
       <LedgerSheet
         kicker="SEATING PLAN"
-        title="班级座次表"
+        title={pageTitle}
+        onTitleClick={handleTitleClick}
         description={isEditing ? "编辑模式：拖动学生或选择目标座位，完成后保存座次。" : "面向讲台查看教室布局，座次仅在编辑模式下可以调整。"}
         actions={(
           <Space className="seating-heading-actions">
@@ -1373,6 +1335,28 @@ export default function SeatingPage() {
                   onClick={() => void exportSeating()}
                 />
               </Tooltip>
+              {isEditing && (
+                <>
+                  <Tooltip title={editor.past.length ? `上一步 (撤销 ⌘Z · 剩余 ${editor.past.length} 步)` : "上一步 (撤销 ⌘Z)"}>
+                    <Button
+                      type="text"
+                      aria-label="上一步 (撤销)"
+                      icon={<UndoOutlined />}
+                      disabled={!editor.past.length}
+                      onClick={() => { dispatch({ type: "undo" }); setSelectedStudentId(null); }}
+                    />
+                  </Tooltip>
+                  <Tooltip title={editor.future.length ? `下一步 (重做 ⇧⌘Z · 剩余 ${editor.future.length} 步)` : "下一步 (重做 ⇧⌘Z)"}>
+                    <Button
+                      type="text"
+                      aria-label="下一步 (重做)"
+                      icon={<RedoOutlined />}
+                      disabled={!editor.future.length}
+                      onClick={() => { dispatch({ type: "redo" }); setSelectedStudentId(null); }}
+                    />
+                  </Tooltip>
+                </>
+              )}
             </Space>
             {!isEditing ? (
               <Button type="primary" icon={<EditOutlined />} onClick={enterEditing}>
@@ -1380,6 +1364,54 @@ export default function SeatingPage() {
               </Button>
             ) : (
               <>
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: "quick-default",
+                        icon: <SyncOutlined style={{ color: "var(--primary)" }} />,
+                        label: "边列进中 · 集体后移一排（默认）",
+                        onClick: () => applyQuickScheme(DEFAULT_ROTATION_SCHEME),
+                      },
+                      {
+                        key: "quick-cycle",
+                        icon: <ApartmentOutlined />,
+                        label: "大组向右循环 · 集体后移一排",
+                        onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[1]),
+                      },
+                      {
+                        key: "quick-mirror",
+                        icon: <SwapOutlined />,
+                        label: "左右大组对调 · 排数不动",
+                        onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[2]),
+                      },
+                      {
+                        key: "quick-forward",
+                        icon: <RollbackOutlined style={{ transform: "rotate(90deg)" }} />,
+                        label: "全班集体前移一排",
+                        onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[3]),
+                      },
+                      {
+                        key: "quick-mirror-both",
+                        icon: <SwapOutlined />,
+                        label: "整班180度翻转（讲台与左右均对调）",
+                        onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[5]),
+                      },
+                      { type: "divider" },
+                      {
+                        key: "open-custom-modal",
+                        icon: <SettingOutlined />,
+                        label: "自定义轮换方案...",
+                        onClick: () => setSchemeModalOpen(true),
+                      },
+                    ],
+                  }}
+                  trigger={["click"]}
+                >
+                  <Button icon={<SyncOutlined />} disabled={saving}>
+                    自动排座
+                  </Button>
+                </Dropdown>
                 <Button icon={<RollbackOutlined />} onClick={leaveEditing} disabled={saving}>
                   取消编辑
                 </Button>
@@ -1397,7 +1429,17 @@ export default function SeatingPage() {
           </Space>
         )}
         metrics={[
-          { label: "SEATS // 已安排", value: draft ? assignedCount : "—", unit: "席", detail: draft ? `共 ${studentCount} 名学生` : "正在读取座次", icon: <TeamOutlined /> },
+          {
+            label: "SEATS // 已安排",
+            value: draft ? assignedCount : "—",
+            unit: "席",
+            detail: draft
+              ? (unassignedStudentCount > 0
+                ? `共 ${studentCount} 名学生 · 待安排 ${unassignedStudentCount} 人`
+                : `共 ${studentCount} 名学生 · 全部已排座`)
+              : "正在读取座次",
+            icon: <TeamOutlined />,
+          },
           {
             label: "CAPACITY // 座位容量",
             value: draft ? (draft.rows * draft.columns - disabledSeatKeys.size) : "—",
@@ -1409,7 +1451,13 @@ export default function SeatingPage() {
               : "等待布局",
             icon: <ColumnWidthOutlined />,
           },
-          { label: "ROOM // 环境标记", value: draft ? environmentFeatureCount : "—", unit: "项", detail: draft ? `过道 ${aisleAfterColumns.length} 条` : "等待教室配置", icon: <SettingOutlined /> },
+          {
+            label: "AISLE // 教室过道",
+            value: draft ? aisleAfterColumns.length : "—",
+            unit: "条",
+            detail: draft ? `座位划分为 ${aisleAfterColumns.length + 1} 个大组` : "等待教室配置",
+            icon: <SettingOutlined />,
+          },
         ]}
       >
       {error && <Alert type="error" showIcon title={error.message} />}
@@ -1422,279 +1470,25 @@ export default function SeatingPage() {
           <div
             className={`seating-workspace-body ${isEditing ? "seating-workspace-body-editing" : "seating-workspace-body-view"}`}
           >
-            {isEditing && showStudentPool && unassignedStudentCount > 0 && <aside
-              ref={studentPoolPanelRef}
-              className={`seating-sidebar seating-sidebar-floating ${studentPoolOpen ? "seating-sidebar-floating-open" : "seating-sidebar-floating-collapsed"} ${studentPoolPosition ? "seating-sidebar-floating-positioned" : ""} ${draggingStudentPool ? "seating-sidebar-floating-dragging" : ""}`}
-              style={studentPoolPosition ? { left: `${studentPoolPosition.x}px`, top: `${studentPoolPosition.y}px` } : undefined}
-              aria-label="待安排学生"
-            >
-              <div className="student-pool-floating-header">
-                <Tooltip title="拖动学生池">
-                  <button
-                    type="button"
-                    className="seating-sidebar-floating-handle"
-                    aria-label="拖动学生池位置"
-                    onPointerDown={startStudentPoolDrag}
-                    onPointerMove={moveStudentPool}
-                    onPointerUp={endStudentPoolDrag}
-                    onPointerCancel={endStudentPoolDrag}
-                    onKeyDown={handleStudentPoolHandleKeyDown}
-                  >
-                    <HolderOutlined />
-                  </button>
-                </Tooltip>
-                <button
-                  type="button"
-                  className="student-pool-toggle"
-                  aria-label={studentPoolOpen ? "收起学生池" : "打开学生池"}
-                  aria-expanded={studentPoolOpen}
-                  aria-describedby="student-pool-unassigned-count"
-                  onClick={toggleStudentPool}
-                >
-                  <TeamOutlined />
-                  <span className="student-pool-toggle-copy">
-                    <strong>学生池</strong>
-                    <small>{studentCount} 人</small>
-                  </span>
-                  <span
-                    id="student-pool-unassigned-count"
-                    className={`student-pool-unassigned-badge ${unassignedStudentCount > 0 ? "student-pool-unassigned-badge-active" : ""}`}
-                  >
-                    <strong>{unassignedStudentCount}</strong>
-                    <small>未分配</small>
-                  </span>
-                </button>
-                {studentPoolOpen && (
-                  <Tooltip title="收起学生池">
-                    <button
-                      type="button"
-                      className="student-pool-close"
-                      aria-label="收起学生池"
-                      onClick={closeStudentPool}
-                    >
-                      <CloseOutlined />
-                    </button>
-                  </Tooltip>
-                )}
-              </div>
-              {studentPoolOpen && (
-                <>
-                  <div
-                    className={`student-pool-summary ${unassignedStudentCount > 0 ? "student-pool-summary-active" : ""}`}
-                    role="status"
-                    aria-label={`${unassignedStudentCount} 名学生未分配，${assignedCount} 名学生已安排`}
-                  >
-                    <div className="student-pool-summary-primary">
-                      <span>待安排</span>
-                      <strong>{unassignedStudentCount}</strong>
-                      <small>人</small>
-                    </div>
-                    <span className="student-pool-summary-secondary">已安排 {assignedCount}</span>
-                  </div>
-                  <Input
-                    className="student-pool-search"
-                    size="small"
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    placeholder="搜索学生"
-                    aria-label="搜索学生"
-                    value={studentPoolQuery}
-                    onChange={(event) => setStudentPoolQuery(event.target.value)}
-                  />
-                  <div
-                    className={`student-pool-list ${draggingStudentId ? "student-pool-list-drop-active" : ""}`}
-                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
-                    onDrop={handlePoolDrop}
-                  >
-                    {filteredPoolStudents.map((student, index) => {
-                      const isSelected = selectedStudentId === student.id;
-                      const isAssigned = assignmentByStudent.has(student.id);
-                      const previousStudent = filteredPoolStudents[index - 1];
-                      const previousIsAssigned = previousStudent
-                        ? assignmentByStudent.has(previousStudent.id)
-                        : null;
-                      const showGroupLabel = previousIsAssigned === null || previousIsAssigned !== isAssigned;
-                      return (
-                        <Fragment key={student.id}>
-                          {showGroupLabel && (
-                            <div className="student-pool-group-label">
-                              <span>{isAssigned ? "已安排" : "未分配"}</span>
-                              <small>{isAssigned ? assignedCount : unassignedStudentCount} 人</small>
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            className={`student-pool-item ${isSelected ? "student-pool-item-selected" : ""} ${draggingStudentId === student.id ? "student-pool-item-dragging" : ""} ${isAssigned ? "" : "student-pool-item-unassigned"}`}
-                            data-assigned={isAssigned ? "true" : "false"}
-                            aria-label={`${student.name}，${isAssigned ? "已安排" : "未分配"}，拖动到座位`}
-                            draggable
-                            aria-pressed={isSelected}
-                            onClick={() => selectStudent(student.id)}
-                            onDragStart={(event) => startStudentDrag(event, student.id)}
-                            onDragEnd={() => { setDraggingStudentId(null); setDropTarget(null); }}
-                          >
-                            <span className="student-pool-copy"><strong>{student.name}</strong></span>
-                            <span className={`student-pool-item-status ${isAssigned ? "student-pool-item-status-assigned" : "student-pool-item-status-unassigned"}`}>
-                              {isAssigned ? "已安排" : "未分配"}
-                            </span>
-                          </button>
-                        </Fragment>
-                      );
-                    })}
-                    {!filteredPoolStudents.length && (
-                      <span className="student-pool-empty">没有匹配的学生</span>
-                    )}
-                  </div>
-                </>
-              )}
-            </aside>}
-
             <section
-              ref={studentPoolCanvasRef}
               className="seating-canvas-section seating-print-region"
               aria-label="教室座位画布"
               style={{ "--room-center-min-width": `${seatGridMinimumWidth}px` } as CSSProperties}
             >
               <div className="seating-print-header" aria-hidden="true">
-                <strong>班级座次表</strong>
-                <span>{isDirty ? "含未保存修改 · " : ""}面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
-              </div>
-              <div className="seating-canvas-toolbar">
-                <div className="seating-canvas-summary">
-                  <strong>座位编辑画布</strong>
-                  <Tag color={isEditing ? (isDirty ? "orange" : "blue") : "green"}>
-                    {isEditing ? (isDirty ? "有未保存修改" : "编辑中") : "查看模式"}
-                  </Tag>
-                  <span className="seating-canvas-dimensions">面向讲台 · {draft.rows} 排 · {draft.columns} 个座位/排</span>
-                  <div className="seating-inline-stats" aria-label="座位统计">
-                    <span className="seating-inline-stat">已安排 <strong>{assignedCount}<small> / {studentCount}</small></strong></span>
-                    <span className="seating-inline-stat">空座位 <strong>{Math.max(availableSeatCount, 0)}</strong></span>
-                    <span className="seating-inline-stat">教室标记 <strong>{environmentFeatureCount}<small> 个</small></strong></span>
-                  </div>
-                  {isEditing && (
-                    <div className="seating-history-actions">
-                      <Tooltip title="撤销上一步">
-                        <Button
-                          type="text"
-                          aria-label="撤销上一步"
-                          icon={<UndoOutlined />}
-                          disabled={!editor.past.length}
-                          onClick={() => { dispatch({ type: "undo" }); setSelectedStudentId(null); }}
-                        />
-                      </Tooltip>
-                      <Tooltip title="重做">
-                        <Button
-                          type="text"
-                          aria-label="重做"
-                          icon={<RedoOutlined />}
-                          disabled={!editor.future.length}
-                          onClick={() => { dispatch({ type: "redo" }); setSelectedStudentId(null); }}
-                        />
-                      </Tooltip>
-                    </div>
-                  )}
-                </div>
-                <div className="seating-canvas-options">
-                  {isEditing && <Space className="seating-settings-actions">
-                    <Dropdown
-                      menu={{
-                        items: [
-                          {
-                            key: "quick-default",
-                            icon: <SyncOutlined style={{ color: "var(--primary)" }} />,
-                            label: "边列进中 · 集体后移一排（默认）",
-                            onClick: () => applyQuickScheme(DEFAULT_ROTATION_SCHEME),
-                          },
-                          {
-                            key: "quick-cycle",
-                            icon: <ApartmentOutlined />,
-                            label: "大组向右循环 · 集体后移一排",
-                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[1]),
-                          },
-                          {
-                            key: "quick-mirror",
-                            icon: <SwapOutlined />,
-                            label: "左右大组对调 · 排数不动",
-                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[2]),
-                          },
-                          {
-                            key: "quick-forward",
-                            icon: <RollbackOutlined style={{ transform: "rotate(90deg)" }} />,
-                            label: "全班集体前移一排",
-                            onClick: () => applyQuickScheme(PRESET_ROTATION_SCHEMES[3]),
-                          },
-                          { type: "divider" },
-                          {
-                            key: "open-custom-modal",
-                            icon: <SettingOutlined />,
-                            label: "自定义轮换方案...",
-                            onClick: () => setSchemeModalOpen(true),
-                          },
-                        ],
-                      }}
-                      trigger={["click"]}
-                    >
-                      <Button
-                        className="seating-settings-button"
-                        icon={<SyncOutlined />}
-                        type="primary"
-                        ghost
-                      >
-                        自动排座
-                      </Button>
-                    </Dropdown>
-                    <Button
-                      className="seating-settings-button"
-                      icon={<SettingOutlined />}
-                      onClick={openLayoutSettings}
-                    >
-                      座位布局与过道
-                    </Button>
-                    <Button
-                      className="seating-settings-button"
-                      icon={<TeamOutlined />}
-                      onClick={() => setShowStudentPool((prev) => !prev)}
-                    >
-                      {showStudentPool ? "隐藏学生池" : "展开学生池"}
-                    </Button>
-                  </Space>}
-                  <div className="seating-view-controls" aria-label="画布显示选项">
-                    <span className="seating-view-controls-label"><EyeOutlined /> 显示侧边</span>
-                    <label>
-                      <Switch size="small" checked={showLeftSide} onChange={setShowLeftSide} aria-label="显示左侧内容" />
-                      <span>左侧</span>
-                    </label>
-                    <label>
-                      <Switch size="small" checked={showRightSide} onChange={setShowRightSide} aria-label="显示右侧内容" />
-                      <span>右侧</span>
-                    </label>
-                  </div>
-                  <div className="seating-legend">
-                  <span>{isEditing ? <DragOutlined /> : <EyeInvisibleOutlined />}{isEditing ? "拖放编辑" : "只读查看"}</span>
-                  <span><ColumnWidthOutlined />过道 {aisleAfterColumns.length}</span>
-                  {isEditing && <><span><WindowsOutlined />窗户</span><span><LoginOutlined />门口</span></>}
-                  </div>
-                </div>
+                <strong>{pageTitle}</strong>
               </div>
 
               <div className="seating-map-scroll">
                 <div className="seating-map">
-                  <div className="room-front" data-orientation="front">
-                    <span className="room-end-label"><strong>前方</strong><small>固定</small></span>
-                    <div className="blackboard"><strong>讲台</strong><small>BLACKBOARD</small></div>
-                    <span className="room-end-hint">面向讲台</span>
-                  </div>
-                  <div className={`room-layout ${showLeftSide ? "" : "room-layout-no-left"} ${showRightSide ? "" : "room-layout-no-right"}`}>
-                    {showLeftSide && renderSideRail("left")}
+                  <div className="room-layout">
+                    {renderSideRail("right")}
                     <div className="room-center-column">
-                      <div className="room-column-label">座位区</div>
                       <div className="seat-grid" style={{ gridTemplateColumns: seatGridTemplate }}>
-                        {Array.from({ length: draft.rows }, (_, rowIndex) => {
-                          const row = rowIndex + 1;
+                        {orderedRows.map((row) => {
                           return (
                             <Fragment key={`row-${row}`}>
-                              {Array.from({ length: draft.columns }, (_, columnIndex) => {
-                                const column = columnIndex + 1;
+                              {orderedColumns.map((column) => {
                                 const assignment = assignmentByPosition.get(`${row}-${column}`);
                                 const student = assignment ? studentById.get(assignment.studentId) : undefined;
                                 const positionKey = `${row}-${column}`;
@@ -1844,9 +1638,11 @@ export default function SeatingPage() {
                                         )}
                                       </div>
                                     )}
-                                    {isSeatingAisleAfterColumn(column, draft.columns, aisleAfterColumns) && (
+                                    {(mirrorColumns
+                                      ? aisleAfterColumns.includes(column - 1)
+                                      : isSeatingAisleAfterColumn(column, draft.columns, aisleAfterColumns)) && (
                                       <div className="seat-aisle" aria-hidden="true">
-                                        {row === 1 && <span>过道</span>}
+                                        {row === orderedRows[0] && <span>过道</span>}
                                       </div>
                                     )}
                                   </Fragment>
@@ -1857,17 +1653,17 @@ export default function SeatingPage() {
                         })}
                       </div>
                     </div>
-                    {showRightSide && renderSideRail("right")}
+                    {renderSideRail("left")}
                   </div>
-                  {renderBackRail()}
+                  {renderFrontRail()}
                 </div>
               </div>
             </section>
           </div>
 
           {isEditing && <div className="seating-workspace-footer">
-            <Space size={6}><SwapOutlined /><span>拖动已安排学生到其他座位可直接交换；拖回学生池即可取消安排。</span></Space>
-            <span className="seating-footer-capacity">座位容量 {draft.rows * draft.columns} · 当前安排 {assignedCount}</span>
+            <Space size={6}><SwapOutlined /><span>拖动已安排学生到其他座位可直接交换；点击空座或右键可安排/更换学生。</span></Space>
+            <span className="seating-footer-capacity">座位容量 {draft.rows * draft.columns - disabledSeatKeys.size} · 当前安排 {assignedCount}</span>
           </div>}
         </div>
       )}

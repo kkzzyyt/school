@@ -200,21 +200,12 @@ test("座次调整显示脏状态并保存完整环境载荷", async ({ page }) 
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
 
-  const pool = page.locator(".seating-sidebar-floating");
-  await page.getByRole("button", { name: "打开学生池" }).click();
-  const selectedStudent = pool.locator(".student-pool-item").first();
   const emptySeat = page.locator(".seat-empty-trigger").first();
-  await expect(pool).toBeVisible();
-  await expect(page.getByRole("button", { name: "打开编辑工具" })).toHaveCount(0);
-  await expect(pool.getByRole("heading")).toHaveCount(0);
-  await expect(pool.getByPlaceholder("搜索姓名或学号")).toHaveCount(0);
-  await expect(pool.locator(".ant-segmented, .ant-tag, .student-avatar, .student-drag-icon")).toHaveCount(0);
-  await expect(pool.locator(".seating-sidebar-floating-handle")).toHaveCount(1);
-  await expect(selectedStudent).toBeVisible();
-  await expect(selectedStudent).toContainText(/\S/);
   await expect(emptySeat).toBeVisible();
-  await selectedStudent.click();
   await emptySeat.click();
+  const candidate = page.locator(".replace-candidate-item").first();
+  await expect(candidate).toBeVisible();
+  await candidate.click();
 
   await expect(page.getByText("有未保存修改", { exact: true })).toBeVisible();
   const saveRequestPromise = page.waitForRequest(
@@ -504,36 +495,25 @@ test("窄屏座次画布保留可读的座位宽度并在画布内滚动", async
   expect(printLayout.gridScrollWidth).toBeLessThanOrEqual(printLayout.gridClientWidth + 1);
 });
 
-test("学生池编辑开始即显示且不压缩画布", async ({ page }) => {
+test("编辑模式画布正常展示且全宽布局", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await login(page);
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
-  await expect(page.locator(".seating-sidebar-floating")).toBeVisible();
+  await expect(page.locator(".seating-canvas-section")).toBeVisible();
 
   const layout = await page.evaluate(() => {
     const body = document.querySelector(".seating-workspace-body-editing");
     const canvas = document.querySelector(".seating-workspace-body-editing .seating-canvas-section");
-    const sidebar = document.querySelector(".seating-sidebar-floating");
     const bodyRect = body?.getBoundingClientRect();
     const canvasRect = canvas?.getBoundingClientRect();
-    const sidebarRect = sidebar?.getBoundingClientRect();
     return {
       bodyWidth: bodyRect?.width ?? 0,
       canvasWidth: canvasRect?.width ?? 0,
-      sidebarWidth: sidebarRect?.width ?? 0,
-      sidebarLeft: sidebarRect?.left ?? 0,
-      bodyLeft: bodyRect?.left ?? 0,
-      sidebarRight: sidebarRect?.right ?? 0,
-      bodyRight: bodyRect?.right ?? 0,
-      viewportWidth: window.innerWidth,
     };
   });
 
   expect(layout.canvasWidth).toBeGreaterThanOrEqual(layout.bodyWidth - 1);
-  expect(layout.sidebarWidth).toBeGreaterThan(0);
-  expect(layout.sidebarLeft).toBeGreaterThanOrEqual(0);
-  expect(layout.sidebarRight).toBeLessThanOrEqual(layout.viewportWidth + 1);
   await expect(page.getByRole("button", { name: "收起编辑工具" })).toHaveCount(0);
 });
 
@@ -604,7 +584,9 @@ test("座次页可以打印并在打印媒体隐藏编辑工具", async ({ page 
     headerDisplay: getComputedStyle(document.querySelector(".page-heading")!).display,
     overviewDisplay: getComputedStyle(document.querySelector(".seating-overview")!).display,
     toolbarDisplay: getComputedStyle(document.querySelector(".seating-canvas-toolbar")!).display,
-    poolDisplay: getComputedStyle(document.querySelector(".seating-sidebar-floating")!).display,
+    poolDisplay: document.querySelector(".seating-sidebar-floating")
+      ? getComputedStyle(document.querySelector(".seating-sidebar-floating")!).display
+      : "none",
     printHeaderDisplay: getComputedStyle(document.querySelector(".seating-print-header")!).display,
     mapFilter: getComputedStyle(document.querySelector(".seating-print-region")!).filter,
   }));
@@ -698,49 +680,22 @@ test("座次页顶部配置区域在桌面端保持单行", async ({ page }) => 
   expect(toolbarLayout.scrollWidth).toBeLessThanOrEqual(toolbarLayout.width + 1);
 });
 
-test("学生池浮动窗口可以拖动", async ({ page }) => {
+test("空座支持点击打开安排学生弹窗", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await login(page);
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
 
-  const panel = page.locator(".seating-sidebar-floating");
-  await expect(page.getByRole("button", { name: "打开学生池" })).toBeVisible();
-  const handle = panel.locator(".seating-sidebar-floating-handle");
-  const handleBox = await handle.boundingBox();
-  expect(handleBox).not.toBeNull();
-  const initialBox = await panel.boundingBox();
-  expect(initialBox).not.toBeNull();
-  const canvasBox = await page.locator(".seating-canvas-section").boundingBox();
-  expect(canvasBox).not.toBeNull();
-  expect(initialBox!.x).toBeGreaterThanOrEqual(canvasBox!.x);
-  expect(initialBox!.x).toBeLessThanOrEqual(canvasBox!.x + 24);
-  expect(initialBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
-  expect(initialBox!.y).toBeLessThanOrEqual(canvasBox!.y + 24);
-  await page.mouse.move(handleBox!.x + 12, handleBox!.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(handleBox!.x - 120, handleBox!.y + 10);
-  await page.mouse.up();
-  const nextBox = await panel.boundingBox();
-  expect(nextBox).not.toBeNull();
-  expect(nextBox!.x).toBeLessThan(initialBox!.x);
+  const emptySeat = page.locator(".seat-empty-trigger").first();
+  await expect(emptySeat).toBeVisible();
+  await emptySeat.click();
 
-  await page.setViewportSize({ width: 1000, height: 844 });
-  await expect(panel).toBeVisible();
-  await expect.poll(async () => {
-    const box = await panel.boundingBox();
-    return Boolean(box && box.x >= 0 && box.x + box.width <= 1000);
-  }).toBe(true);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(panel).toBeVisible();
-  await expect.poll(async () => {
-    const box = await panel.boundingBox();
-    return Boolean(box && box.x >= 0 && box.x + box.width <= 390);
-  }).toBe(true);
+  const modal = page.locator(".replace-student-modal");
+  await expect(modal).toBeVisible();
+  await expect(modal.getByRole("heading", { name: "安排座位学生" })).toBeVisible();
 });
 
-test("学生池可以搜索对应学生", async ({ page }) => {
+test("安排座位弹窗可以搜索对应学生", async ({ page }) => {
   await login(page);
   await page.route("**/api/seating", async (route) => {
     if (route.request().method() !== "GET") {
@@ -772,24 +727,21 @@ test("学生池可以搜索对应学生", async ({ page }) => {
   });
   await page.goto("/seating");
   await page.getByRole("button", { name: "编辑座次" }).click();
-  await page.getByRole("button", { name: "打开学生池" }).click();
+  const emptySeat = page.locator(".seat-empty-trigger").first();
+  await emptySeat.click();
 
-  const pool = page.locator(".seating-sidebar-floating");
-  const search = pool.getByPlaceholder("搜索学生");
+  const modal = page.locator(".replace-student-modal");
+  await expect(modal).toBeVisible();
+  const search = modal.getByPlaceholder("输入姓名、学号或“男”/“女”快速搜索...");
   await expect(search).toBeVisible();
-  await expect(page.locator("#student-pool-unassigned-count")).toContainText("1");
-  await expect(pool.locator(".student-pool-summary")).toContainText("待安排");
-  await expect(pool.locator(".student-pool-summary")).toContainText("1");
-  await expect(pool.locator(".student-pool-item")).toHaveCount(2);
-  await expect(pool.locator(".student-pool-item").first()).toContainText("张瀞涵");
-  await expect(pool.locator(".student-pool-item").last()).toContainText("蒋志豪");
-  await expect(pool.locator(".student-pool-item").first().locator(".student-pool-item-status")).toHaveText("未分配");
-  await expect(pool.locator(".student-pool-item").last().locator(".student-pool-item-status")).toHaveText("已安排");
+  await expect(modal.locator(".replace-candidate-item")).toHaveCount(2);
+  await expect(modal.locator(".replace-candidate-item").first()).toContainText("张瀞涵");
+  await expect(modal.locator(".replace-candidate-item").last()).toContainText("蒋志豪");
   await search.fill("瀞涵");
-  await expect(pool.locator(".student-pool-item")).toHaveCount(1);
-  await expect(pool.locator(".student-pool-item").first()).toContainText("张瀞涵");
+  await expect(modal.locator(".replace-candidate-item")).toHaveCount(1);
+  await expect(modal.locator(".replace-candidate-item").first()).toContainText("张瀞涵");
   await search.fill("不存在");
-  await expect(pool.getByText("没有匹配的学生", { exact: true })).toBeVisible();
+  await expect(modal.getByText("无匹配学生", { exact: true })).toBeVisible();
 });
 
 test("学生编辑侧滑面板在移动端保持独立滚动和固定操作区", async ({ page }) => {

@@ -21,10 +21,9 @@ describe("seating export", () => {
   it("builds a seat matrix with row and column labels", () => {
     expect(buildSeatingMatrix({ rows: 2, columns: 3, students, assignments })).toEqual([
       ["班级座次表", "", "", ""],
-      ["面向讲台 · 2 排 · 3 个座位/排", "", "", ""],
       ["排\\座", "第 1 座", "第 2 座", "第 3 座"],
-      ["第 1 排", "空座", "空座", "张三"],
-      ["第 2 排", "李四", "空座", "空座"],
+      ["第 1 排", "", "", "张三"],
+      ["第 2 排", "李四", "", ""],
     ]);
   });
 
@@ -42,17 +41,10 @@ describe("seating export", () => {
       },
     })).toEqual([
       ["班级座次表", "", "", "", "", "", ""],
-      ["面向讲台 · 2 排 · 3 个座位/排", "", "", "", "", "", ""],
-      ["前方", "讲台", "", "", "", "", ""],
-      ["左侧", "排\\座", "第 1 座", "过道", "第 2 座", "第 3 座", "右侧"],
-      ["窗户", "第 1 排", "空座", "", "空座", "张三", "门口"],
-      ["门口", "第 2 排", "李四", "", "空座", "空座", "窗户"],
-      ["", "第 3 排", "", "", "", "", ""],
-      ["", "第 4 排", "", "", "", "", ""],
-      ["", "第 5 排", "", "", "", "", ""],
-      ["", "第 6 排", "", "", "", "", ""],
-      ["窗户", "第 7 排", "", "", "", "", ""],
-      ["后方", "教室后墙", "", "", "", "", ""],
+      ["", "讲台", "", "", "", "", ""],
+      ["", "排\\座", "第 1 座", "过道", "第 2 座", "第 3 座", ""],
+      ["窗户", "第 1 排", "", "", "", "张三", "门口"],
+      ["门口", "第 2 排", "李四", "", "", "", "窗户"],
     ]);
   });
 
@@ -73,13 +65,13 @@ describe("seating export", () => {
       },
     });
 
-    expect(matrix[4]).toEqual([
+    expect(matrix[3]).toEqual([
       "",
       "第 1 排",
-      "空座",
+      "",
       "",
       "张三",
-      "空座",
+      "",
       "",
       "李四",
       "",
@@ -120,9 +112,9 @@ describe("seating export", () => {
       },
     });
 
-    expect(sideFacilities[4].at(-1)).toBe("空调");
-    expect(sideFacilities[5][0]).toBe("饮水机");
-    expect(endFacilities[2][1]).toBe("讲台 · 饮水机（第 3 座）");
+    expect(sideFacilities[3].at(-1)).toBe("空调");
+    expect(sideFacilities[4][0]).toBe("饮水机");
+    expect(endFacilities[1][1]).toBe("讲台 · 饮水机（第 3 座）");
     expect(endFacilities.at(-1)?.[1]).toBe("教室后墙 · 空调（第 4 座）");
   });
 
@@ -140,7 +132,7 @@ describe("seating export", () => {
       },
     });
 
-    expect(matrix[7].at(-1)).toBe("饮水机");
+    expect(matrix[6].at(-1)).toBe("饮水机");
     expect(matrix.at(-1)?.[1]).toBe("教室后墙 · 空调（第 2 座）");
   });
 
@@ -160,7 +152,7 @@ describe("seating export", () => {
       assignments: [{ studentId: "s-danger", row: 1, column: 1 }],
     });
 
-    expect(matrix[3][1]).toBe("'=HYPERLINK(\"https://example.com\")");
+    expect(matrix[2][1]).toBe("'=HYPERLINK(\"https://example.com\")");
     expect(buildSeatingRosterRows({
       rows: 1,
       columns: 1,
@@ -168,6 +160,15 @@ describe("seating export", () => {
       assignments: [{ studentId: "s-danger", row: 1, column: 1 }],
     })[0]).not.toHaveProperty("学号");
     expect(getSeatingExportFilename(new Date(2026, 8, 2))).toBe("班级座次表-20260902.xlsx");
+    expect(getSeatingExportFilename(new Date(2026, 8, 2), "高二（3）班")).toBe("高二（3）班座次表-20260902.xlsx");
+    expect(getSeatingExportFilename(new Date(2026, 8, 2), "初一(1)")).toBe("初一(1)班座次表-20260902.xlsx");
+    expect(buildSeatingMatrix({
+      className: "高二（3）班",
+      rows: 1,
+      columns: 1,
+      students: [],
+      assignments: [],
+    })[0][0]).toBe("高二（3）班座次表");
   });
 
   it("does not turn an invalid assignment into a misleading empty seat", () => {
@@ -179,6 +180,44 @@ describe("seating export", () => {
         { studentId: "missing", row: 1, column: 1 },
         { studentId: "out-of-range", row: 2, column: 2 },
       ],
-    })[3]).toEqual(["第 1 排", "未知学生", "空座"]);
+    })[2]).toEqual(["第 1 排", "未知学生", ""]);
+  });
+
+  it("builds matrix with podium at bottom and mirrored columns", () => {
+    const matrix = buildSeatingMatrix({
+      rows: 2,
+      columns: 3,
+      students,
+      assignments,
+      podiumPosition: "BOTTOM",
+      mirrorColumns: true,
+      environment: {
+        aisleAfterColumns: [1],
+        left: { windows: [1], doorRows: [2] },
+        right: { windows: [2], doorRows: [1] },
+        rear: { waterDispenser: null, airConditioner: null },
+      },
+    });
+
+    // Column header should mirror tracks: 3, 2, aisle, 1
+    expect(matrix[1][0]).toBe("");
+    expect(matrix[1][1]).toBe("排\\座");
+    expect(matrix[1][2]).toBe("第 3 座");
+    expect(matrix[1][3]).toBe("第 2 座");
+    expect(matrix[1][4]).toBe("过道");
+    expect(matrix[1][5]).toBe("第 1 座");
+    expect(matrix[1][6]).toBe("");
+
+    // Body rows order: 2 down to 1
+    // Visual row 1 (which is at the bottom, closest to podium)
+    const row1 = matrix.find((r) => r[1] === "第 1 排");
+    expect(row1).toBeDefined();
+    // In row 1: student s-1 is at (row 1, col 3)
+    // In mirrored cols (3, 2, aisle, 1), col 3 is at index 2
+    expect(row1?.[2]).toBe("张三");
+
+    // The last row is the podium
+    expect(matrix.at(-1)?.[0]).toBe("");
+    expect(matrix.at(-1)?.[1]).toBe("讲台");
   });
 });

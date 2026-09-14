@@ -8,7 +8,7 @@ export const INITIAL_ACCOUNTS = {
   },
   headTeacher: {
     username: "mx",
-    displayName: "周老师",
+    displayName: "马雪老师",
     role: "HEAD_TEACHER",
   },
 } as const;
