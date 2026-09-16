@@ -71,7 +71,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 全局全屏动态艺术视频流 (colossus.mp4 - 100% 原始采光、通透流动) */
+/* 全局全屏动态艺术背景 (首屏海报秒开 + 视频渐进增强流动) */
+.global-backdrop-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.global-poster-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  z-index: -2;
+  pointer-events: none;
+}
+
 .global-video-backdrop {
   position: fixed;
   inset: 0;
@@ -81,6 +103,12 @@ body {
   object-position: center 30%;
   z-index: -2;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease-in-out;
+}
+
+.global-video-backdrop.is-loaded {
+  opacity: 1;
 }
 
 .global-video-overlay {
@@ -1741,7 +1769,29 @@ select {
   background: transparent !important;
 }
 
-/* Pear 原版 1080p 60fps 动态循环古典艺术视频 (将主体人物向右侧移动，避免被左侧表单遮挡) */
+/* 登录页古典艺术背景 (海报秒开 + 渐进动态增强) */
+.login-backdrop-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.login-poster-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 65% center;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .login-video-backdrop {
   position: absolute;
   inset: 0;
@@ -1751,6 +1801,12 @@ select {
   object-position: 65% center; /* 雕塑向右侧偏置展示，左右互不遮挡 */
   z-index: 0;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease-in-out;
+}
+
+.login-video-backdrop.is-loaded {
+  opacity: 1;
 }
 
 /* 顶部与底部出版物坐标与学术索引标注 (高对比深碳色) */

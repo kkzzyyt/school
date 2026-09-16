@@ -7,14 +7,12 @@ export async function GET() {
     const context = await requireAuthContext();
     const weekday = new Date().getDay() || 7;
 
-    const [studentCount, maleCount, femaleCount, courses, dutyGroups, workItems, recentExams] =
+    const [genderGroups, courses, dutyGroups, workItems, recentExams] =
       await Promise.all([
-        prisma.student.count({ where: { classId: context.classId, status: "ACTIVE" } }),
-        prisma.student.count({
-          where: { classId: context.classId, status: "ACTIVE", gender: "MALE" },
-        }),
-        prisma.student.count({
-          where: { classId: context.classId, status: "ACTIVE", gender: "FEMALE" },
+        prisma.student.groupBy({
+          by: ["gender"],
+          where: { classId: context.classId, status: "ACTIVE" },
+          _count: { _all: true },
         }),
         prisma.timetableEntry.findMany({
           where: { classId: context.classId, weekday },
@@ -41,6 +39,19 @@ export async function GET() {
           take: 3,
         }),
       ]);
+
+    let studentCount = 0;
+    let maleCount = 0;
+    let femaleCount = 0;
+    for (const group of genderGroups) {
+      const count = group._count._all;
+      studentCount += count;
+      if (group.gender === "MALE") {
+        maleCount += count;
+      } else if (group.gender === "FEMALE") {
+        femaleCount += count;
+      }
+    }
 
     return {
       classInfo: {

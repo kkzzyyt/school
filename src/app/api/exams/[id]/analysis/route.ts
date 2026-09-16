@@ -53,25 +53,35 @@ export async function GET(_request: Request, routeContext: RouteContext) {
       }),
     }));
 
+    const scoreMap = new Map<string, { score: number | null; absent: boolean }>();
+    for (const examSubject of exam.subjects) {
+      for (const record of examSubject.scores) {
+        scoreMap.set(`${examSubject.subjectId}:${record.studentId}`, {
+          score: record.score === null || record.score === undefined ? null : Number(record.score),
+          absent: record.absent,
+        });
+      }
+    }
+
+    const studentNoMap = new Map(activeStudents.map((student) => [student.id, student.studentNo]));
+
     const rankings = rankExamResults(
       activeStudents.map((student) => ({
         studentId: student.id,
         studentName: student.name,
         studentNo: student.studentNo,
         subjectScores: exam.subjects.map((examSubject) => {
-          const record = examSubject.scores.find((score) => score.studentId === student.id);
+          const record = scoreMap.get(`${examSubject.subjectId}:${student.id}`);
           return {
             subjectId: examSubject.subjectId,
-            score: record?.score === null || record?.score === undefined
-              ? null
-              : Number(record.score),
+            score: record?.score ?? null,
             absent: record?.absent ?? false,
           };
         }),
       })),
     ).map((result) => ({
       ...result,
-      studentNo: activeStudents.find((student) => student.id === result.studentId)?.studentNo,
+      studentNo: studentNoMap.get(result.studentId),
     }));
 
     const recordedScoreCount = exam.subjects.reduce(

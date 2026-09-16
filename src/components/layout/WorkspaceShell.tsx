@@ -19,6 +19,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { AuthIdentity } from "@/server/auth/context";
+import { AmbientBackdrop } from "./AmbientBackdrop";
 
 const { Sider, Content } = Layout;
 
@@ -124,17 +125,8 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
 
   return (
     <>
-      {/* 工作台底层 1080p 60fps 循环艺术视频 (colossus.mp4) */}
-      <video
-        className="global-video-backdrop"
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="metadata"
-      >
-        <source src="/films/colossus.mp4" type="video/mp4" />
-      </video>
+      {/* 工作台底层动态背景：首屏轻量海报秒开，稳定后异步挂载视频 */}
+      <AmbientBackdrop variant="workspace" />
       <div className="global-video-overlay" />
       <Layout className="workspace-layout">
         <Sider

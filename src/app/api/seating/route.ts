@@ -229,14 +229,11 @@ function prepareEnvironmentForWrite(
 export async function GET() {
   return handleApi(async () => {
     const context = await requireAuthContext();
-    const classroom = await prisma.classroom.findUnique({
-      where: { id: context.classId },
-      select: { name: true, seatRows: true, seatColumns: true, seatingEnvironment: true, updatedAt: true },
-    });
-    const className = classroom?.name || context.className || "";
-    const rows = classroom?.seatRows ?? DEFAULT_SEATING_ROWS;
-    const storedColumns = classroom?.seatColumns ?? DEFAULT_SEATING_COLUMNS;
-    const [students, assignments] = await Promise.all([
+    const [classroom, students, assignments] = await Promise.all([
+      prisma.classroom.findUnique({
+        where: { id: context.classId },
+        select: { name: true, seatRows: true, seatColumns: true, seatingEnvironment: true, updatedAt: true },
+      }),
       prisma.student.findMany({
         where: { classId: context.classId, status: "ACTIVE" },
         select: { id: true, name: true, studentNo: true, gender: true },
@@ -247,6 +244,9 @@ export async function GET() {
         select: { studentId: true, row: true, column: true },
       }),
     ]);
+    const className = classroom?.name || context.className || "";
+    const rows = classroom?.seatRows ?? DEFAULT_SEATING_ROWS;
+    const storedColumns = classroom?.seatColumns ?? DEFAULT_SEATING_COLUMNS;
     const legacyAisleColumns = getLegacyAisleColumns(
       classroom?.seatingEnvironment,
       storedColumns,

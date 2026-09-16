@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { apiRequest } from "@/lib/api";
+import { AmbientBackdrop } from "@/components/layout/AmbientBackdrop";
 
 interface LoginValues {
   username: string;
@@ -64,18 +65,8 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
-      {/* Pear 原版高清动态循环视频 signal.mp4 (日光通透、绝无压暗) */}
-      <video
-        className="login-video-backdrop"
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="metadata"
-        poster="/films/signal-poster.jpg"
-      >
-        <source src="/films/signal.mp4" type="video/mp4" />
-      </video>
+      {/* Pear 原版动态艺术背景：首屏轻量海报秒开，稳定后异步挂载视频 */}
+      <AmbientBackdrop variant="login" />
 
       {/* 学术公报索引标头 (高对比深碳墨色) */}
       <header className="login-meta-header">

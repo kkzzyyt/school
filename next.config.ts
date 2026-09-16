@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  compress: true,
+  experimental: {
+    optimizePackageImports: ["antd", "@ant-design/icons", "dayjs", "recharts"],
+  },
   serverExternalPackages: ["argon2"],
   outputFileTracingIncludes: {
     "/*": [
@@ -15,6 +19,28 @@ const nextConfig: NextConfig = {
       "node_modules/lru-cache/**/*",
       "node_modules/safer-buffer/**/*",
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: "/films/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/images/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
   },
 };
 
