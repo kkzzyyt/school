@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   transaction: {
     classroom: { updateMany: vi.fn() },
     seatAssignment: { deleteMany: vi.fn(), createMany: vi.fn() },
+    seatingHistory: { create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
   },
   prisma: {
     classroom: { findUnique: vi.fn() },
@@ -81,6 +82,9 @@ describe("seating route handlers", () => {
     mocks.transaction.classroom.updateMany.mockResolvedValue({ count: 1 });
     mocks.transaction.seatAssignment.deleteMany.mockResolvedValue({ count: 0 });
     mocks.transaction.seatAssignment.createMany.mockResolvedValue({ count: 0 });
+    mocks.transaction.seatingHistory.findMany.mockResolvedValue([]);
+    mocks.transaction.seatingHistory.create.mockResolvedValue({ id: "hist-1" });
+    mocks.transaction.seatingHistory.deleteMany.mockResolvedValue({ count: 0 });
     mocks.prisma.$transaction.mockImplementation(
       async (operation: (transaction: typeof mocks.transaction) => Promise<unknown>) =>
         operation(mocks.transaction),
@@ -520,5 +524,56 @@ describe("seating route handlers", () => {
     expect(response.status).toBe(401);
     expect(body).toMatchObject({ success: false, error: { code: "UNAUTHORIZED" } });
     expect(mocks.prisma.classroom.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("creates a seating history snapshot and prunes records older than 12 on PUT", async () => {
+    mocks.prisma.student.findMany.mockResolvedValue([
+      { id: "student-1", name: "张三", studentNo: "001", gender: "MALE" },
+      { id: "student-2", name: "李四", studentNo: "002", gender: "FEMALE" },
+    ]);
+    mocks.transaction.seatingHistory.findMany.mockResolvedValue([
+      { id: "old-13" },
+    ]);
+
+    const response = await PUT(
+      putRequest({
+        rows: 2,
+        columns: 4,
+        assignments: [
+          { studentId: "student-2", row: 2, column: 4 },
+          { studentId: "student-1", row: 1, column: 1 },
+        ],
+        environment,
+        triggerType: "ROTATION",
+        description: "第3周轮换",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.transaction.seatingHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        classId: "class-1",
+        operatorId: "user-1",
+        operatorName: "周老师",
+        triggerType: "ROTATION",
+        description: "第3周轮换",
+        rows: 2,
+        columns: 4,
+        studentCount: 2,
+        assignments: expect.arrayContaining([
+          expect.objectContaining({ studentId: "student-1", studentName: "张三" }),
+          expect.objectContaining({ studentId: "student-2", studentName: "李四" }),
+        ]),
+      }),
+    });
+    expect(mocks.transaction.seatingHistory.findMany).toHaveBeenCalledWith({
+      where: { classId: "class-1" },
+      orderBy: { createdAt: "desc" },
+      skip: 12,
+      select: { id: true },
+    });
+    expect(mocks.transaction.seatingHistory.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["old-13"] } },
+    });
   });
 });

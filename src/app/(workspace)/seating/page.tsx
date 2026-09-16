@@ -8,6 +8,7 @@ import {
   DragOutlined,
   EditOutlined,
   FileExcelOutlined,
+  HistoryOutlined,
   LockOutlined,
   LoginOutlined,
   PlusOutlined,
@@ -43,7 +44,9 @@ import type { MenuProps } from "antd";
 import { Fragment, type CSSProperties, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { LedgerSheet } from "@/components/layout/LedgerSheet";
+import { SeatingHistoryDrawer } from "@/components/seating/SeatingHistoryDrawer";
 import { SeatingSchemeModal } from "@/components/seating/SeatingSchemeModal";
+import type { SeatingHistoryDetail } from "@/domain/seating-history";
 import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
@@ -301,6 +304,29 @@ export default function SeatingPage() {
     }, 2500);
   }
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+
+  function handleLoadHistoryDraft(historyDetail: SeatingHistoryDetail) {
+    if (!isEditing) {
+      setIsEditing(true);
+    }
+    const nextDraft: SeatingDraft = {
+      rows: historyDetail.rows,
+      columns: historyDetail.columns,
+      assignments: sortAssignments(
+        historyDetail.assignments.map((a) => ({
+          studentId: a.studentId,
+          row: a.row,
+          column: a.column,
+        })),
+      ),
+      environment: cloneEnvironment(historyDetail.environment),
+    };
+    dispatch({ type: "commit", draft: nextDraft });
+    setSelectedStudentId(null);
+    setDropTarget(null);
+    setSeatActionMenuKey(null);
+  }
   const [replaceModalTarget, setReplaceModalTarget] = useState<{
     row: number;
     column: number;
@@ -1335,6 +1361,15 @@ export default function SeatingPage() {
                   onClick={() => void exportSeating()}
                 />
               </Tooltip>
+              <Tooltip title="座位调整历史">
+                <Button
+                  type="text"
+                  icon={<HistoryOutlined />}
+                  aria-label="座位调整历史"
+                  disabled={saving}
+                  onClick={() => setHistoryDrawerOpen(true)}
+                />
+              </Tooltip>
               {isEditing && (
                 <>
                   <Tooltip title={editor.past.length ? `上一步 (撤销 ⌘Z · 剩余 ${editor.past.length} 步)` : "上一步 (撤销 ⌘Z)"}>
@@ -1756,6 +1791,18 @@ export default function SeatingPage() {
           disabledSeatKeys={disabledSeatKeys}
         />
       )}
+      <SeatingHistoryDrawer
+        open={historyDrawerOpen}
+        onClose={() => setHistoryDrawerOpen(false)}
+        onLoadDraft={handleLoadHistoryDraft}
+        onRestoreSuccess={async () => {
+          setIsEditing(false);
+          setSelectedStudentId(null);
+          setDropTarget(null);
+          setSeatActionMenuKey(null);
+          await refresh();
+        }}
+      />
       {replaceModalTarget && (
         <Modal
           className="replace-student-modal"

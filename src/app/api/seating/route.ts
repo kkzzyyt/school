@@ -12,6 +12,10 @@ import {
   validateSeatingEnvironment,
   validateSeatingLayout,
 } from "@/domain/seating";
+import {
+  MAX_SEATING_HISTORY_COUNT,
+  buildHistoryAssignmentsSnapshot,
+} from "@/domain/seating-history";
 import { ApiError, handleApi } from "@/server/api/errors";
 import { requireAuthContext } from "@/server/auth/context";
 import { assertSameOrigin } from "@/server/auth/origin";
@@ -69,6 +73,8 @@ const seatingSchema = z.object({
       }),
     ).optional(),
   }).optional(),
+  triggerType: z.string().max(30).optional(),
+  description: z.string().max(200).optional(),
 });
 
 function parseStoredEnvironment(
@@ -319,6 +325,13 @@ export async function PUT(request: Request) {
       throw new ApiError(403, "FORBIDDEN", "座次中包含无权访问的学生");
     }
 
+    const studentList = studentIds.length > 0
+      ? await prisma.student.findMany({
+          where: { id: { in: studentIds }, classId: context.classId },
+          select: { id: true, name: true, studentNo: true, gender: true },
+        })
+      : [];
+
     await prisma.$transaction(async (transaction) => {
       const classroomUpdate = await transaction.classroom.updateMany({
         where: { id: context.classId, updatedAt: new Date(input.revision) },
@@ -339,6 +352,37 @@ export async function PUT(request: Request) {
             classId: context.classId,
           })),
         });
+      }
+
+      if ("seatingHistory" in transaction && (transaction as Record<string, unknown>).seatingHistory) {
+        const assignmentsSnapshot = buildHistoryAssignmentsSnapshot(layout.assignments, studentList);
+        await transaction.seatingHistory.create({
+          data: {
+            classId: context.classId,
+            operatorId: context.userId,
+            operatorName: context.displayName,
+            triggerType: input.triggerType ?? "MANUAL",
+            description: input.description ?? (input.triggerType === "ROTATION" ? "规则轮换" : "座次调整"),
+            rows: layout.rows,
+            columns: layout.columns,
+            studentCount: layout.assignments.length,
+            assignments: assignmentsSnapshot as unknown as Prisma.InputJsonValue,
+            environment: layout.environment as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        const excessHistories = await transaction.seatingHistory.findMany({
+          where: { classId: context.classId },
+          orderBy: { createdAt: "desc" },
+          skip: MAX_SEATING_HISTORY_COUNT,
+          select: { id: true },
+        });
+
+        if (excessHistories.length > 0) {
+          await transaction.seatingHistory.deleteMany({
+            where: { id: { in: excessHistories.map((h) => h.id) } },
+          });
+        }
       }
     });
 

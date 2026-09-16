@@ -13,6 +13,7 @@ Classroom ──< TimetableEntry >── Course
 Classroom ──< Exam ──< ExamSubject >── Subject
 ExamSubject ──< Score >── Student
 Classroom ──< WorkItem
+Classroom ──< SeatingHistory
 ```
 
 ## 2. 关键实体
@@ -35,6 +36,7 @@ Classroom ──< WorkItem
 | ExamSubject | examId, subjectId, maxScore, passScore | examId + subjectId 唯一 |
 | Score | examSubjectId, studentId, score, absent | examSubjectId + studentId 唯一；absent 时 score 为 null |
 | WorkItem | classId, title, dueAt, status, priority | 用于工作台待办 |
+| SeatingHistory | classId, operatorId, triggerType, rows, columns, assignments, environment, createdAt | 最多保留最近 12 条记录；assignments 冗余学生姓名/学号快照 |
 
 ## 3. 数据隔离不变量
 
@@ -51,6 +53,7 @@ Classroom ──< WorkItem
 - `Session(tokenHash, expiresAt)`：认证热路径与清理任务。
 - `Exam(classId, examDate)`：最近考试。
 - `WorkItem(classId, status, dueAt)`：工作台待办。
+- `SeatingHistory(classId, createdAt)`：座位调整历史按时间快速追溯与截断。
 - 其他唯一约束同时提供主要查询索引。
 
 ## 5. 保留与隐私

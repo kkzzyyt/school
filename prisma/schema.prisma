@@ -83,6 +83,7 @@ model User {
   sessions     Session[]
   memberships  ClassMembership[]
   auditLogs    AuditLog[]
+  seatingHistories SeatingHistory[]
 }
 
 model Session {
@@ -120,6 +121,7 @@ model Classroom {
   exams          Exam[]
   workItems      WorkItem[]
   auditLogs      AuditLog[]
+  seatingHistories SeatingHistory[]
 
   @@unique([name, academicYear])
 }
@@ -191,6 +193,26 @@ model SeatAssignment {
 
   @@unique([classId, row, column])
   @@index([classId])
+}
+
+model SeatingHistory {
+  id           String    @id @default(cuid())
+  classId      String
+  operatorId   String?
+  operatorName String?   @db.VarChar(50)
+  triggerType  String    @default("MANUAL") @db.VarChar(30)
+  description  String?   @db.VarChar(200)
+  rows         Int
+  columns      Int
+  studentCount Int       @default(0)
+  assignments  Json
+  environment  Json?
+  createdAt    DateTime  @default(now())
+  classroom    Classroom @relation(fields: [classId], references: [id], onDelete: Cascade)
+  operator     User?     @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@index([classId, createdAt])
+  @@index([operatorId])
 }
 
 model DutyGroup {

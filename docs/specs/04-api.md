@@ -68,7 +68,10 @@
 | Method | Path | 说明 |
 | --- | --- | --- |
 | GET | `/api/seating` | 布局尺寸、学生、当前分配、教室环境和 `revision`；座位行列不包含过道或左右侧轨道 |
-| PUT | `/api/seating` | `{ revision, rows, columns, assignments[], environment }` 原子替换座次与教室标记 |
+| PUT | `/api/seating` | `{ revision, rows, columns, assignments[], environment, triggerType?, description? }` 原子替换座次与教室标记，并在事务中归档历史（最多保留12条） |
+| GET | `/api/seating/history` | 最近 12 次座位调整历史摘要列表（按时间倒序） |
+| GET | `/api/seating/history/:id` | 单条历史快照完整详情（用于预览） |
+| POST | `/api/seating/history/:id/restore` | 恢复指定历史版本为当前座次 |
 | GET | `/api/duties` | 值日组与成员 |
 | POST | `/api/duties` | 新增值日组 |
 | PATCH | `/api/duties/:id` | 更新组信息和成员 |
