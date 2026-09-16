@@ -1,7 +1,7 @@
 "use client";
 
 import { PlusOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from "@ant-design/icons";
-import { Alert, Button, Input, Segmented, Tag } from "antd";
+import { Alert, Button, Input } from "antd";
 import { Suspense, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -12,23 +12,7 @@ import { StudentDetailDrawer } from "@/components/students/StudentDetailDrawer";
 import { StudentEditor } from "@/components/students/StudentEditor";
 import { StudentList } from "@/components/students/StudentList";
 import styles from "@/components/students/students.module.css";
-import {
-  isStudentStatus,
-  statusMap,
-  type Student,
-  type StudentResponse,
-  type StudentStatus,
-} from "@/components/students/types";
-
-type StatusFilter = StudentStatus | "ALL";
-
-const statusOptions: Array<{ label: string; value: StatusFilter }> = [
-  { label: "全部", value: "ALL" },
-  ...(["ACTIVE", "SUSPENDED", "TRANSFERRED", "GRADUATED"] as StudentStatus[]).map((value) => ({
-    label: statusMap[value].text,
-    value,
-  })),
-];
+import type { Student, StudentResponse } from "@/components/students/types";
 
 function StudentPageFallback() {
   return (
@@ -36,13 +20,12 @@ function StudentPageFallback() {
       <LedgerSheet
         kicker="STUDENT ROSTER"
         title="学生花名册"
-        description="统一维护学生基本信息、学籍状态和联系人。"
-        metrics={[{ label: "REGISTRY // 在册", value: "—", unit: "人", detail: "正在读取档案", icon: <TeamOutlined /> }]}
+        description="班级在校学生基本信息和家长联系人档案。"
+        metrics={[{ label: "REGISTRY // 在校学生", value: "—", unit: "人", detail: "正在读取档案", icon: <TeamOutlined /> }]}
       >
         <section className={styles.rosterPanel} aria-busy="true">
           <div className={styles.toolbar}>
             <div className={styles.searchWrap} />
-            <div className={styles.filterWrap} />
           </div>
           <div className={styles.studentListState}>正在准备学生名单...</div>
         </section>
@@ -56,8 +39,6 @@ function StudentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get("search") ?? searchParams.get("q") ?? "";
-  const rawStatus = searchParams.get("status");
-  const status = isStudentStatus(rawStatus) ? rawStatus : "ALL";
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [editorStudent, setEditorStudent] = useState<Student | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -66,14 +47,13 @@ function StudentsPageContent() {
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ pageSize: "100" });
     if (query.trim()) params.set("q", query.trim());
-    if (status !== "ALL") params.set("status", status);
     return `/api/students?${params.toString()}`;
-  }, [query, status]);
+  }, [query]);
 
   const { data, loading, error, refresh } = useApiData<StudentResponse>(requestUrl);
-  const hasFilters = Boolean(query.trim()) || status !== "ALL";
+  const hasFilters = Boolean(query.trim());
 
-  function replaceFilters(next: { search?: string; status?: StatusFilter }) {
+  function replaceFilters(next: { search?: string }) {
     const nextSearchParams = new URLSearchParams(searchParams.toString());
     if (next.search !== undefined) {
       const normalized = next.search.trim();
@@ -81,10 +61,7 @@ function StudentsPageContent() {
       else nextSearchParams.delete("search");
       nextSearchParams.delete("q");
     }
-    if (next.status !== undefined) {
-      if (next.status === "ALL") nextSearchParams.delete("status");
-      else nextSearchParams.set("status", next.status);
-    }
+    nextSearchParams.delete("status");
     const nextQuery = nextSearchParams.toString();
     router.replace(`${pathname}${nextQuery ? `?${nextQuery}` : ""}`, { scroll: false });
   }
@@ -111,7 +88,7 @@ function StudentsPageContent() {
   }
 
   function clearFilters() {
-    replaceFilters({ search: "", status: "ALL" });
+    replaceFilters({ search: "" });
   }
 
   async function saveComplete() {
@@ -123,7 +100,7 @@ function StudentsPageContent() {
       <LedgerSheet
         kicker="STUDENT ROSTER"
         title="学生花名册"
-        description="统一维护学生基本信息、学籍状态和联系人。"
+        description="班级在校学生基本信息和家长联系人档案。"
         actions={(
           <div className={styles.headingAction}>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>
@@ -133,17 +110,11 @@ function StudentsPageContent() {
         )}
         metrics={[
           {
-            label: "REGISTRY // 班级在册",
+            label: "REGISTRY // 班级在校",
             value: data?.meta.total ?? "—",
             unit: "人",
-            detail: hasFilters ? "当前筛选结果" : "按学号顺序展示",
+            detail: hasFilters ? "当前搜索结果" : "按学号顺序展示",
             icon: <TeamOutlined />,
-          },
-          {
-            label: "FILTER // 当前状态",
-            value: status === "ALL" ? "全部" : statusMap[status].text,
-            detail: query.trim() ? `检索“${query.trim()}”` : "未启用筛选",
-            icon: <SearchOutlined />,
           },
         ]}
       >
@@ -162,25 +133,14 @@ function StudentsPageContent() {
               <Input.Search
                 key={query}
                 allowClear
-                enterButton
+                enterButton={<SearchOutlined />}
                 defaultValue={query}
-                prefix={<SearchOutlined />}
                 placeholder="搜索姓名或学号"
                 aria-label="搜索姓名或学号"
                 onChange={(event) => {
                   if (!event.target.value) replaceFilters({ search: "" });
                 }}
                 onSearch={(value) => replaceFilters({ search: value })}
-              />
-            </div>
-            <div className={styles.filterWrap}>
-              <span className={styles.filterLabel}>学籍状态</span>
-              <Segmented<StatusFilter>
-                className={styles.statusSegmented}
-                block
-                options={statusOptions}
-                value={status}
-                onChange={(value) => replaceFilters({ status: value })}
               />
             </div>
           </div>
@@ -192,11 +152,11 @@ function StudentsPageContent() {
             </div>
             <div className={styles.rosterMetaDetails}>
               <TeamOutlined aria-hidden="true" />
-              {query.trim() && <span>搜索“{query.trim()}”</span>}
-              {status !== "ALL" && <Tag color={statusMap[status].color}>{statusMap[status].text}</Tag>}
-              {!hasFilters && <span>按学号顺序展示</span>}
+              {hasFilters ? <span>搜索“{query.trim()}”</span> : <span>按学号顺序展示</span>}
             </div>
-            <Button type="link" disabled={!hasFilters} onClick={clearFilters}>清除筛选</Button>
+            {hasFilters && (
+              <Button type="link" onClick={clearFilters}>清除筛选</Button>
+            )}
           </div>
 
           <StudentList

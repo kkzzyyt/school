@@ -225,15 +225,6 @@ export function WorkspaceShell({ auth, children, mode = "workspace" }: Workspace
                 </button>
               );
             })}
-            <button
-              type="button"
-              className={`mobile-tabbar-item ${!mobileTabs.some((tab) => tab.key === pathname) ? "active-more" : ""}`}
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="更多功能导航"
-            >
-              <span className="mobile-tabbar-icon"><MenuOutlined /></span>
-              <span className="mobile-tabbar-label">更多</span>
-            </button>
           </nav>
         </Layout>
 

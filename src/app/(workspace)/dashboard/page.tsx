@@ -1,15 +1,19 @@
 "use client";
 
 import {
+  BarChartOutlined,
+  BookOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  TeamOutlined,
-  BookOutlined,
+  IdcardOutlined,
+  PhoneOutlined,
   ScheduleOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { Alert, Empty, Skeleton, Timeline } from "antd";
 import dayjs from "dayjs";
+import Link from "next/link";
 
 import { useApiData } from "@/hooks/useApiData";
 
@@ -83,6 +87,52 @@ export default function DashboardPage() {
               </div>
             </div>
           </header>
+
+          {/* 常用高频业务金刚区（移动端大触控一键直达，桌面端精致工具栏） */}
+          <nav className="dashboard-quick-grid" aria-label="核心业务快捷入口">
+            <Link href="/seating" className="quick-grid-item">
+              <div className="quick-grid-icon seating"><IdcardOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">班级座次</span>
+                <span className="quick-grid-sub">查阅与调整</span>
+              </div>
+            </Link>
+            <Link href="/students" className="quick-grid-item">
+              <div className="quick-grid-icon students"><TeamOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">学生花名册</span>
+                <span className="quick-grid-sub">{data.summary.studentCount} 位在校</span>
+              </div>
+            </Link>
+            <Link href="/contacts" className="quick-grid-item">
+              <div className="quick-grid-icon contacts"><PhoneOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">家长通讯录</span>
+                <span className="quick-grid-sub">一键拨号联络</span>
+              </div>
+            </Link>
+            <Link href="/timetable" className="quick-grid-item">
+              <div className="quick-grid-icon timetable"><CalendarOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">班级课表</span>
+                <span className="quick-grid-sub">今日 {data.today.courses.length} 节课</span>
+              </div>
+            </Link>
+            <Link href="/duties" className="quick-grid-item">
+              <div className="quick-grid-icon duties"><ScheduleOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">班级值日</span>
+                <span className="quick-grid-sub">查看排班责任</span>
+              </div>
+            </Link>
+            <Link href="/grades" className="quick-grid-item">
+              <div className="quick-grid-icon grades"><BarChartOutlined /></div>
+              <div className="quick-grid-info">
+                <span className="quick-grid-label">成绩分析</span>
+                <span className="quick-grid-sub">考试与学情</span>
+              </div>
+            </Link>
+          </nav>
 
           {/* 核心主运行矩阵（左侧待办提醒 + 右侧今日课表，精密墨线垂直贯通） */}
           <div className="sheet-body-matrix">

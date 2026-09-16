@@ -57,7 +57,9 @@ export function StudentCard({ student, onOpenDetail, onEdit }: StudentCardProps)
             <div className={styles.studentIdentityCopy}>
               <div className={styles.studentNameRow}>
                 <h2 title={student.name}>{student.name}</h2>
-                <Tag className={styles.studentStatusTag} color={status.color}>{status.text}</Tag>
+                {student.status !== "ACTIVE" && (
+                  <Tag className={styles.studentStatusTag} color={status.color}>{status.text}</Tag>
+                )}
               </div>
               <div className={styles.studentSubRow}>
                 <span className={styles.studentNoBadge} title={`学号：${student.studentNo}`}>

@@ -4,6 +4,7 @@ import {
   BankOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   FilterOutlined,
@@ -36,6 +37,15 @@ export default function ContactsPage() {
   const [saving, setSaving] = useState(false);
   const [primaryOnly, setPrimaryOnly] = useState(false);
   const [form] = Form.useForm<ContactValues>();
+
+  async function copyWechat(wechat: string) {
+    try {
+      await navigator.clipboard.writeText(wechat);
+      message.success(`微信号 ${wechat} 已复制`);
+    } catch {
+      message.info(`微信号：${wechat}`);
+    }
+  }
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -169,22 +179,34 @@ export default function ContactsPage() {
                 </Space>
               </div>
               <div className="contact-card-body">
-                <div className="contact-info-row">
+                <div className="contact-info-row contact-phone-row">
                   <PhoneOutlined className="contact-info-icon" aria-hidden="true" />
                   <a className="contact-phone" href={`tel:${contact.phone}`}>{contact.phone}</a>
-                  <Button
-                    className="contact-call-button"
-                    type="text"
-                    icon={<PhoneOutlined />}
+                  <a
+                    className="contact-call-action-btn"
                     href={`tel:${contact.phone}`}
                     aria-label={`拨打${contact.name}的电话`}
                     title="拨打电话"
-                  />
+                  >
+                    <PhoneOutlined />
+                    <span>呼叫</span>
+                  </a>
                 </div>
-                <div className="contact-info-row">
+                <div className="contact-info-row contact-wechat-row">
                   <WechatOutlined className="contact-info-icon" aria-hidden="true" />
                   {contact.wechat ? (
-                    <span className="contact-wechat">微信号：{contact.wechat}</span>
+                    <>
+                      <span className="contact-wechat">微信：{contact.wechat}</span>
+                      <Button
+                        size="small"
+                        type="text"
+                        className="contact-copy-btn"
+                        icon={<CopyOutlined />}
+                        onClick={() => void copyWechat(contact.wechat!)}
+                      >
+                        复制
+                      </Button>
+                    </>
                   ) : (
                     <span className="contact-wechat contact-info-muted">未提供微信号</span>
                   )}

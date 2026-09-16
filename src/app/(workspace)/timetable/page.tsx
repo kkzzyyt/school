@@ -103,7 +103,7 @@ export default function TimetablePage() {
   }
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const mediaQuery = window.matchMedia("(max-width: 720px)");
     const syncViewMode = () => setViewMode(mediaQuery.matches ? "day" : "week");
     mediaQuery.addEventListener("change", syncViewMode);
     if (mediaQuery.matches) window.requestAnimationFrame(syncViewMode);
@@ -412,6 +412,23 @@ export default function TimetablePage() {
             )}
           </section>
         </div>
+        {isDirty && (
+          <div className={styles.mobileFloatingSaveBar} role="region" aria-label="移动端保存课表操作栏">
+            <div className={styles.mobileSaveInfo}>
+              <span className={styles.mobileSaveDot} />
+              <span>有未保存的课表调整</span>
+            </div>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={() => void saveTimetable()}
+              className={styles.mobileSaveButton}
+            >
+              保存课表
+            </Button>
+          </div>
+        )}
       </LedgerSheet>
 
       <Modal

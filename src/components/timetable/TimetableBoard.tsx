@@ -270,7 +270,11 @@ function WeekBoard({
   const entryMap = new Map(entries.map((entry) => [positionKey(entry), entry]));
 
   return (
-    <div className={styles.weekScroll}>
+    <>
+      <div className={styles.weekScrollHint} aria-hidden="true">
+        <span>👈 左右滑动查看周一至周五完整课表 👉</span>
+      </div>
+      <div className={styles.weekScroll}>
       <div className={styles.weekGrid} role="grid" aria-label="本周课程安排">
         <div className={`${styles.weekHeader} ${styles.weekCorner}`} role="columnheader">
           <span>时间</span>
@@ -303,6 +307,7 @@ function WeekBoard({
         ))}
       </div>
     </div>
+    </>
   );
 }
 

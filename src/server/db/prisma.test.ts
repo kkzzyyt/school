@@ -26,6 +26,7 @@ describe("withDatabaseTimeouts", () => {
     expect(url.searchParams.get("connectTimeout")).toBe("1000");
     expect(url.searchParams.get("acquireTimeout")).toBe("2000");
     expect(url.searchParams.get("socketTimeout")).toBe("2000");
+    expect(url.searchParams.get("allowPublicKeyRetrieval")).toBe("true");
     expect(url.searchParams.has("queryTimeout")).toBe(false);
   });
 

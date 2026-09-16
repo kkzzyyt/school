@@ -11,6 +11,7 @@ const DATABASE_TIMEOUT_DEFAULTS = {
   connectTimeout: "1000",
   // queryTimeout relies on MariaDB's max_statement_time and is not supported by MySQL.
   socketTimeout: "2000",
+  allowPublicKeyRetrieval: "true",
 };
 
 export function withDatabaseTimeouts(databaseUrl: string): string {
@@ -34,7 +35,7 @@ export function withDatabaseTimeouts(databaseUrl: string): string {
 function createPrismaClient(): PrismaClient {
   const databaseUrl =
     process.env.DATABASE_URL ??
-    "mysql://school:school_dev_password@127.0.0.1:3307/school";
+    "mysql://school:school_dev_password@127.0.0.1:3306/school";
   const adapter = new PrismaMariaDb(withDatabaseTimeouts(databaseUrl));
 
   return new PrismaClient({ adapter });

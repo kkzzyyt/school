@@ -167,11 +167,16 @@
   gap: 18px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .contentWrap {
-    padding: 16px;
+    padding: 14px 12px calc(80px + env(safe-area-inset-bottom, 12px));
     gap: 14px;
   }
+}
+
+.weekScrollHint,
+.mobileFloatingSaveBar {
+  display: none;
 }
 
 .viewPanel {
@@ -672,15 +677,19 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .headingActions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .headingActions > button {
     min-width: 0;
+    height: 34px;
     padding-inline: 10px;
+    font-size: 12.5px;
+    border-radius: 8px;
   }
 
   .statusStrip {
@@ -716,20 +725,26 @@
   }
 
   .dayButton {
-    min-height: 48px;
-    gap: 4px;
-    padding: 6px 3px;
+    min-height: 50px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px;
   }
 
   .dayNumber {
-    width: 23px;
-    height: 23px;
-    flex-basis: 23px;
-    font-size: 11px;
+    display: none;
   }
 
   .dayText {
-    font-size: 12px;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .dayToday {
+    font-size: 10px;
   }
 
   .boardMeta {
@@ -803,17 +818,67 @@
     width: 100%;
     justify-content: flex-end;
   }
+
+  .weekScrollHint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    margin: 4px 10px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--primary, #015186);
+    background: rgba(1, 81, 134, 0.07);
+    border: 1px dashed rgba(1, 81, 134, 0.2);
+    border-radius: 20px;
+    text-align: center;
+  }
+
+  .mobileFloatingSaveBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid rgba(182, 211, 232, 0.7);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 10px));
+    gap: 12px;
+  }
+
+  .mobileSaveInfo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink, #0a1b2a);
+  }
+
+  .mobileSaveDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    flex-shrink: 0;
+  }
+
+  .mobileSaveButton {
+    height: 40px;
+    padding-inline: 18px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
 }
 
 @media (max-width: 390px) {
-  .dayText {
-    display: none;
-  }
-
-  .dayButton {
-    gap: 0;
-  }
-
   .dayRow {
     grid-template-columns: 76px minmax(0, 1fr);
   }

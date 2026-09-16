@@ -16,10 +16,10 @@
 }
 
 .toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(360px, 0.9fr);
-  gap: 16px;
-  padding: 24px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 18px 28px;
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.74);
   backdrop-filter: blur(10px);
@@ -27,45 +27,71 @@
 }
 
 .searchWrap {
-  min-width: 0;
+  width: 100%;
+  max-width: 440px;
 }
 
-.searchWrap :global(.ant-input-search),
-.searchWrap :global(.ant-input-group) {
-  display: flex;
-  align-items: stretch;
+.searchWrap :global(.ant-input-wrapper) {
+  display: flex !important;
+  align-items: stretch !important;
+  width: 100% !important;
 }
 
 .searchWrap :global(.ant-input-affix-wrapper) {
-  min-height: 44px;
-  border-radius: 6px;
+  flex: 1 1 auto !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  border-start-start-radius: 8px !important;
+  border-end-start-radius: 8px !important;
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-right: 0 !important;
+  font-size: 14px;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
 }
 
+.searchWrap :global(.ant-input) {
+  font-size: 14px;
+}
+
+.searchWrap :global(.ant-input-group-addon) {
+  display: flex !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.searchWrap :global(.ant-input-search-btn),
 .searchWrap :global(.ant-input-search-button) {
-  height: 44px;
-  min-height: 44px;
+  height: 40px !important;
+  min-height: 40px !important;
+  width: 44px !important;
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+  border-start-end-radius: 8px !important;
+  border-end-end-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
 }
 
-.filterWrap {
-  min-width: 0;
-}
-
-.filterLabel {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.statusSegmented {
-  width: 100%;
-}
-
-.statusSegmented :global(.ant-segmented-item-label) {
-  min-height: 34px;
-  padding: 7px 10px;
-  line-height: 20px;
+.searchWrap :global(.ant-input-search-btn .ant-btn-icon),
+.searchWrap :global(.ant-input-search-button .ant-btn-icon),
+.searchWrap :global(.ant-input-search-button .anticon) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
 }
 
 .rosterMeta {
@@ -933,48 +959,83 @@
   gap: 10px;
 }
 
-@media (max-width: 880px) {
-  .toolbar {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 720px) {
   .headingAction {
-    width: 100%;
+    width: auto;
   }
 
   .headingAction :global(.ant-btn) {
-    width: 100%;
-    height: 44px;
+    width: auto;
+    height: 36px;
+    font-size: 13px;
+    padding: 0 14px;
+    border-radius: 8px;
   }
 
   .toolbar {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 14px;
+    padding: 10px 12px;
+  }
+
+  .searchWrap {
+    max-width: 100%;
+  }
+
+  .searchWrap :global(.ant-input-affix-wrapper),
+  .searchWrap :global(.ant-input-search-button),
+  .searchWrap :global(.ant-input-search-btn) {
+    height: 38px !important;
+    min-height: 38px !important;
   }
 
   .rosterMeta {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 9px 14px;
-    padding: 13px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 42px;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .rosterCount strong {
+    font-size: 17px;
   }
 
   .rosterMetaDetails {
-    order: 3;
-    flex-basis: 100%;
+    order: unset;
+    flex-basis: auto;
+    justify-content: flex-end;
+    font-size: 11.5px;
   }
 
   .studentGrid {
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 14px 12px;
+    gap: 10px;
+    padding: 10px 8px;
   }
 
   .studentCard {
     min-height: auto;
+    border-radius: 10px;
+  }
+
+  .studentCardTop {
+    padding: 12px 14px 10px;
+    gap: 8px;
+  }
+
+  .studentAvatar {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    font-size: 16px;
+  }
+
+  .studentFacts {
+    display: none !important;
+  }
+
+  .studentContactSummary {
+    padding: 8px 14px !important;
   }
 
   .studentDetailHero {

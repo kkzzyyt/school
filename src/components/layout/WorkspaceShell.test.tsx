@@ -71,14 +71,14 @@ describe("WorkspaceShell Mobile Responsive Navigation", () => {
     const menuButtons = screen.getAllByLabelText("打开系统菜单");
     expect(menuButtons[0]).toBeInTheDocument();
 
-    // 2. 验证移动端底部快捷导航栏包含 5 个核心入口
+    // 2. 验证移动端底部快捷导航栏包含 4 个核心入口（工作台、座次、花名册、通讯录）
     const mobileTabbar = screen.getByRole("navigation", { name: "移动端快捷导航" });
     expect(mobileTabbar).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "座次" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "花名册" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "通讯录" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "更多功能导航" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "更多功能导航" })).toBeNull();
 
     // 3. 点击顶部系统菜单按钮打开移动端抽屉
     fireEvent.click(menuButtons[0]);

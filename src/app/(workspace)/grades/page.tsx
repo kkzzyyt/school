@@ -293,13 +293,14 @@ export default function GradesPage() {
         title={analysis ? `${analysis.exam.name}分析` : "成绩分析"}
         description="全科成绩综合统计报告、班级均分与及格率分布，快速定位各科教学与学生学习变化。"
         actions={(
-          <Space wrap>
-            <span style={{ color: "var(--muted)", fontSize: 13 }}>选择考试：</span>
+          <div className={styles.gradesHeaderActions}>
+            <span className={styles.examSelectLabel}>选择考试：</span>
             <Select
+              className={styles.examSelect}
               loading={examsLoading}
               value={activeExamId}
               onChange={setSelectedExamId}
-              style={{ minWidth: 200 }}
+              style={{ minWidth: 160 }}
               options={(examsData?.exams ?? []).map((exam) => ({ value: exam.id, label: exam.name }))}
             />
             {analysis && (
@@ -324,7 +325,7 @@ export default function GradesPage() {
             >
               录入成绩
             </Button>
-          </Space>
+          </div>
         )}
         metrics={[
           {
@@ -372,6 +373,50 @@ export default function GradesPage() {
             </Card>
           ) : (
             <>
+              {/* 核心指标统计网格 */}
+              <div className={styles.kpiGrid}>
+                <div className={styles.kpiCard}>
+                  <div className={`${styles.kpiIcon} ${styles.kpiIconBlue}`}><TeamOutlined /></div>
+                  <div className={styles.kpiBody}>
+                    <span className={styles.kpiLabel}>参考学生</span>
+                    <div className={styles.kpiValueRow}>
+                      <span className={styles.kpiValue}>{analysis.overview.studentCount}</span>
+                      <span className={styles.kpiUnit}>人</span>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.kpiCard}>
+                  <div className={`${styles.kpiIcon} ${styles.kpiIconPurple}`}><BookOutlined /></div>
+                  <div className={styles.kpiBody}>
+                    <span className={styles.kpiLabel}>考试科目</span>
+                    <div className={styles.kpiValueRow}>
+                      <span className={styles.kpiValue}>{analysis.overview.subjectCount}</span>
+                      <span className={styles.kpiUnit}>门</span>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.kpiCard}>
+                  <div className={`${styles.kpiIcon} ${styles.kpiIconAmber}`}><RiseOutlined /></div>
+                  <div className={styles.kpiBody}>
+                    <span className={styles.kpiLabel}>总分均值</span>
+                    <div className={styles.kpiValueRow}>
+                      <span className={styles.kpiValue}>{analysis.overview.totalAverage}</span>
+                      <span className={styles.kpiUnit}>分</span>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.kpiCard}>
+                  <div className={`${styles.kpiIcon} ${styles.kpiIconEmerald}`}><CheckCircleOutlined /></div>
+                  <div className={styles.kpiBody}>
+                    <span className={styles.kpiLabel}>录入比例</span>
+                    <div className={styles.kpiValueRow}>
+                      <span className={styles.kpiValue}>{analysis.overview.scoreCoverage}</span>
+                      <span className={styles.kpiUnit}>%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 图表与科目概览 */}
               <section className={styles.chartSection}>
                 <div className={styles.contentCard}>

@@ -92,12 +92,6 @@
   }
 }
 
-@media (max-width: 540px) {
-  .kpiGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .kpiCard {
   display: flex;
   align-items: center;
@@ -374,15 +368,76 @@
   font-weight: 600;
 }
 
+.gradesHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.examSelectLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
+  .gradesHeaderActions {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .examSelectLabel {
+    display: none;
+  }
+
+  .examSelect {
+    flex: 1 1 auto;
+    min-width: 120px !important;
+  }
+
   .summaryStrip {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    padding: 12px 14px;
+    gap: 10px;
   }
 
   .summaryActions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .kpiGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .kpiCard {
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: 8px;
+  }
+
+  .kpiIcon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    font-size: 16px;
+  }
+
+  .kpiValue {
+    font-size: 20px;
+  }
+
+  .contentCard {
+    border-radius: 8px;
+  }
+
+  .cardHead {
+    padding: 10px 14px;
+  }
+
+  .cardBody {
+    padding: 12px;
   }
 }

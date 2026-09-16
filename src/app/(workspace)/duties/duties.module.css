@@ -38,9 +38,10 @@
   }
 }
 
-@media (max-width: 580px) {
+@media (max-width: 720px) {
   .dutyGrid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 

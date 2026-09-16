@@ -13,7 +13,7 @@ import {
   LoginOutlined,
   PlusOutlined,
   PrinterOutlined,
-  RedoOutlined,
+  ReloadOutlined,
   RollbackOutlined,
   SearchOutlined,
   SaveOutlined,
@@ -34,6 +34,7 @@ import {
   InputNumber,
   Modal,
   Dropdown,
+  Popconfirm,
   Segmented,
   Skeleton,
   Space,
@@ -417,6 +418,7 @@ export default function SeatingPage() {
     () => new Map(data?.students.map((student) => [student.id, student]) ?? []),
     [data?.students],
   );
+  const selectedStudent = selectedStudentId ? studentById.get(selectedStudentId) : null;
   const assignmentByPosition = useMemo(
     () => new Map(draft?.assignments.map((assignment) => [`${assignment.row}-${assignment.column}`, assignment]) ?? []),
     [draft?.assignments],
@@ -505,6 +507,15 @@ export default function SeatingPage() {
         setSeatActionMenuKey(null);
       },
     });
+  }
+
+  function handleResetEditing() {
+    if (!savedDraft) return;
+    dispatch({ type: "reset", draft: savedDraft });
+    setSelectedStudentId(null);
+    setDropTarget(null);
+    setSeatActionMenuKey(null);
+    message.success("已重置为初始座次");
   }
 
   function printSeating() {
@@ -897,8 +908,13 @@ export default function SeatingPage() {
     const isLocked = lockedSeatKeys.has(seatKey(row, column));
     return [
       {
-        key: "replace-student",
+        key: "select-for-swap",
         icon: <SwapOutlined style={{ color: "var(--primary)" }} />,
+        label: "选中此学生（点击另一座位调换）",
+      },
+      {
+        key: "replace-student",
+        icon: <UserAddOutlined />,
         label: "更换学生...",
       },
       {
@@ -940,6 +956,14 @@ export default function SeatingPage() {
   }
 
   function handleSeatActionMenu(row: number, column: number, key: string, currentStudent: Student | null) {
+    if (key === "select-for-swap") {
+      setSelectedStudentId(currentStudent?.id ?? null);
+      setSeatActionMenuKey(null);
+      if (currentStudent) {
+        message.info(`已选中「${currentStudent.name}」，点击目标座位完成调换`);
+      }
+      return;
+    }
     if (key === "replace-student" || key === "assign-student") {
       setReplaceModalTarget({ row, column, currentStudent });
       setReplaceSearchQuery("");
@@ -1063,11 +1087,27 @@ export default function SeatingPage() {
     clearSeatLongPressTimer();
   }
 
-  function handleSeatStudentClick(event: React.MouseEvent<HTMLButtonElement>) {
+  function handleSeatStudentClick(
+    event: React.MouseEvent<HTMLButtonElement>,
+    row: number,
+    column: number,
+    studentId: string,
+  ) {
     if (suppressNextSeatClick.current) {
       suppressNextSeatClick.current = false;
       event.preventDefault();
       event.stopPropagation();
+      return;
+    }
+    if (selectedStudentId) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSeatActionMenuKey(null);
+      if (selectedStudentId === studentId) {
+        setSelectedStudentId(null);
+      } else {
+        placeStudent(selectedStudentId, row, column);
+      }
       return;
     }
     event.stopPropagation();
@@ -1341,64 +1381,72 @@ export default function SeatingPage() {
         description={isEditing ? "编辑模式：拖动学生或选择目标座位，完成后保存座次。" : "面向讲台查看教室布局，座次仅在编辑模式下可以调整。"}
         actions={(
           <Space className="seating-heading-actions">
-            <Space className="seating-output-actions" size={8}>
-              <Tooltip title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}>
-                <Button
-                  type="text"
-                  icon={<PrinterOutlined />}
-                  aria-label="打印座位图"
-                  disabled={!draft || saving || exporting}
-                  onClick={printSeating}
-                />
-              </Tooltip>
-              <Tooltip title={isDirty ? "导出当前座次（含未保存修改）" : "导出当前座次"}>
-                <Button
-                  type="text"
-                  icon={<FileExcelOutlined />}
-                  aria-label="导出 Excel"
-                  loading={exporting}
-                  disabled={!draft || saving}
-                  onClick={() => void exportSeating()}
-                />
-              </Tooltip>
-              <Tooltip title="座位调整历史">
-                <Button
-                  type="text"
-                  icon={<HistoryOutlined />}
-                  aria-label="座位调整历史"
-                  disabled={saving}
-                  onClick={() => setHistoryDrawerOpen(true)}
-                />
-              </Tooltip>
-              {isEditing && (
-                <>
+            {!isEditing ? (
+              <>
+                <Space className="seating-output-actions" size={8}>
+                  <Tooltip title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}>
+                    <Button
+                      type="text"
+                      icon={<PrinterOutlined />}
+                      aria-label="打印座位图"
+                      disabled={!draft || saving || exporting}
+                      onClick={printSeating}
+                    />
+                  </Tooltip>
+                  <Tooltip title={isDirty ? "导出当前座次（含未保存修改）" : "导出当前座次"}>
+                    <Button
+                      type="text"
+                      icon={<FileExcelOutlined />}
+                      aria-label="导出 Excel"
+                      loading={exporting}
+                      disabled={!draft || saving}
+                      onClick={() => void exportSeating()}
+                    />
+                  </Tooltip>
+                  <Tooltip title="座位调整历史">
+                    <Button
+                      type="text"
+                      icon={<HistoryOutlined />}
+                      aria-label="座位调整历史"
+                      disabled={saving}
+                      onClick={() => setHistoryDrawerOpen(true)}
+                    />
+                  </Tooltip>
+                </Space>
+                <Button type="primary" icon={<EditOutlined />} onClick={enterEditing}>
+                  编辑座次
+                </Button>
+              </>
+            ) : (
+              <>
+                <Space className="seating-output-actions" size={8}>
+                  <Tooltip title={isDirty ? "重置座次（恢复至初始状态）" : "重置座次"}>
+                    <Popconfirm
+                      title="确认重置座次？"
+                      description="将放弃本次编辑的所有修改，恢复至初始状态。"
+                      onConfirm={handleResetEditing}
+                      okText="重置"
+                      cancelText="取消"
+                      disabled={!isDirty || saving}
+                    >
+                      <Button
+                        type="text"
+                        aria-label="重置座次"
+                        icon={<ReloadOutlined />}
+                        disabled={!isDirty || saving}
+                      />
+                    </Popconfirm>
+                  </Tooltip>
                   <Tooltip title={editor.past.length ? `上一步 (撤销 ⌘Z · 剩余 ${editor.past.length} 步)` : "上一步 (撤销 ⌘Z)"}>
                     <Button
                       type="text"
                       aria-label="上一步 (撤销)"
                       icon={<UndoOutlined />}
-                      disabled={!editor.past.length}
+                      disabled={!editor.past.length || saving}
                       onClick={() => { dispatch({ type: "undo" }); setSelectedStudentId(null); }}
                     />
                   </Tooltip>
-                  <Tooltip title={editor.future.length ? `下一步 (重做 ⇧⌘Z · 剩余 ${editor.future.length} 步)` : "下一步 (重做 ⇧⌘Z)"}>
-                    <Button
-                      type="text"
-                      aria-label="下一步 (重做)"
-                      icon={<RedoOutlined />}
-                      disabled={!editor.future.length}
-                      onClick={() => { dispatch({ type: "redo" }); setSelectedStudentId(null); }}
-                    />
-                  </Tooltip>
-                </>
-              )}
-            </Space>
-            {!isEditing ? (
-              <Button type="primary" icon={<EditOutlined />} onClick={enterEditing}>
-                编辑座次
-              </Button>
-            ) : (
-              <>
+                </Space>
                 <Dropdown
                   menu={{
                     items: [
@@ -1447,11 +1495,17 @@ export default function SeatingPage() {
                     自动排座
                   </Button>
                 </Dropdown>
-                <Button icon={<RollbackOutlined />} onClick={leaveEditing} disabled={saving}>
+                <Button
+                  className="seating-header-cancel-btn"
+                  icon={<RollbackOutlined />}
+                  onClick={leaveEditing}
+                  disabled={saving}
+                >
                   取消编辑
                 </Button>
                 <Button
                   type="primary"
+                  className="seating-header-save-btn"
                   icon={<SaveOutlined />}
                   loading={saving}
                   disabled={!isDirty || !draft}
@@ -1512,6 +1566,10 @@ export default function SeatingPage() {
             >
               <div className="seating-print-header" aria-hidden="true">
                 <strong>{pageTitle}</strong>
+              </div>
+
+              <div className="seating-mobile-scroll-hint" aria-hidden="true">
+                <span>👈 左右滑动查看完整教室座位表 👉</span>
               </div>
 
               <div className="seating-map-scroll">
@@ -1587,7 +1645,7 @@ export default function SeatingPage() {
                                                   draggable
                                                   aria-label={`第 ${row} 排 ${column} 座，${student.name}。打开座位操作`}
                                                   aria-haspopup="menu"
-                                                  onClick={handleSeatStudentClick}
+                                                  onClick={(event) => handleSeatStudentClick(event, row, column, student.id)}
                                                   onKeyDown={(event) => {
                                                     if (event.key !== "Escape") return;
                                                     event.preventDefault();
@@ -1700,6 +1758,63 @@ export default function SeatingPage() {
             <Space size={6}><SwapOutlined /><span>拖动已安排学生到其他座位可直接交换；点击空座或右键可安排/更换学生。</span></Space>
             <span className="seating-footer-capacity">座位容量 {draft.rows * draft.columns - disabledSeatKeys.size} · 当前安排 {assignedCount}</span>
           </div>}
+        </div>
+      )}
+      {isEditing && (
+        <div className="seating-mobile-sticky-bar" role="region" aria-label="移动端座位编辑操作栏">
+          <div className="seating-mobile-sticky-info">
+            {selectedStudent ? (
+              <div className="seating-sticky-selection">
+                <span className="seating-sticky-badge">已选</span>
+                <strong className="seating-sticky-name">{selectedStudent.name}</strong>
+                <span className="seating-sticky-tip">点击目标座位以调换</span>
+                <Button
+                  size="small"
+                  type="text"
+                  className="seating-sticky-cancel-sel"
+                  onClick={() => setSelectedStudentId(null)}
+                >
+                  取消
+                </Button>
+              </div>
+            ) : (
+              <div className="seating-sticky-prompt">
+                <span>💡 点击学生可调换或更换座次</span>
+              </div>
+            )}
+          </div>
+          <div className="seating-mobile-sticky-actions">
+            <Button
+              icon={<UndoOutlined />}
+              disabled={!editor.past.length || saving}
+              onClick={() => {
+                dispatch({ type: "undo" });
+                setSelectedStudentId(null);
+              }}
+              aria-label="撤销"
+            >
+              撤销
+            </Button>
+            <Button
+              icon={<RollbackOutlined />}
+              disabled={saving}
+              onClick={leaveEditing}
+              aria-label="取消编辑"
+            >
+              取消
+            </Button>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              disabled={!isDirty || !draft}
+              onClick={() => void saveLayout()}
+              className="seating-mobile-sticky-save"
+              aria-label="保存座次"
+            >
+              保存座次
+            </Button>
+          </div>
         </div>
       )}
       </LedgerSheet>
