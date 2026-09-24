@@ -15,6 +15,7 @@ import { Alert, Empty, Skeleton, Timeline } from "antd";
 import dayjs from "dayjs";
 import Link from "next/link";
 
+import { getTimeGreeting } from "@/domain/greeting";
 import { useApiData } from "@/hooks/useApiData";
 
 interface DashboardData {
@@ -37,6 +38,7 @@ const priorityColor = {
 
 export default function DashboardPage() {
   const { data, loading, error } = useApiData<DashboardData>("/api/dashboard");
+  const timeGreeting = getTimeGreeting();
   const dateLabel = dayjs().format("M 月 D 日 dddd");
 
   return (
@@ -56,8 +58,8 @@ export default function DashboardPage() {
                 <span className="sheet-vol-tag font-mono">VOL. 2026 // DOSSIER</span>
                 <span className="sheet-campus-tag font-mono">ACADEMIC LEDGER · {data.classInfo.grade} {data.classInfo.name}</span>
               </div>
-              <h1 className="sheet-title">早上好，{data.classInfo.teacher ?? "系统管理员"}</h1>
-              <p className="sheet-subtitle">{dateLabel} · 今日教学与班级运行概览</p>
+              <h1 className="sheet-title">{timeGreeting.greeting}，{data.classInfo.teacher ?? "系统管理员"}</h1>
+              <p className="sheet-subtitle">{dateLabel} · {timeGreeting.prompt}</p>
             </div>
 
             {/* KPI 指标双联刻度 */}

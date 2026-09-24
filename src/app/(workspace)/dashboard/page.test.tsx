@@ -47,12 +47,16 @@ vi.mock("@/hooks/useApiData", () => ({
   }),
 }));
 
+import { getTimeGreeting } from "@/domain/greeting";
+
 describe("DashboardPage", () => {
   it("renders greetings, KPIs, and mobile-friendly quick action navigation grid", () => {
     render(<DashboardPage />);
 
     // 1. Check title & KPIs
-    expect(screen.getByText(/早上好，周老师/)).toBeInTheDocument();
+    const expected = getTimeGreeting();
+    expect(screen.getByText(new RegExp(`${expected.greeting}，周老师`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(expected.prompt))).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
 
     // 2. Check quick navigation items
