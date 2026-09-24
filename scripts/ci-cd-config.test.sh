@@ -32,23 +32,25 @@ for required_text in \
   'cache-from: type=gha,scope=school-production' \
   "cache-to: \${{ github.event_name != 'pull_request'" \
   'npm run test:docker:runtime' \
-  'docker save' \
-  'sha256sum "$(basename "$archive")"' \
-  'actions/upload-artifact@v4' \
-  'compression-level: 0' \
-  'actions/download-artifact@v4' \
+  'docker/login-action@v3' \
+  'packages: write' \
+  'docker push "$image_tag"' \
+  'docker image inspect --format' \
+  'image_ref: ${{ steps.publish.outputs.image_ref }}' \
   'needs: [verify, build]' \
+  'DEPLOY_IMAGE_REF: ${{ needs.build.outputs.image_ref }}' \
+  'DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS' \
   'SCHOOL_DEPLOY_SSH_KEY' \
   'SCHOOL_DEPLOY_KNOWN_HOSTS' \
   'docker-compose.production.yml' \
-  'scripts/remote-deploy-docker.sh'; do
+  'scripts/remote-deploy-docker-registry.sh'; do
   grep -Fq -- "$required_text" "$WORKFLOW" || fail "workflow 缺少：$required_text"
 done
 
-if grep -Fq 'ghcr.io' "$WORKFLOW"; then
-  fail '生产流水线不应依赖 GHCR 拉取镜像'
+grep -Fq "if: github.event_name != 'pull_request'" "$WORKFLOW" || fail 'PR 不应推送生产镜像'
+if grep -Fq 'docker save' "$WORKFLOW"; then
+  fail '生产流水线不应通过 SSH 上传完整镜像包'
 fi
-grep -Fq "if: github.event_name != 'pull_request'" "$WORKFLOW" || fail 'PR 不应上传完整 Docker 镜像包'
 for job_name in verify build deploy; do
   grep -Fqx "  $job_name:" "$WORKFLOW" || fail "缺少独立的 $job_name job"
 done
@@ -73,9 +75,9 @@ fi
 
 build_step_line="$(grep -n -m 1 'name: Build production Docker image' "$WORKFLOW" | cut -d: -f1)"
 smoke_step_line="$(grep -n -m 1 'name: Smoke test Docker runtime' "$WORKFLOW" | cut -d: -f1)"
-package_step_line="$(grep -n -m 1 'name: Package Docker image' "$WORKFLOW" | cut -d: -f1)"
-(( build_step_line < smoke_step_line && smoke_step_line < package_step_line )) || {
-  fail 'Docker 运行时冒烟测试必须位于镜像构建后、打包前'
+publish_step_line="$(grep -n -m 1 'name: Publish verified image' "$WORKFLOW" | cut -d: -f1)"
+(( build_step_line < smoke_step_line && smoke_step_line < publish_step_line )) || {
+  fail 'Docker 运行时冒烟测试必须位于镜像构建后、推送前'
 }
 
 printf '%s\n' 'CI/CD 配置测试通过'

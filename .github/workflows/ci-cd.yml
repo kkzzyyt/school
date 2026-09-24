@@ -61,6 +61,11 @@ jobs:
     name: Build and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.publish.outputs.image_ref }}
     env:
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
@@ -87,25 +92,28 @@ jobs:
           DOCKER_SMOKE_PORT: "3101"
         run: npm run test:docker:runtime
 
-      - name: Package Docker image
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish verified image
+        id: publish
         if: github.event_name != 'pull_request'
         run: |
           set -Eeuo pipefail
-          mkdir -p "$RUNNER_TEMP/school-artifact"
-          archive="$RUNNER_TEMP/school-artifact/school-docker-${GITHUB_SHA}.tar.gz"
-          docker save "school:${GITHUB_SHA}" | gzip -1 > "$archive"
-          (cd "$RUNNER_TEMP/school-artifact" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
-          cp docker-compose.production.yml "$RUNNER_TEMP/school-artifact/"
-
-      - name: Upload Docker deployment artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: school-docker-${{ github.sha }}
-          path: ${{ runner.temp }}/school-artifact/*
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
+          image_tag="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          docker tag "school:${GITHUB_SHA}" "$image_tag"
+          docker push "$image_tag"
+          image_ref="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_tag")"
+          [[ "$image_ref" =~ ^ghcr[.]io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] || {
+            printf '发布镜像 digest 非法：%s\n' "$image_ref" >&2
+            exit 1
+          }
+          printf 'image_ref=%s\n' "$image_ref" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy to production
@@ -119,12 +127,6 @@ jobs:
       - name: Checkout deployment scripts
         uses: actions/checkout@v4
 
-      - name: Download deployment artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: school-docker-${{ github.sha }}
-          path: artifact
-
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.SCHOOL_DEPLOY_SSH_KEY }}
@@ -137,7 +139,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/school-known_hosts"
           chmod 600 "$RUNNER_TEMP/school-deploy.key" "$RUNNER_TEMP/school-known_hosts"
 
-      - name: Upload and atomically activate release
+      - name: Pull and atomically activate release
         env:
           DEPLOY_TARGET: ${{ vars.SCHOOL_DEPLOY_TARGET || 'root@39.106.46.229' }}
           DEPLOY_PORT: ${{ vars.SCHOOL_DEPLOY_PORT || '22' }}
@@ -146,7 +148,8 @@ jobs:
           DEPLOY_HEALTHCHECK_URL: ${{ vars.SCHOOL_DEPLOY_HEALTHCHECK_URL || 'http://127.0.0.1:3000/api/health' }}
           DEPLOY_KEEP_RELEASES: ${{ vars.SCHOOL_DEPLOY_KEEP_RELEASES || '2' }}
           DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
-          DEPLOY_IMAGE_REF: school:${{ github.sha }}
+          DEPLOY_IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+          DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS: ${{ vars.SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS || '600' }}
           DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
         run: |
           set -Eeuo pipefail
@@ -176,28 +179,16 @@ jobs:
             -o UpdateHostKeys=no
             -i "$RUNNER_TEMP/school-deploy.key"
           )
-          mapfile -t archives < <(find artifact -maxdepth 1 -type f -name '*.tar.gz' -print)
-          (( ${#archives[@]} == 1 )) || { printf '%s\n' 'deployment artifact count is not 1' >&2; exit 1; }
-          archive="${archives[0]}"
-          checksum="$archive.sha256"
-          compose_file="artifact/docker-compose.production.yml"
-          [[ -f "$checksum" ]] || { printf '%s\n' 'deployment checksum is missing' >&2; exit 1; }
+          : "${DEPLOY_IMAGE_REF:?verified image digest is missing}"
+          compose_file="docker-compose.production.yml"
           [[ -f "$compose_file" ]] || { printf '%s\n' 'production Compose file is missing' >&2; exit 1; }
-          archive_name="$(basename "$archive")"
           release_id="ci-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
           incoming="$DEPLOY_PATH/.deploy/incoming"
-          remote_archive="$incoming/$archive_name"
-          remote_checksum="$remote_archive.sha256"
           remote_compose="$incoming/docker-compose.production-${release_id}.yml"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" "mkdir -p '$incoming'"
-          transfer_started=$SECONDS
-          scp "${scp_opts[@]}" "$archive" "$checksum" "$DEPLOY_TARGET:$incoming/"
           scp "${scp_opts[@]}" "$compose_file" "$DEPLOY_TARGET:$remote_compose"
-          printf '镜像与配置上传耗时：%s 秒\n' "$((SECONDS - transfer_started))"
           ssh "${ssh_opts[@]}" "$DEPLOY_TARGET" bash -s -- \
             "$DEPLOY_PATH" \
-            "$remote_archive" \
-            "$remote_checksum" \
             "$remote_compose" \
             "$release_id" \
             "$DEPLOY_ENV_PATH" \
@@ -206,4 +197,5 @@ jobs:
             "$DEPLOY_KEEP_RELEASES" \
             "$DEPLOY_IMAGE_REF" \
             "$DEPLOY_LEGACY_SERVICE" \
-            < scripts/remote-deploy-docker.sh
+            "$DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS" \
+            < scripts/remote-deploy-docker-registry.sh
