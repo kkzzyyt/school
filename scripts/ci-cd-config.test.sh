@@ -40,6 +40,8 @@ for required_text in \
   'needs: [verify, build]' \
   'DEPLOY_IMAGE_REF: ${{ needs.build.outputs.image_ref }}' \
   'DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS' \
+  'DEPLOY_MIRROR_PULL_TIMEOUT_SECONDS' \
+  'ghcr.dockerproxy.net/${DEPLOY_IMAGE_REF#ghcr.io/}' \
   'SCHOOL_DEPLOY_SSH_KEY' \
   'SCHOOL_DEPLOY_KNOWN_HOSTS' \
   'docker-compose.production.yml' \

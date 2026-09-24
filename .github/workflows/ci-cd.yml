@@ -150,6 +150,7 @@ jobs:
           DEPLOY_COMPOSE_PROJECT: ${{ vars.SCHOOL_DEPLOY_COMPOSE_PROJECT || 'school' }}
           DEPLOY_IMAGE_REF: ${{ needs.build.outputs.image_ref }}
           DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS: ${{ vars.SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS || '600' }}
+          DEPLOY_MIRROR_PULL_TIMEOUT_SECONDS: ${{ vars.SCHOOL_DEPLOY_MIRROR_PULL_TIMEOUT_SECONDS || '120' }}
           DEPLOY_LEGACY_SERVICE: ${{ vars.SCHOOL_DEPLOY_LEGACY_SERVICE || 'school-next.service' }}
         run: |
           set -Eeuo pipefail
@@ -180,6 +181,11 @@ jobs:
             -i "$RUNNER_TEMP/school-deploy.key"
           )
           : "${DEPLOY_IMAGE_REF:?verified image digest is missing}"
+          [[ "$DEPLOY_IMAGE_REF" =~ ^ghcr[.]io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] || {
+            printf '%s\n' 'verified image digest is invalid' >&2
+            exit 1
+          }
+          mirror_image_ref="ghcr.dockerproxy.net/${DEPLOY_IMAGE_REF#ghcr.io/}"
           compose_file="docker-compose.production.yml"
           [[ -f "$compose_file" ]] || { printf '%s\n' 'production Compose file is missing' >&2; exit 1; }
           release_id="ci-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
@@ -198,4 +204,6 @@ jobs:
             "$DEPLOY_IMAGE_REF" \
             "$DEPLOY_LEGACY_SERVICE" \
             "$DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS" \
+            "$mirror_image_ref" \
+            "$DEPLOY_MIRROR_PULL_TIMEOUT_SECONDS" \
             < scripts/remote-deploy-docker-registry.sh

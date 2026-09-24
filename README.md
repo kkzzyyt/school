@@ -74,7 +74,7 @@ install -m 600 /path/to/school.env /www/wwwroot/school.19soul.cn/.deploy/runtime
 
 `docker-compose.production.yml` 使用 Linux host network，让现有主机 MySQL 的 `127.0.0.1:3306` 仍可从应用容器访问；应用只监听主机 `127.0.0.1:3000`，反向代理应转发到该地址，不要把应用端口直接暴露到公网。如果数据库在另一个容器或独立主机，需把 `DATABASE_URL` 改成容器/主机可达的地址，并按实际网络调整 Compose 配置。
 
-在 GitHub 的 `production` Environment 中配置好 SSH 密钥和变量，并保持 GHCR 镜像包可匿名拉取后，推送到 `main` 或手动运行 workflow 即可发布。部署脚本会拉取指定 digest、在容器内执行 Prisma 配置校验和生产迁移，启动后先确认运行中的容器确实使用本次镜像，再执行健康检查；任一步失败都会自动恢复上一份 Docker release。数据库迁移本身不会随目录回滚，生产迁移必须保持向后兼容并配合备份。
+在 GitHub 的 `production` Environment 中配置好 SSH 密钥和变量，并保持 GHCR 镜像包可匿名拉取后，推送到 `main` 或手动运行 workflow 即可发布。服务器先通过 `ghcr.dockerproxy.net` 按 digest 拉取，120 秒内失败则回退到官方 GHCR；两条路径都校验同一 digest。部署脚本随后在容器内执行 Prisma 配置校验和生产迁移，启动后先确认运行中的容器确实使用本次镜像，再执行健康检查；任一步失败都会自动恢复上一份 Docker release。数据库迁移本身不会随目录回滚，生产迁移必须保持向后兼容并配合备份。
 
 旧版 `npm run deploy` 的 PM2/systemd 源码发布脚本仍保留作兼容和人工回退使用，但它会依赖服务器本机 Node.js/npm，不是当前 GitHub Actions 的生产入口。
 
@@ -126,6 +126,7 @@ Secret: SCHOOL_DEPLOY_KNOWN_HOSTS   # 已核验的 39.106.46.229 主机密钥
 Variable: SCHOOL_DEPLOY_TARGET      # 默认 root@39.106.46.229
 Variable: SCHOOL_DEPLOY_COMPOSE_PROJECT # 默认 school
 Variable: SCHOOL_DEPLOY_IMAGE_PULL_TIMEOUT_SECONDS # 默认 600 秒
+Variable: SCHOOL_DEPLOY_MIRROR_PULL_TIMEOUT_SECONDS # 默认 120 秒
 Variable: SCHOOL_DEPLOY_LEGACY_SERVICE  # 默认 school-next.service；首次 Docker 发布时停止旧 systemd
 ```
 

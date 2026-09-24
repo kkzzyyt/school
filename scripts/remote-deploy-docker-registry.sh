@@ -2,8 +2,8 @@
 
 set -Eeuo pipefail
 
-if [[ $# -ne 10 ]]; then
-  printf 'remote-deploy-docker-registry.sh 参数数量错误：期望 10，实际 %s\n' "$#" >&2
+if [[ $# -ne 10 && $# -ne 12 ]]; then
+  printf 'remote-deploy-docker-registry.sh 参数数量错误：期望 10 或 12，实际 %s\n' "$#" >&2
   exit 2
 fi
 
@@ -17,6 +17,8 @@ KEEP_RELEASES="$7"
 IMAGE_REF="$8"
 LEGACY_SERVICE_NAME="$9"
 IMAGE_PULL_TIMEOUT_SECONDS="${10}"
+MIRROR_REF="${11:-}"
+MIRROR_PULL_TIMEOUT_SECONDS="${12:-}"
 IMAGE_PULL_ATTEMPTS=2
 
 die() {
@@ -58,6 +60,13 @@ validate_integer "镜像拉取超时时间" "$IMAGE_PULL_TIMEOUT_SECONDS"
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "release id 非法"
 [[ "$PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]+$ ]] || die "Compose 项目名非法"
 [[ "$IMAGE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] || die "镜像引用非法"
+if [[ -n "$MIRROR_REF" ]]; then
+  [[ "$IMAGE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || die "源镜像必须使用 digest"
+  [[ "$MIRROR_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || die "镜像加速引用非法"
+  [[ "${MIRROR_REF#*@}" == "${IMAGE_REF#*@}" ]] || die "镜像加速引用的 digest 与源镜像不一致"
+  validate_integer "镜像加速拉取超时时间" "$MIRROR_PULL_TIMEOUT_SECONDS"
+  (( MIRROR_PULL_TIMEOUT_SECONDS >= 30 && MIRROR_PULL_TIMEOUT_SECONDS <= 600 )) || die "镜像加速拉取超时时间必须在 30 到 600 秒之间"
+fi
 [[ "$HEALTHCHECK_URL" != "" && "$HEALTHCHECK_URL" != *[[:space:]]* ]] || die "健康检查 URL 非法"
 if [[ -n "$LEGACY_SERVICE_NAME" ]]; then
   [[ "$LEGACY_SERVICE_NAME" =~ ^[A-Za-z0-9_.@-]+$ && "$LEGACY_SERVICE_NAME" != -* ]] || die "旧 systemd 服务名非法"
@@ -167,6 +176,15 @@ run_compose() {
 
 pull_image() {
   local attempt
+
+  if [[ -n "$MIRROR_REF" ]]; then
+    printf '优先从镜像加速地址拉取（超时 %s 秒）：%s\n' "$MIRROR_PULL_TIMEOUT_SECONDS" "$MIRROR_REF"
+    if timeout "$MIRROR_PULL_TIMEOUT_SECONDS" docker pull --platform linux/amd64 "$MIRROR_REF" </dev/null; then
+      IMAGE_REF="$MIRROR_REF"
+      return 0
+    fi
+    printf '%s\n' '镜像加速拉取失败，改用源仓库。' >&2
+  fi
 
   for (( attempt = 1; attempt <= IMAGE_PULL_ATTEMPTS; attempt += 1 )); do
     printf '拉取 Docker 镜像（第 %s/%s 次，超时 %s 秒）：%s\n' \

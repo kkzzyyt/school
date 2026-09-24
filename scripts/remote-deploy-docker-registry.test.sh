@@ -58,6 +58,11 @@ printf '\n' >> "$DEPLOY_TEST_COMMAND_LOG"
 
 case "${1:-}" in
   pull)
+    if [[ "${DEPLOY_TEST_FAIL_MIRROR_PULL:-false}" == true ]]; then
+      for argument in "$@"; do
+        [[ "$argument" == ghcr.dockerproxy.net/* ]] && exit 55
+      done
+    fi
     pull_attempts=0
     if [[ -f "$DEPLOY_TEST_PULL_ATTEMPTS" ]]; then
       pull_attempts="$(sed -n '1p' "$DEPLOY_TEST_PULL_ATTEMPTS")"
@@ -318,5 +323,67 @@ assert_not_exists "$REMOTE_ROOT/.deploy/docker/releases/stale-release"
 assert_not_exists "$REMOTE_ROOT/.deploy/docker/lock"
 assert_not_exists "$STALE_COMPOSE"
 assert_contains '运行中的镜像不匹配' "$TEST_ROOT/stale-output.log"
+
+ORIGIN_REF="ghcr.io/kkzzyyt/school@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MIRROR_REF="ghcr.dockerproxy.net/kkzzyyt/school@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MISMATCH_REF="ghcr.dockerproxy.net/kkzzyyt/school@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+mkdir -p "$INCOMING"
+MIRROR_COMPOSE="$INCOMING/docker-compose.production-mirror-release.yml"
+printf '%s\n' 'services: {}' > "$MIRROR_COMPOSE"
+PATH="$FAKE_BIN:$ORIGINAL_PATH" \
+  DEPLOY_TEST_COMMAND_LOG="$COMMAND_LOG" \
+  DEPLOY_TEST_LEGACY_ACTIVE="$LEGACY_ACTIVE" \
+  DEPLOY_TEST_LEGACY_ENABLED="$LEGACY_ENABLED" \
+  DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
+  DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
+  DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
+  DEPLOY_TEST_CURRENT_LINK="$REMOTE_ROOT/.deploy/docker/current" \
+  DEPLOY_TEST_HEALTH_STATUS=200 \
+  bash "$PROJECT_ROOT/scripts/remote-deploy-docker-registry.sh" \
+    "$REMOTE_ROOT" "$MIRROR_COMPOSE" mirror-release "$RUNTIME_ENV" school \
+    http://127.0.0.1:3000/api/health 2 "$ORIGIN_REF" school-next.service 30 \
+    "$MIRROR_REF" 30 >/dev/null
+
+[[ "$(sed -n '1p' "$ACTIVE_IMAGE")" == "$MIRROR_REF" ]] || fail '镜像加速成功后未使用加速镜像'
+assert_contains "timeout 30 docker pull --platform linux/amd64 $MIRROR_REF" "$COMMAND_LOG"
+
+mkdir -p "$INCOMING"
+FALLBACK_COMPOSE="$INCOMING/docker-compose.production-fallback-release.yml"
+printf '%s\n' 'services: {}' > "$FALLBACK_COMPOSE"
+PATH="$FAKE_BIN:$ORIGINAL_PATH" \
+  DEPLOY_TEST_COMMAND_LOG="$COMMAND_LOG" \
+  DEPLOY_TEST_LEGACY_ACTIVE="$LEGACY_ACTIVE" \
+  DEPLOY_TEST_LEGACY_ENABLED="$LEGACY_ENABLED" \
+  DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
+  DEPLOY_TEST_IMAGE_PULLED="$IMAGE_PULLED" \
+  DEPLOY_TEST_PULL_ATTEMPTS="$PULL_ATTEMPTS" \
+  DEPLOY_TEST_CURRENT_LINK="$REMOTE_ROOT/.deploy/docker/current" \
+  DEPLOY_TEST_FAIL_MIRROR_PULL=true \
+  DEPLOY_TEST_HEALTH_STATUS=200 \
+  bash "$PROJECT_ROOT/scripts/remote-deploy-docker-registry.sh" \
+    "$REMOTE_ROOT" "$FALLBACK_COMPOSE" fallback-release "$RUNTIME_ENV" school \
+    http://127.0.0.1:3000/api/health 2 "$ORIGIN_REF" school-next.service 30 \
+    "$MIRROR_REF" 30 >/dev/null
+
+[[ "$(sed -n '1p' "$ACTIVE_IMAGE")" == "$ORIGIN_REF" ]] || fail '镜像加速失败后未使用源镜像'
+assert_contains "timeout 30 docker pull --platform linux/amd64 $ORIGIN_REF" "$COMMAND_LOG"
+
+mkdir -p "$INCOMING"
+MISMATCH_COMPOSE="$INCOMING/docker-compose.production-mismatch-release.yml"
+printf '%s\n' 'services: {}' > "$MISMATCH_COMPOSE"
+set +e
+PATH="$FAKE_BIN:$ORIGINAL_PATH" \
+  DEPLOY_TEST_COMMAND_LOG="$COMMAND_LOG" \
+  DEPLOY_TEST_ACTIVE_IMAGE="$ACTIVE_IMAGE" \
+  bash "$PROJECT_ROOT/scripts/remote-deploy-docker-registry.sh" \
+    "$REMOTE_ROOT" "$MISMATCH_COMPOSE" mismatch-release "$RUNTIME_ENV" school \
+    http://127.0.0.1:3000/api/health 2 "$ORIGIN_REF" school-next.service 30 \
+    "$MISMATCH_REF" 30 >"$TEST_ROOT/mismatch-output.log" 2>&1
+mismatch_exit_code=$?
+set -e
+(( mismatch_exit_code != 0 )) || fail '镜像加速 digest 不一致时不应部署'
+assert_contains 'digest 与源镜像不一致' "$TEST_ROOT/mismatch-output.log"
+assert_file "$MISMATCH_COMPOSE"
 
 printf '%s\n' 'Docker registry 远程发布测试通过'
