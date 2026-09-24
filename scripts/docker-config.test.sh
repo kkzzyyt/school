@@ -53,6 +53,20 @@ for required_text in \
   assert_contains "$required_text" "$DOCKERFILE"
 done
 
+assert_contains 'FROM dependencies AS production-dependencies' "$DOCKERFILE"
+assert_not_contains 'FROM builder AS production-dependencies' "$DOCKERFILE"
+assert_contains 'COPY prisma/schema.prisma ./prisma/schema.prisma' "$DOCKERFILE"
+assert_not_contains 'COPY prisma ./prisma' "$DOCKERFILE"
+assert_contains 'chown node:node /app/.next/cache' "$DOCKERFILE"
+assert_not_contains 'chown -R node:node' "$DOCKERFILE"
+
+dependencies_copy_line="$(grep -n -m 1 'COPY --from=production-dependencies' "$DOCKERFILE" | cut -d: -f1)"
+standalone_copy_line="$(grep -n -m 1 'COPY --from=builder --chown=node:node /app/.next/standalone' "$DOCKERFILE" | cut -d: -f1)"
+revision_label_line="$(grep -n -m 1 'LABEL org.opencontainers.image.revision' "$DOCKERFILE" | cut -d: -f1)"
+(( dependencies_copy_line < standalone_copy_line && standalone_copy_line < revision_label_line )) || {
+  fail '稳定依赖层必须在构建产物之前复制，提交标签必须放在最后'
+}
+
 for required_text in \
   'services:' \
   'app:' \

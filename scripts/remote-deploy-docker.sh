@@ -332,8 +332,10 @@ trap 'exit 143' TERM
 
 echo '校验 Docker 镜像发布包'
 (cd "$(dirname "$IMAGE_ARCHIVE_PATH")" && sha256sum -c "$CHECKSUM_NAME")
+image_load_started=$SECONDS
 docker load --input "$IMAGE_ARCHIVE_PATH" >/dev/null
 docker image inspect "$IMAGE_REF" >/dev/null
+printf '镜像加载耗时：%s 秒\n' "$((SECONDS - image_load_started))"
 rm -f "$IMAGE_ARCHIVE_PATH" "$CHECKSUM_PATH"
 
 echo "准备 Docker release：$RELEASE_ID"
@@ -346,10 +348,12 @@ echo '校验 Compose 配置'
 run_compose "$RELEASE_COMPOSE_PATH" "$IMAGE_REF" config --quiet
 
 echo '执行容器内 Prisma 迁移'
+migration_started=$SECONDS
 run_compose "$RELEASE_COMPOSE_PATH" "$IMAGE_REF" \
   run --rm --no-deps app ./node_modules/.bin/prisma validate --config /app/prisma.config.ts
 run_compose "$RELEASE_COMPOSE_PATH" "$IMAGE_REF" \
   run --rm --no-deps app ./node_modules/.bin/prisma migrate deploy --config /app/prisma.config.ts
+printf 'Prisma 校验与迁移耗时：%s 秒\n' "$((SECONDS - migration_started))"
 
 if [[ -n "$LEGACY_SERVICE_NAME" ]] && command -v systemctl >/dev/null 2>&1; then
   if systemctl is-active --quiet "$LEGACY_SERVICE_NAME"; then
@@ -363,6 +367,7 @@ if [[ -n "$LEGACY_SERVICE_NAME" ]] && command -v systemctl >/dev/null 2>&1; then
 fi
 
 echo '启动 Docker 应用容器'
+startup_started=$SECONDS
 APP_SWITCH_ATTEMPTED=true
 run_compose "$RELEASE_COMPOSE_PATH" "$IMAGE_REF" \
   up --detach --no-deps --force-recreate app
@@ -372,6 +377,7 @@ echo "等待健康检查：$HEALTHCHECK_URL"
 if ! wait_for_health "$HEALTHCHECK_URL"; then
   die "健康检查失败：$HEALTHCHECK_URL"
 fi
+printf '容器启动与健康检查耗时：%s 秒\n' "$((SECONDS - startup_started))"
 
 CURRENT_TMP="$DOCKER_STATE_DIR/.current.$$"
 rm -f "$CURRENT_TMP"

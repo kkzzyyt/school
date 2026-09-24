@@ -63,7 +63,7 @@ npm run dev
 
 ### 5. Docker 生产部署
 
-线上生产入口使用 GitHub Actions：Linux runner 在固定的 Docker 构建环境中完成依赖安装和 Next.js standalone 构建，先运行镜像健康路由冒烟测试，再生成带 SHA-256 校验的 Docker 镜像包。部署时通过 SSH 上传镜像包、校验文件和 Compose 配置，服务器使用 `docker load` 导入镜像，不依赖生产机访问 GHCR。服务器只需要 Docker Engine、Docker Compose v2、可访问的 MySQL 和反向代理/TLS，不再需要与本机匹配的 Node.js、npm 或 Prisma CLI。
+线上生产入口使用 GitHub Actions：校验和 Docker 构建并行执行，部署必须等待两者通过。Docker 构建复用跨运行缓存中的依赖层，先运行镜像健康路由冒烟测试，再生成带 SHA-256 校验的 Docker 镜像包。部署时通过 SSH 上传镜像包、校验文件和 Compose 配置，服务器使用 `docker load` 导入镜像，不依赖生产机访问 GHCR。服务器只需要 Docker Engine、Docker Compose v2、可访问的 MySQL 和反向代理/TLS，不再需要与本机匹配的 Node.js、npm 或 Prisma CLI。
 
 首次部署前，在服务器创建不会上传的运行时环境文件，并确保 SSH 发布账号可以读取它、执行 Docker 命令（通常加入 `docker` 用户组或使用 root）：
 
@@ -114,7 +114,7 @@ npm run db:studio       # Prisma 数据浏览器
 
 ## GitHub Actions CI/CD
 
-仓库包含 `.github/workflows/ci-cd.yml`。Pull Request、push 和手动运行都会在 Linux runner 中构建同一套 `linux/amd64` Docker 镜像并运行冒烟测试；需要部署时，验证通过的镜像会打包为带校验文件的 artifact，再通过 SSH 上传到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
+仓库包含 `.github/workflows/ci-cd.yml`。Pull Request、push 和手动运行都会在 Linux runner 中并行运行代码校验与 `linux/amd64` Docker 镜像构建、冒烟测试；部署等待两项 job 都成功。构建使用 GitHub Actions 的 Docker 层缓存，只有非 PR 运行写入共享缓存。需要部署时，验证通过的镜像会打包为带校验文件的 artifact，上传时不再对已压缩的镜像包重复压缩，再通过 SSH 上传到生产服务器。连续提交时，GitHub Actions 会取消旧运行，只保留最新提交。
 
 Docker 镜像包含 Next.js standalone 运行时、MariaDB Prisma 适配器和生产迁移所需的 Prisma CLI；生产服务器不参与 npm 安装或 Next.js 构建。生产部署产物包含镜像 `.tar.gz`、对应 `.sha256` 校验文件和 `docker-compose.production.yml`，不会上传本地 `.env` 或覆盖数据库。发布脚本只从服务器上的 `DEPLOY_ENV_PATH` 读取运行时配置，在加载镜像后执行 Prisma 校验、迁移，随后校验活动镜像和 `/api/health` 数据库健康检查；切换失败会恢复旧容器和 `current` release 指针。
 

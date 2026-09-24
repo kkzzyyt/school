@@ -26,14 +26,18 @@ for required_text in \
   'npm run test:deploy:docker' \
   'npm run test:deploy:docker:registry' \
   'docker/setup-buildx-action@v3' \
-  'docker buildx build' \
-  '--platform linux/amd64' \
-  '--load' \
+  'docker/build-push-action@v7' \
+  'platforms: linux/amd64' \
+  'load: true' \
+  'cache-from: type=gha,scope=school-production' \
+  "cache-to: \${{ github.event_name != 'pull_request'" \
   'npm run test:docker:runtime' \
   'docker save' \
   'sha256sum "$(basename "$archive")"' \
   'actions/upload-artifact@v4' \
+  'compression-level: 0' \
   'actions/download-artifact@v4' \
+  'needs: [verify, build]' \
   'SCHOOL_DEPLOY_SSH_KEY' \
   'SCHOOL_DEPLOY_KNOWN_HOSTS' \
   'docker-compose.production.yml' \
@@ -45,6 +49,9 @@ if grep -Fq 'ghcr.io' "$WORKFLOW"; then
   fail '生产流水线不应依赖 GHCR 拉取镜像'
 fi
 grep -Fq "if: github.event_name != 'pull_request'" "$WORKFLOW" || fail 'PR 不应上传完整 Docker 镜像包'
+for job_name in verify build deploy; do
+  grep -Fqx "  $job_name:" "$WORKFLOW" || fail "缺少独立的 $job_name job"
+done
 
 grep -Fq "github.event_name == 'push'" "$WORKFLOW" || fail '生产部署未限制在 push 事件'
 grep -Fq "github.ref == 'refs/heads/main'" "$WORKFLOW" || fail '生产部署未限制在 main 分支'
