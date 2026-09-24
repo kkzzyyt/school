@@ -292,7 +292,9 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+image_pull_started=$SECONDS
 pull_image
+printf '镜像拉取耗时：%s 秒\n' "$((SECONDS - image_pull_started))"
 docker image inspect "$IMAGE_REF" >/dev/null
 
 echo "准备 Docker release：$RELEASE_ID"
