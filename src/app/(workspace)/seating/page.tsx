@@ -56,6 +56,7 @@ import {
   createDefaultSeatingEnvironment,
   getSeatingAisleAfterColumns,
   isSeatingAisleAfterColumn,
+  swapStudentSeats,
   type SeatingEnvironment,
   type SeatingSideLayout,
 } from "@/domain/seating";
@@ -759,16 +760,46 @@ export default function SeatingPage() {
       return;
     }
 
-    let nextAssignments = draft.assignments.filter(
-      (assignment) => assignment.studentId !== studentId
-        && !(assignment.row === row && assignment.column === column),
-    );
+    let nextAssignments: Assignment[];
     if (source && target) {
-      nextAssignments = nextAssignments.map((assignment) => assignment.studentId === target.studentId
-        ? { ...assignment, row: source.row, column: source.column }
-        : assignment);
+      // 两个已有座位的学生互相调换位置
+      nextAssignments = swapStudentSeats(draft.assignments, studentId, target.studentId);
+      const sourceStudent = studentById.get(studentId);
+      const targetStudent = studentById.get(target.studentId);
+      if (sourceStudent && targetStudent) {
+        message.success(`已互换座次：${sourceStudent.name} ↔ ${targetStudent.name}`);
+      }
+    } else if (source && !target) {
+      // 已有座位的学生移至空座位
+      nextAssignments = draft.assignments.map((assignment) => {
+        if (assignment.studentId === studentId) {
+          return { ...assignment, row, column };
+        }
+        return assignment;
+      });
+      const sourceStudent = studentById.get(studentId);
+      if (sourceStudent) {
+        message.success(`已将 ${sourceStudent.name} 调至 第 ${row} 排 ${column} 座`);
+      }
+    } else if (!source && target) {
+      // 未入座学生占用已有座位的学生位置（原学生回到待分配名单）
+      nextAssignments = draft.assignments
+        .filter((assignment) => assignment.studentId !== target.studentId)
+        .concat({ studentId, row, column });
+      const currentStudent = studentById.get(studentId);
+      const replacedStudent = studentById.get(target.studentId);
+      if (currentStudent && replacedStudent) {
+        message.info(`已安排 ${currentStudent.name} 入座，${replacedStudent.name} 移入待分配名单`);
+      }
+    } else {
+      // 未入座学生入座空位
+      nextAssignments = [...draft.assignments, { studentId, row, column }];
+      const currentStudent = studentById.get(studentId);
+      if (currentStudent) {
+        message.success(`已安排 ${currentStudent.name} 入座`);
+      }
     }
-    nextAssignments.push({ studentId, row, column });
+
     commitDraft({ ...draft, assignments: nextAssignments });
     setSelectedStudentId(null);
   }
@@ -1111,6 +1142,7 @@ export default function SeatingPage() {
       return;
     }
     event.stopPropagation();
+    setSeatActionMenuKey((current) => current === `${row}-${column}` ? null : `${row}-${column}`);
   }
 
   function handleSeatStudentContextMenu(event: React.MouseEvent<HTMLButtonElement>, positionKey: string) {

@@ -34,9 +34,11 @@ vi.mock("@/hooks/useApiData", () => ({
       columns: 7,
       students: [
         { id: "student-1", name: "张三", studentNo: "101", gender: "MALE", status: "ACTIVE" },
+        { id: "student-2", name: "李四", studentNo: "102", gender: "FEMALE", status: "ACTIVE" },
       ],
       assignments: [
         { studentId: "student-1", row: 1, column: 1 },
+        { studentId: "student-2", row: 1, column: 2 },
       ],
       environment: {
         aisleAfterColumns: [2, 4],
@@ -63,6 +65,7 @@ describe("SeatingPage Mobile Redesign", () => {
 
     expect(screen.getByText(/左右滑动查看完整教室座位表/)).toBeInTheDocument();
     expect(screen.getByText("张三")).toBeInTheDocument();
+    expect(screen.getByText("李四")).toBeInTheDocument();
   });
 
   it("renders mobile sticky action bar when entering editing mode", () => {
@@ -86,5 +89,70 @@ describe("SeatingPage Mobile Redesign", () => {
     expect(within(stickyBar).getByRole("button", { name: "撤销" })).toBeInTheDocument();
     expect(within(stickyBar).getByRole("button", { name: "取消编辑" })).toBeInTheDocument();
     expect(within(stickyBar).getByRole("button", { name: "保存座次" })).toBeInTheDocument();
+  });
+});
+
+describe("Seating swap behavior", () => {
+  it("correctly swaps two students' positions without overwriting either student", async () => {
+    render(
+      <App>
+        <SeatingPage />
+      </App>
+    );
+
+    // Enter editing mode
+    const editBtn = screen.getByRole("button", { name: /编辑座次/ });
+    fireEvent.click(editBtn);
+
+    // Before swap: 张三 is at (1, 1), 李四 is at (1, 2)
+    const zhangBtn = screen.getByRole("button", { name: /第 1 排 1 座，张三/ });
+    const liBtn = screen.getByRole("button", { name: /第 1 排 2 座，李四/ });
+    expect(zhangBtn).toBeInTheDocument();
+    expect(liBtn).toBeInTheDocument();
+
+    // Click 张三's seat cell to select student
+    const zhangCell = zhangBtn.closest(".seat-cell")!;
+    fireEvent.click(zhangCell);
+
+    // Click 李四's seat button to trigger swap
+    fireEvent.click(liBtn);
+
+    // After swap: 张三 should be at (1, 2), 李四 should be at (1, 1)
+    expect(screen.getByRole("button", { name: /第 1 排 2 座，张三/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /第 1 排 1 座，李四/ })).toBeInTheDocument();
+  });
+
+  it("correctly swaps two students via drag and drop", () => {
+    render(
+      <App>
+        <SeatingPage />
+      </App>
+    );
+
+    // Enter editing mode
+    const editBtn = screen.getByRole("button", { name: /编辑座次/ });
+    fireEvent.click(editBtn);
+
+    // Drag 张三 (1, 1) and drop onto 李四's seat cell (1, 2)
+    const zhangBtn = screen.getByRole("button", { name: /第 1 排 1 座，张三/ });
+    const liBtn = screen.getByRole("button", { name: /第 1 排 2 座，李四/ });
+    const liCell = liBtn.closest(".seat-cell")!;
+
+    fireEvent.dragStart(zhangBtn, {
+      dataTransfer: {
+        setData: vi.fn(),
+        effectAllowed: "move",
+      },
+    });
+
+    fireEvent.drop(liCell, {
+      dataTransfer: {
+        getData: (type: string) => (type === "text/plain" ? "student-1" : ""),
+      },
+    });
+
+    // Both students should be swapped and both remain present
+    expect(screen.getByRole("button", { name: /第 1 排 2 座，张三/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /第 1 排 1 座，李四/ })).toBeInTheDocument();
   });
 });

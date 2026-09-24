@@ -4573,46 +4573,76 @@ select {
 @media print {
   @page {
     size: landscape;
-    margin: 10mm;
+    margin: 10mm 12mm;
+  }
+
+  /* 彻底移除所有全屏背景图、海报画卷、视频背景与遮罩层 */
+  .global-backdrop-layer,
+  .global-poster-backdrop,
+  .global-video-backdrop,
+  .global-video-overlay,
+  .login-backdrop-layer,
+  .login-poster-backdrop,
+  .login-video-backdrop,
+  .seating-canvas-backdrop {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
   }
 
   html,
   body {
     min-height: 0 !important;
-    background: white !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
   }
 
-  .workspace-layout {
-    background: white !important;
-  }
-
-  .global-video-backdrop,
-  .global-video-overlay,
-  .ledger-sheet-header,
-  .ledger-sheet-colophon {
-    display: none !important;
-  }
-
+  .workspace-layout,
+  .workspace-layout > .workspace-main,
+  .workspace-content,
   .ledger-sheet,
-  .ledger-sheet-content {
-    overflow: visible !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: white !important;
+  .ledger-sheet-content,
+  .seating-workspace-card,
+  .seating-workspace-body,
+  .seating-canvas-section,
+  .seating-print-region {
+    background: #ffffff !important;
+    background-image: none !important;
     box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
+  /* 隐藏非打印区域的所有界面控件与噪点元素 */
   .workspace-sider,
+  .workspace-sidebar,
   .workspace-header,
+  .workspace-mobile-header,
+  .workspace-mobile-tabbar,
   .workspace-page-stack > .page-heading,
   .workspace-page-stack > .ant-alert,
   .seating-canvas-toolbar,
   .seating-workspace-footer,
+  .seating-heading-actions,
+  .seating-output-actions,
+  .seating-settings-content,
+  .seating-mobile-scroll-hint,
+  .ledger-sheet-header,
+  .ledger-sheet-colophon,
+  .ledger-sheet-metrics,
+  .ant-btn,
   .ant-dropdown,
   .ant-tooltip,
   .ant-message,
   .ant-notification,
-  .ant-modal-root {
+  .ant-modal-root,
+  .seat-cell-delete-btn,
+  .seat-empty-trigger,
+  .seat-cell-restore-btn,
+  .seat-lock-badge {
     display: none !important;
   }
 
@@ -4620,7 +4650,7 @@ select {
     min-height: 0 !important;
     width: 100% !important;
     margin-left: 0 !important;
-    background: white !important;
+    padding: 0 !important;
   }
 
   .workspace-content {
@@ -4651,36 +4681,6 @@ select {
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-  }
-
-@media print {
-  @page {
-    size: landscape;
-    margin: 12mm 15mm;
-  }
-
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-
-  /* 隐藏非打印区域的所有界面控件与噪点元素 */
-  .ledger-sheet-header,
-  .seating-heading-actions,
-  .seating-output-actions,
-  .ledger-sheet-metrics,
-  .seating-settings-content,
-  .seating-workspace-footer,
-  .workspace-sidebar,
-  .workspace-mobile-header,
-  .workspace-mobile-tabbar,
-  .ant-btn,
-  .ant-dropdown,
-  .seat-cell-delete-btn,
-  .seat-empty-trigger,
-  .seat-cell-restore-btn,
-  .seat-lock-badge {
-    display: none !important;
   }
 
   .seating-canvas-section {
