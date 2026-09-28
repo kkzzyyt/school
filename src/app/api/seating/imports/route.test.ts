@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -47,12 +48,17 @@ const authContext = {
 };
 
 function uploadRequest(content: string, filename = "座次.csv") {
-  const formData = new FormData();
-  formData.append("file", new Blob([content], { type: "text/csv" }), filename);
-  formData.append("fileName", filename);
+  const boundary = "school-seating-import-test";
+  const encoder = new TextEncoder();
+  const body = new Uint8Array([
+    ...encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: text/csv\r\n\r\n`),
+    ...encoder.encode(content),
+    ...encoder.encode(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="fileName"\r\n\r\n${filename}\r\n--${boundary}--\r\n`),
+  ]);
   return new Request("https://school.example/api/seating/imports", {
     method: "POST",
-    body: formData,
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+    body,
   });
 }
 
