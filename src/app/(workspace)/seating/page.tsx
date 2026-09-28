@@ -21,6 +21,7 @@ import {
   SwapOutlined,
   SyncOutlined,
   TeamOutlined,
+  UploadOutlined,
   UndoOutlined,
   UserAddOutlined,
   WindowsOutlined,
@@ -46,8 +47,10 @@ import { Fragment, type CSSProperties, useEffect, useMemo, useReducer, useRef, u
 
 import { LedgerSheet } from "@/components/layout/LedgerSheet";
 import { SeatingHistoryDrawer } from "@/components/seating/SeatingHistoryDrawer";
+import { SeatingImportModal } from "@/components/seating/SeatingImportModal";
 import { SeatingSchemeModal } from "@/components/seating/SeatingSchemeModal";
 import type { SeatingHistoryDetail } from "@/domain/seating-history";
+import type { SeatingImportDraft } from "@/domain/seating-import";
 import {
   DEFAULT_SEATING_COLUMNS,
   DEFAULT_SEATING_ENVIRONMENT,
@@ -306,12 +309,30 @@ export default function SeatingPage() {
     }, 2500);
   }
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [saveTriggerType, setSaveTriggerType] = useState<"MANUAL" | "IMPORT">("MANUAL");
+
+  function handleImportDraft(importDraft: SeatingImportDraft) {
+    const nextDraft: SeatingDraft = {
+      rows: importDraft.rows,
+      columns: importDraft.columns,
+      assignments: sortAssignments(importDraft.assignments),
+      environment: cloneEnvironment(importDraft.environment),
+    };
+    dispatch({ type: "commit", draft: nextDraft });
+    setIsEditing(true);
+    setSaveTriggerType("IMPORT");
+    setSelectedStudentId(null);
+    setDropTarget(null);
+    setSeatActionMenuKey(null);
+  }
 
   function handleLoadHistoryDraft(historyDetail: SeatingHistoryDetail) {
     if (!isEditing) {
       setIsEditing(true);
     }
+    setSaveTriggerType("MANUAL");
     const nextDraft: SeatingDraft = {
       rows: historyDetail.rows,
       columns: historyDetail.columns,
@@ -484,11 +505,13 @@ export default function SeatingPage() {
 
   function enterEditing() {
     setIsEditing(true);
+    setSaveTriggerType("MANUAL");
   }
 
   function leaveEditing() {
     if (!isDirty) {
       setIsEditing(false);
+      setSaveTriggerType("MANUAL");
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -503,6 +526,7 @@ export default function SeatingPage() {
       onOk: () => {
         if (savedDraft) dispatch({ type: "reset", draft: savedDraft });
         setIsEditing(false);
+        setSaveTriggerType("MANUAL");
         setSelectedStudentId(null);
         setDropTarget(null);
         setSeatActionMenuKey(null);
@@ -513,6 +537,7 @@ export default function SeatingPage() {
   function handleResetEditing() {
     if (!savedDraft) return;
     dispatch({ type: "reset", draft: savedDraft });
+    setSaveTriggerType("MANUAL");
     setSelectedStudentId(null);
     setDropTarget(null);
     setSeatActionMenuKey(null);
@@ -1320,10 +1345,13 @@ export default function SeatingPage() {
           columns: draft.columns,
           assignments: draft.assignments,
           environment: draft.environment,
+          triggerType: saveTriggerType,
+          description: saveTriggerType === "IMPORT" ? "导入座位图" : undefined,
         }),
       });
       message.success("座次与教室标记已保存");
       setIsEditing(false);
+      setSaveTriggerType("MANUAL");
       setSelectedStudentId(null);
       setDropTarget(null);
       setSeatActionMenuKey(null);
@@ -1415,6 +1443,9 @@ export default function SeatingPage() {
           <Space className="seating-heading-actions">
             {!isEditing ? (
               <>
+                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)} disabled={saving}>
+                  导入座位图
+                </Button>
                 <Space className="seating-output-actions" size={8}>
                   <Tooltip title={isDirty ? "打印当前座位图（含未保存修改）" : "打印当前座位图"}>
                     <Button
@@ -1938,6 +1969,11 @@ export default function SeatingPage() {
           disabledSeatKeys={disabledSeatKeys}
         />
       )}
+      <SeatingImportModal
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        onApply={handleImportDraft}
+      />
       <SeatingHistoryDrawer
         open={historyDrawerOpen}
         onClose={() => setHistoryDrawerOpen(false)}

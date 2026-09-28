@@ -17,10 +17,11 @@ export interface ApiRequestOptions extends RequestInit {
 
 export async function apiRequest<T>(url: string, options?: ApiRequestOptions): Promise<T> {
   const { redirectOnUnauthorized = true, ...requestOptions } = options ?? {};
+  const isFormDataBody = typeof FormData !== "undefined" && requestOptions.body instanceof FormData;
   const response = await fetch(url, {
     ...requestOptions,
     headers: {
-      ...(requestOptions.body ? { "Content-Type": "application/json" } : {}),
+      ...(requestOptions.body && !isFormDataBody ? { "Content-Type": "application/json" } : {}),
       ...requestOptions.headers,
     },
   });

@@ -55,4 +55,24 @@ describe("apiRequest", () => {
 
     expect(replace).toHaveBeenCalledWith("/login");
   });
+
+  it("上传 FormData 时保留浏览器自动生成的 multipart boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ success: true, data: { ok: true } }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const formData = new FormData();
+    formData.append("file", new Blob(["content"], { type: "text/csv" }), "seats.csv");
+
+    await apiRequest("/api/seating/imports", { method: "POST", body: formData });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/seating/imports",
+      expect.objectContaining({
+        body: formData,
+        headers: {},
+      }),
+    );
+  });
 });
