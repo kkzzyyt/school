@@ -15,6 +15,8 @@ export interface SeatingImportStudent {
 export type SeatingImportIssueCode =
   | "UNSUPPORTED_FORMAT"
   | "INVALID_POSITION"
+  | "INVALID_DIMENSIONS"
+  | "DISABLED_SEAT"
   | "UNMATCHED_STUDENT"
   | "DUPLICATE_STUDENT"
   | "DUPLICATE_POSITION"
@@ -130,9 +132,9 @@ function findIndex(row: readonly string[], matcher: (value: string) => boolean):
 }
 
 function parseNumber(value: string): number | null {
-  const match = normalizeCell(value).match(/\d+/);
+  const match = normalizeCell(value).match(/^(?:第\s*)?(\d+)\s*(?:排|座)?$/);
   if (!match) return null;
-  const parsed = Number(match[0]);
+  const parsed = Number(match[1]);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
@@ -168,13 +170,13 @@ function getLayoutIssues(
 ): SeatingImportIssue[] {
   const issues: SeatingImportIssue[] = [];
   if (rows > 12 || columns > 12) {
-    issues.push({ code: "INVALID_POSITION", message: "座位图最多支持 12 排 × 12 列" });
+    issues.push({ code: "INVALID_DIMENSIONS", message: "座位图最多支持 12 排 × 12 列" });
   }
   const disabled = new Set((environment.disabledSeats ?? []).map((seat) => `${seat.row}:${seat.column}`));
   for (const assignment of assignments) {
     if (disabled.has(`${assignment.row}:${assignment.column}`)) {
       issues.push({
-        code: "INVALID_POSITION",
+        code: "DISABLED_SEAT",
         message: `第 ${assignment.row} 排第 ${assignment.column} 座已停用，请留空或修改教室布局`,
         row: assignment.row,
         column: assignment.column,
@@ -293,7 +295,17 @@ function parseDetailRows(
   for (const sourceRow of matrix.slice(headerIndex + 1)) {
     const row = parseNumber(sourceRow[rowIndex] ?? "");
     const column = parseNumber(sourceRow[columnIndex] ?? "");
-    if (row === null || column === null) continue;
+    if (row === null || column === null) {
+      const sourceText = normalizeCell(sourceRow[valueIndex] ?? "");
+      if (!isEmptyCell(sourceText)) {
+        issues.push({
+          code: "INVALID_POSITION",
+          message: `学生“${sourceText}”缺少有效的排号或座号`,
+          sourceText,
+        });
+      }
+      continue;
+    }
     maxRow = Math.max(maxRow, row);
     maxColumn = Math.max(maxColumn, column);
     addAssignmentCell(
@@ -349,6 +361,11 @@ function parseMatrixRows(
       issues,
       { matched: 0, unmatched: 0, duplicate: 0, empty: 0, totalCells: 0 },
     );
+  }
+
+  const columnNumbers = seatHeaders.map((seat) => seat.column);
+  if (new Set(columnNumbers).size !== columnNumbers.length || Math.max(...columnNumbers) !== columnNumbers.length) {
+    issues.push({ code: "INVALID_POSITION", message: "座位表列标题存在重复或缺少连续座号" });
   }
 
   const aisleAfterColumns = header
@@ -469,7 +486,8 @@ export function reviseSeatingImportPreview(
     "UNMATCHED_STUDENT",
     "DUPLICATE_STUDENT",
     "DUPLICATE_POSITION",
-    "INVALID_POSITION",
+    "INVALID_DIMENSIONS",
+    "DISABLED_SEAT",
   ].includes(issue.code) && !(
     issue.code === "LOW_OCR_CONFIDENCE"
     && preview.matches.some((match, index) => corrections.has(index)

@@ -7,17 +7,13 @@ services:
     init: true
     mem_limit: 1250m
     pids_limit: 64
-    ports:
-      - "127.0.0.1:8077:8077"
+    # Host networking matches the production app and uses the host's working DNS.
+    network_mode: host
     environment:
-      OCR_BIND: "0.0.0.0"
+      OCR_BIND: "127.0.0.1"
       OCR_PORT: "8077"
+      PADDLE_PDX_MODEL_SOURCE: "bos"
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
-    volumes:
-      - school_ocr_models:/home/ocr/.paddlex
     security_opt:
       - no-new-privileges:true
-
-volumes:
-  school_ocr_models:

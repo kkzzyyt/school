@@ -103,8 +103,32 @@ describe("domain/seating-import", () => {
     ], students, { existingEnvironment: environment });
 
     expect(original.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "INVALID_POSITION", row: 1, column: 1 }),
+      expect.objectContaining({ code: "DISABLED_SEAT", row: 1, column: 1 }),
     ]));
     expect(reviseSeatingImportPreview(original, new Map([[0, null]])).issues).toEqual([]);
+  });
+
+  it("reports a filled detail row with an invalid coordinate", () => {
+    const result = parseSeatingMatrix([
+      ["排", "座", "姓名"],
+      ["1", "1", "张三"],
+      ["-1", "2", "李四"],
+    ], students);
+
+    expect(result.draft.assignments).toEqual([{ studentId: "s-1", row: 1, column: 1 }]);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "INVALID_POSITION", sourceText: "李四" }),
+    ]));
+  });
+
+  it("rejects duplicate seat column labels in a matrix", () => {
+    const result = parseSeatingMatrix([
+      ["排\\座", "第 1 座", "第 1 座"],
+      ["第 1 排", "张三", ""],
+    ], students);
+
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "INVALID_POSITION" }),
+    ]));
   });
 });

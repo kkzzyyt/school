@@ -11,9 +11,9 @@ docker compose -f docker-compose.ocr.yml up -d --build
 curl -fsS http://127.0.0.1:8077/health
 ```
 
-首次启动会从 PaddlePaddle 官方模型源下载 PP-OCRv5 的移动端检测与识别模型，模型缓存在 Docker 卷 `school_ocr_models` 中。图片不发送到模型下载站点。CPU 服务只启动一个模型实例、单线程推理，容器内存上限为 1250 MiB；在低内存服务器上请先观察 `docker stats` 再启用多人同时上传。
+首次启动会从 PaddlePaddle 官方模型源下载 PP-OCRv5 的移动端检测与识别模型，模型缓存在 OCR 容器的用户目录中；重建容器会重新下载。图片不发送到模型下载站点。CPU 服务只启动一个模型实例、单线程推理，容器内存上限为 1250 MiB；在低内存服务器上请先观察 `docker stats` 再启用多人同时上传。
 
-Next.js 默认连接 `http://127.0.0.1:8077`。如需换端口，可设置 `SEATING_OCR_URL`，但出于隐私和网络边界考虑，该地址仅接受 `127.0.0.1` 或 `localhost`。Docker Compose 只把 OCR 端口发布到宿主机回环地址，公网无法直连。
+Next.js 默认连接 `http://127.0.0.1:8077`。如需换端口，可设置 `SEATING_OCR_URL`，但出于隐私和网络边界考虑，该地址仅接受 `127.0.0.1` 或 `localhost`。Docker Compose 使用 host 网络并让 OCR 进程只监听宿主机回环地址，公网无法直连。
 
 ## 支持范围
 
