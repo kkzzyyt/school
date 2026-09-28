@@ -1969,11 +1969,14 @@ export default function SeatingPage() {
           disabledSeatKeys={disabledSeatKeys}
         />
       )}
-      <SeatingImportModal
-        open={importModalOpen}
-        onCancel={() => setImportModalOpen(false)}
-        onApply={handleImportDraft}
-      />
+      {importModalOpen && (
+        <SeatingImportModal
+          open
+          onCancel={() => setImportModalOpen(false)}
+          onApply={handleImportDraft}
+          students={data?.students ?? []}
+        />
+      )}
       <SeatingHistoryDrawer
         open={historyDrawerOpen}
         onClose={() => setHistoryDrawerOpen(false)}

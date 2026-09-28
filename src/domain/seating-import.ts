@@ -3,7 +3,7 @@ import {
   type SeatingEnvironment,
 } from "./seating";
 
-export type SeatingImportSourceType = "CSV" | "XLSX";
+export type SeatingImportSourceType = "CSV" | "XLSX" | "IMAGE";
 export type SeatingImportOrientation = "FRONT_TOP" | "FRONT_BOTTOM" | "UNKNOWN";
 
 export interface SeatingImportStudent {
@@ -17,7 +17,9 @@ export type SeatingImportIssueCode =
   | "INVALID_POSITION"
   | "UNMATCHED_STUDENT"
   | "DUPLICATE_STUDENT"
-  | "DUPLICATE_POSITION";
+  | "DUPLICATE_POSITION"
+  | "OCR_LAYOUT_UNCERTAIN"
+  | "LOW_OCR_CONFIDENCE";
 
 export interface SeatingImportIssue {
   code: SeatingImportIssueCode;
@@ -32,8 +34,8 @@ export interface SeatingImportMatch {
   row: number;
   column: number;
   studentId: string | null;
-  status: "EXACT" | "UNMATCHED" | "DUPLICATE";
-  matchedBy?: "STUDENT_NO" | "NAME";
+  status: "EXACT" | "UNMATCHED" | "DUPLICATE" | "CORRECTED" | "EMPTY";
+  matchedBy?: "STUDENT_NO" | "NAME" | "MANUAL";
 }
 
 export interface SeatingImportDraft {
@@ -148,12 +150,38 @@ function createResult(
   issues: SeatingImportIssue[],
   stats: SeatingImportStats,
 ): SeatingImportPreview {
+  const layoutIssues = getLayoutIssues(rows, columns, assignments, environment);
+  const allIssues = [...issues, ...layoutIssues];
   return {
-    draft: { rows, columns, assignments, environment, orientation, issues },
+    draft: { rows, columns, assignments, environment, orientation, issues: allIssues },
     matches,
-    issues,
+    issues: allIssues,
     stats,
   };
+}
+
+function getLayoutIssues(
+  rows: number,
+  columns: number,
+  assignments: SeatingImportDraft["assignments"],
+  environment: SeatingEnvironment,
+): SeatingImportIssue[] {
+  const issues: SeatingImportIssue[] = [];
+  if (rows > 12 || columns > 12) {
+    issues.push({ code: "INVALID_POSITION", message: "座位图最多支持 12 排 × 12 列" });
+  }
+  const disabled = new Set((environment.disabledSeats ?? []).map((seat) => `${seat.row}:${seat.column}`));
+  for (const assignment of assignments) {
+    if (disabled.has(`${assignment.row}:${assignment.column}`)) {
+      issues.push({
+        code: "INVALID_POSITION",
+        message: `第 ${assignment.row} 排第 ${assignment.column} 座已停用，请留空或修改教室布局`,
+        row: assignment.row,
+        column: assignment.column,
+      });
+    }
+  }
+  return issues;
 }
 
 function matchStudent(
@@ -326,7 +354,13 @@ function parseMatrixRows(
   const aisleAfterColumns = header
     .map((value, index) => ({ value, index }))
     .filter((item) => item.value === "过道")
-    .map((item) => seatHeaders.filter((seat) => seat.index < item.index).at(-1)?.column ?? null)
+    .map((item) => {
+      const before = seatHeaders.filter((seat) => seat.index < item.index).at(-1);
+      const after = seatHeaders.find((seat) => seat.index > item.index);
+      return before && after && Math.abs(before.column - after.column) === 1
+        ? Math.min(before.column, after.column)
+        : null;
+    })
     .filter((column): column is number => column !== null);
   const assignments: SeatingImportDraft["assignments"] = [];
   const matches: SeatingImportMatch[] = [];
@@ -424,4 +458,88 @@ export function parseSeatingMatrix(
   options: SeatingMatrixOptions = {},
 ): SeatingImportPreview {
   return parseDetailRows(matrix, students, options) ?? parseMatrixRows(matrix, students, options);
+}
+
+/** Rechecks every student and seat after a teacher resolves uncertain OCR matches. */
+export function reviseSeatingImportPreview(
+  preview: SeatingImportPreview,
+  corrections: ReadonlyMap<number, string | null>,
+): SeatingImportPreview {
+  const preservedIssues = preview.issues.filter((issue) => ![
+    "UNMATCHED_STUDENT",
+    "DUPLICATE_STUDENT",
+    "DUPLICATE_POSITION",
+    "INVALID_POSITION",
+  ].includes(issue.code) && !(
+    issue.code === "LOW_OCR_CONFIDENCE"
+    && preview.matches.some((match, index) => corrections.has(index)
+      && match.row === issue.row && match.column === issue.column)
+  ));
+  const issues = [...preservedIssues];
+  const assignments: SeatingImportDraft["assignments"] = [];
+  const seenStudents = new Set<string>();
+  const seenPositions = new Set<string>();
+  const stats: SeatingImportStats = {
+    matched: 0,
+    unmatched: 0,
+    duplicate: 0,
+    empty: preview.stats.empty,
+    totalCells: preview.stats.totalCells,
+  };
+  const matches = preview.matches.map((match, index): SeatingImportMatch => {
+    const corrected = corrections.has(index);
+    const studentId = corrected ? corrections.get(index) ?? null : match.studentId;
+    if (!studentId) {
+      if (corrected) {
+        stats.empty += 1;
+        return { ...match, studentId: null, status: "EMPTY", matchedBy: "MANUAL" };
+      }
+      stats.unmatched += 1;
+      issues.push({
+        code: "UNMATCHED_STUDENT",
+        message: `第 ${match.row} 排第 ${match.column} 座无法匹配学生“${match.sourceText}”`,
+        row: match.row,
+        column: match.column,
+        sourceText: match.sourceText,
+      });
+      return { ...match, status: "UNMATCHED" };
+    }
+
+    const positionKey = `${match.row}:${match.column}`;
+    const duplicateStudent = seenStudents.has(studentId);
+    const duplicatePosition = seenPositions.has(positionKey);
+    if (duplicateStudent || duplicatePosition) {
+      stats.duplicate += 1;
+      issues.push({
+        code: duplicateStudent ? "DUPLICATE_STUDENT" : "DUPLICATE_POSITION",
+        message: duplicateStudent
+          ? `同一学生在导入文件中出现多次`
+          : `第 ${match.row} 排第 ${match.column} 座出现多次`,
+        row: match.row,
+        column: match.column,
+        sourceText: match.sourceText,
+      });
+      return { ...match, studentId, status: "DUPLICATE" };
+    }
+    seenStudents.add(studentId);
+    seenPositions.add(positionKey);
+    stats.matched += 1;
+    assignments.push({ studentId, row: match.row, column: match.column });
+    return {
+      ...match,
+      studentId,
+      status: corrected ? "CORRECTED" : "EXACT",
+      matchedBy: corrected ? "MANUAL" : match.matchedBy,
+    };
+  });
+
+  assignments.sort((left, right) => left.row - right.row || left.column - right.column);
+  issues.push(...getLayoutIssues(preview.draft.rows, preview.draft.columns, assignments, preview.draft.environment));
+  return {
+    ...preview,
+    matches,
+    issues,
+    stats,
+    draft: { ...preview.draft, assignments, issues },
+  };
 }

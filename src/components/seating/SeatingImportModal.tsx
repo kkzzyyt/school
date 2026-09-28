@@ -1,7 +1,7 @@
 "use client";
 
 import { FileExcelOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Modal, Space, Tag, Typography } from "antd";
+import { Alert, App, Button, Checkbox, Modal, Select, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type {
@@ -9,7 +9,9 @@ import type {
   SeatingImportIssue,
   SeatingImportMatch,
   SeatingImportStats,
+  SeatingImportStudent,
 } from "@/domain/seating-import";
+import { reviseSeatingImportPreview } from "@/domain/seating-import";
 import type { SeatingRuleCandidate } from "@/domain/seating-rule-inference";
 import { apiRequest } from "@/lib/api";
 
@@ -17,7 +19,7 @@ const { Text } = Typography;
 
 export interface SeatingImportResponse {
   fileName: string;
-  sourceType: "CSV" | "XLSX";
+  sourceType: "CSV" | "XLSX" | "IMAGE";
   draft: SeatingImportDraft;
   matches: SeatingImportMatch[];
   issues: SeatingImportIssue[];
@@ -33,6 +35,7 @@ export interface SeatingImportModalProps {
   open: boolean;
   onCancel: () => void;
   onApply: (draft: SeatingImportDraft) => void;
+  students: readonly SeatingImportStudent[];
 }
 
 function statLabel(stats: SeatingImportStats) {
@@ -49,23 +52,26 @@ function issueText(issue: SeatingImportIssue) {
   return `${position}${issue.message}`;
 }
 
-export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportModalProps) {
+export function SeatingImportModal({ open, onCancel, onApply, students }: SeatingImportModalProps) {
   const { message } = App.useApp();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<SeatingImportResponse | null>(null);
   const [ruleCandidates, setRuleCandidates] = useState<SeatingRuleInferenceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [inferLoading, setInferLoading] = useState(false);
+  const [corrections, setCorrections] = useState<Map<number, string | null>>(new Map());
+  const [imageReviewed, setImageReviewed] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setSelectedFile(null);
-      setResult(null);
-      setRuleCandidates(null);
-      setLoading(false);
-      setInferLoading(false);
-    }
-  }, [open]);
+    return () => {
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+    };
+  }, [imageUrl]);
+
+  function handleClose() {
+    onCancel();
+  }
 
   async function handlePreview() {
     if (!selectedFile) {
@@ -84,6 +90,8 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
       });
       setResult(response);
       setRuleCandidates(null);
+      setCorrections(new Map());
+      setImageReviewed(false);
     } catch (error) {
       message.error((error as Error).message || "读取座位文件失败");
       setResult(null);
@@ -108,18 +116,23 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
   }
 
   function handleApply() {
-    if (!result) return;
-    if (result.issues.length > 0) {
+    if (!result || !preview) return;
+    if (blockingIssues.length > 0 || (result.sourceType === "IMAGE" && !imageReviewed)) {
       message.warning("请先处理导入冲突，再载入编辑画布");
       return;
     }
-    onApply(result.draft);
-    message.success(`已识别 ${result.draft.assignments.length} 个座位，载入编辑画布后请保存`);
-    onCancel();
+    onApply({ ...preview.draft, issues: [] });
+    message.success(`已识别 ${preview.draft.assignments.length} 个座位，载入编辑画布后请保存`);
+    handleClose();
   }
 
-  const previewMatches = result?.matches.slice(0, 12) ?? [];
-  const hasBlockingIssues = Boolean(result?.issues.length);
+  const preview = result ? reviseSeatingImportPreview(result, corrections) : null;
+  const blockingIssues = preview?.issues.filter((issue) => issue.code !== "LOW_OCR_CONFIDENCE") ?? [];
+  const hasBlockingIssues = blockingIssues.length > 0;
+  const matchOptions = [
+    { label: "留空", value: "__empty__" },
+    ...students.map((student) => ({ label: `${student.name}（${student.studentNo}）`, value: student.id })),
+  ];
 
   return (
     <Modal
@@ -130,14 +143,18 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
         </Space>
       )}
       open={open}
-      onCancel={onCancel}
+      onCancel={handleClose}
       width={720}
       centered
       destroyOnHidden
       footer={(
         <Space>
-          <Button onClick={onCancel}>取消</Button>
-          <Button type="primary" disabled={!result || hasBlockingIssues} onClick={handleApply}>
+          <Button onClick={handleClose}>取消</Button>
+          <Button
+            type="primary"
+            disabled={!result || hasBlockingIssues || (result.sourceType === "IMAGE" && !imageReviewed)}
+            onClick={handleApply}
+          >
             载入编辑画布
           </Button>
         </Space>
@@ -159,7 +176,7 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
           <span>
             <strong>选择座位文件</strong>
             <br />
-            <Text type="secondary">支持 CSV、XLSX、XLS，单文件不超过 5 MB</Text>
+            <Text type="secondary">支持 CSV、XLSX、PNG、JPEG、WebP，单文件不超过 5 MB</Text>
           </span>
           <Button icon={<UploadOutlined />} loading={loading}>
             {selectedFile ? "重新选择" : "选择文件"}
@@ -167,11 +184,17 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
           <input
             id="seating-import-file"
             type="file"
-            accept=".csv,.tsv,.xlsx,.xls"
+            accept=".csv,.tsv,.xlsx,.png,.jpg,.jpeg,.webp"
             hidden
             onChange={(event) => {
-              setSelectedFile(event.currentTarget.files?.[0] ?? null);
+              const file = event.currentTarget.files?.[0] ?? null;
+              setSelectedFile(file);
+              setImageUrl(file?.type.startsWith("image/") && URL.createObjectURL
+                ? URL.createObjectURL(file)
+                : null);
               setResult(null);
+              setCorrections(new Map());
+              setImageReviewed(false);
             }}
           />
         </label>
@@ -185,15 +208,25 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
           </Space>
         )}
 
-        {result && (
+        {imageUrl && (
+          // This local blob URL is a temporary preview of the teacher's selected image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt="待识别的座位图"
+            style={{ width: "100%", maxHeight: 300, objectFit: "contain", borderRadius: 6 }}
+          />
+        )}
+
+        {result && preview && (
           <div style={{ display: "grid", gap: 12 }}>
             <Alert
               type={hasBlockingIssues ? "warning" : "success"}
               showIcon
               title={hasBlockingIssues ? "识别完成，请处理冲突" : "识别完成，可以载入编辑画布"}
-              description={`${result.draft.rows} 排 × ${result.draft.columns} 列 · 方向：${result.draft.orientation === "UNKNOWN" ? "待确认" : result.draft.orientation === "FRONT_BOTTOM" ? "讲台在下方" : "讲台在上方"}`}
+              description={`${preview.draft.rows} 排 × ${preview.draft.columns} 列 · 方向：${preview.draft.orientation === "UNKNOWN" ? "待确认" : preview.draft.orientation === "FRONT_BOTTOM" ? "讲台在下方" : "讲台在上方"}`}
             />
-            <Space wrap>{statLabel(result.stats)}</Space>
+            <Space wrap>{statLabel(preview.stats)}</Space>
 
             <Space wrap>
               <Button loading={inferLoading} onClick={() => void handleInferRules()}>
@@ -238,31 +271,55 @@ export function SeatingImportModal({ open, onCancel, onApply }: SeatingImportMod
               <Alert type="info" showIcon title="暂未发现稳定规律" description="至少需要两张可比较的历史座次快照。" />
             )}
 
-            {result.issues.length > 0 && (
+            {preview.issues.length > 0 && (
               <Alert
-                type="error"
+                type={hasBlockingIssues ? "error" : "warning"}
                 showIcon
-                message={`有 ${result.issues.length} 项需要处理`}
+                message={`有 ${preview.issues.length} 项需要核对`}
                 description={(
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {result.issues.slice(0, 8).map((issue, index) => <li key={`${issue.code}-${index}`}>{issueText(issue)}</li>)}
-                    {result.issues.length > 8 && <li>其余冲突请在原文件修正后重新导入</li>}
+                    {preview.issues.slice(0, 8).map((issue, index) => <li key={`${issue.code}-${index}`}>{issueText(issue)}</li>)}
+                    {preview.issues.length > 8 && <li>还有 {preview.issues.length - 8} 项，请继续核对</li>}
                   </ul>
                 )}
               />
             )}
 
-            {previewMatches.length > 0 && (
+            {preview.matches.length > 0 && (
               <div>
-                <Text strong>识别记录（最多显示 12 条）</Text>
-                <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
-                  {previewMatches.map((match) => (
-                    <Text key={`${match.row}-${match.column}-${match.sourceText}`} type={match.status === "EXACT" ? undefined : "danger"}>
-                      第 {match.row} 排第 {match.column} 座 · {match.sourceText} · {match.status === "EXACT" ? "已匹配" : match.status === "DUPLICATE" ? "重复" : "未匹配"}
-                    </Text>
+                <Text strong>识别记录与学生匹配</Text>
+                <div style={{ display: "grid", gap: 8, marginTop: 8, maxHeight: 260, overflowY: "auto" }}>
+                  {preview.matches.map((match, index) => (
+                    <div
+                      key={`${match.row}-${match.column}-${index}`}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+                    >
+                      <Text type={match.status === "UNMATCHED" || match.status === "DUPLICATE" ? "danger" : undefined}>
+                        第 {match.row} 排第 {match.column} 座 · {match.sourceText}
+                      </Text>
+                      <Select
+                        aria-label={`第 ${match.row} 排第 ${match.column} 座学生`}
+                        value={match.status === "EMPTY" ? "__empty__" : match.studentId ?? undefined}
+                        placeholder="选择学生"
+                        style={{ minWidth: 190 }}
+                        showSearch
+                        optionFilterProp="label"
+                        options={matchOptions}
+                        onChange={(value: string) => setCorrections((current) => new Map(current).set(
+                          index,
+                          value === "__empty__" ? null : value,
+                        ))}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
+            )}
+
+            {result.sourceType === "IMAGE" && (
+              <Checkbox checked={imageReviewed} onChange={(event) => setImageReviewed(event.target.checked)}>
+                我已对照原图核对姓名、座位和讲台方向
+              </Checkbox>
             )}
           </div>
         )}

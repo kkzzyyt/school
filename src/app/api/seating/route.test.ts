@@ -182,6 +182,21 @@ describe("seating route handlers", () => {
     expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects an assignment to a disabled seat before replacing the class layout", async () => {
+    mocks.prisma.student.count.mockResolvedValue(1);
+    const response = await PUT(putRequest({
+      rows: 2,
+      columns: 4,
+      assignments: [{ studentId: "student-1", row: 1, column: 1 }],
+      environment: { ...environment, disabledSeats: [{ row: 1, column: 1 }] },
+    }));
+    const body = await responseBody(response);
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects marker rows outside the fixed visible side rail", async () => {
     const response = await PUT(
       putRequest({

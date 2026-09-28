@@ -317,6 +317,13 @@ export async function PUT(request: Request) {
       throw new ApiError(400, "VALIDATION_ERROR", "座位布局或教室标记存在重复、越界位置");
     }
 
+    const disabledSeatKeys = new Set(
+      (layout.environment.disabledSeats ?? []).map((seat) => `${seat.row}:${seat.column}`),
+    );
+    if (layout.assignments.some((assignment) => disabledSeatKeys.has(`${assignment.row}:${assignment.column}`))) {
+      throw new ApiError(400, "VALIDATION_ERROR", "已停用的座位不能安排学生");
+    }
+
     const studentIds = [...new Set(layout.assignments.map((item) => item.studentId))];
     const ownedStudents = await prisma.student.count({
       where: { id: { in: studentIds }, classId: context.classId, status: "ACTIVE" },

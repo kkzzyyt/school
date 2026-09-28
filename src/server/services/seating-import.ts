@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/node";
 
 import {
   createDefaultSeatingEnvironment,
@@ -32,21 +32,14 @@ function getExtension(filename: string): string {
 export function getSeatingImportSourceType(filename: string): SeatingImportSourceType | null {
   const extension = getExtension(filename);
   if (extension === "csv" || extension === "tsv") return "CSV";
-  if (extension === "xlsx" || extension === "xls") return "XLSX";
+  if (extension === "xlsx") return "XLSX";
+  if (["png", "jpg", "jpeg", "webp"].includes(extension)) return "IMAGE";
   return null;
 }
 
-function readSpreadsheet(buffer: ArrayBuffer): string[][] {
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellText: true, cellDates: false });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-  const worksheet = workbook.Sheets[firstSheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-  });
-  return rows.map((row) => Array.isArray(row) ? row.map((value) => String(value ?? "")) : []);
+async function readSpreadsheet(buffer: ArrayBuffer): Promise<string[][]> {
+  const rows = await readSheet(Buffer.from(buffer));
+  return rows.map((row) => row.map((value) => String(value ?? "")));
 }
 
 function numberList(value: unknown): number[] {
@@ -55,7 +48,7 @@ function numberList(value: unknown): number[] {
     : [];
 }
 
-function parseExistingEnvironment(
+export function parseExistingEnvironment(
   value: unknown,
   rows: number,
   columns: number,
@@ -90,6 +83,9 @@ function parseExistingEnvironment(
     },
     disabledSeats: Array.isArray(stored.disabledSeats) ? stored.disabledSeats as SeatingEnvironmentInput["disabledSeats"] : undefined,
     lockedSeats: Array.isArray(stored.lockedSeats) ? stored.lockedSeats as SeatingEnvironmentInput["lockedSeats"] : undefined,
+    fixedFacilities: stored.fixedFacilities && typeof stored.fixedFacilities === "object"
+      ? stored.fixedFacilities as SeatingEnvironmentInput["fixedFacilities"]
+      : undefined,
   };
 
   try {
@@ -99,18 +95,18 @@ function parseExistingEnvironment(
   }
 }
 
-export function parseSeatingImportFile(input: SeatingImportFileInput): {
+export async function parseSeatingImportFile(input: SeatingImportFileInput): Promise<{
   sourceType: SeatingImportSourceType;
   preview: SeatingImportPreview;
-} {
+}> {
   const sourceType = getSeatingImportSourceType(input.filename);
-  if (!sourceType) {
-    throw new Error("不支持的座位文件格式，请上传 CSV、XLSX 或 XLS 文件");
+  if (!sourceType || sourceType === "IMAGE") {
+    throw new Error("不支持的座位文件格式，请上传 CSV 或 XLSX 文件");
   }
 
   const matrix = sourceType === "CSV"
     ? parseDelimitedText(new TextDecoder("utf-8").decode(input.buffer))
-    : readSpreadsheet(input.buffer);
+    : await readSpreadsheet(input.buffer);
   const preview = parseSeatingMatrix(matrix, input.students, {
     sourceType,
     existingEnvironment: parseExistingEnvironment(input.environment, input.rows, input.columns),

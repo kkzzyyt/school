@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   parseDelimitedText,
   parseSeatingMatrix,
+  reviseSeatingImportPreview,
   type SeatingImportStudent,
 } from "./seating-import";
+import { createDefaultSeatingEnvironment } from "./seating";
 
 const students: SeatingImportStudent[] = [
   { id: "s-1", name: "张三", studentNo: "001" },
@@ -71,5 +73,38 @@ describe("domain/seating-import", () => {
       expect.objectContaining({ code: "UNMATCHED_STUDENT", row: 1, column: 2 }),
       expect.objectContaining({ code: "DUPLICATE_STUDENT", row: 2, column: 1 }),
     ]));
+  });
+
+  it("lets a teacher resolve an unmatched seat and clear a duplicate", () => {
+    const original = parseSeatingMatrix([
+      ["排\\座", "第 1 座", "第 2 座"],
+      ["第 1 排", "张三", "李泗"],
+      ["第 2 排", "001", ""],
+    ], students);
+
+    const revised = reviseSeatingImportPreview(original, new Map([[1, "s-2"], [2, null]]));
+
+    expect(revised.issues).toEqual([]);
+    expect(revised.draft.assignments).toEqual([
+      { studentId: "s-1", row: 1, column: 1 },
+      { studentId: "s-2", row: 1, column: 2 },
+    ]);
+    expect(revised.stats).toMatchObject({ matched: 2, unmatched: 0, duplicate: 0 });
+  });
+
+  it("blocks a disabled seat until it is cleared in review", () => {
+    const environment = {
+      ...createDefaultSeatingEnvironment(2),
+      disabledSeats: [{ row: 1, column: 1 }],
+    };
+    const original = parseSeatingMatrix([
+      ["排\\座", "第 1 座", "第 2 座"],
+      ["第 1 排", "张三", ""],
+    ], students, { existingEnvironment: environment });
+
+    expect(original.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "INVALID_POSITION", row: 1, column: 1 }),
+    ]));
+    expect(reviseSeatingImportPreview(original, new Map([[0, null]])).issues).toEqual([]);
   });
 });

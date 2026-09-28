@@ -1,12 +1,15 @@
 import { ApiError, handleApi } from "@/server/api/errors";
+import { parseSeatingOcrLines } from "@/domain/seating-ocr";
 import { requireAuthContext } from "@/server/auth/context";
 import { assertSameOrigin } from "@/server/auth/origin";
 import { prisma } from "@/server/db/prisma";
 import {
   getSeatingImportSourceType,
   MAX_SEATING_IMPORT_BYTES,
+  parseExistingEnvironment,
   parseSeatingImportFile,
 } from "@/server/services/seating-import";
+import { detectSeatingImageMime, recognizeSeatingImage } from "@/server/services/seating-ocr";
 
 function isUpload(value: FormDataEntryValue | null): value is File {
   return Boolean(
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
       : uploadName;
     const sourceType = getSeatingImportSourceType(fileName);
     if (!sourceType) {
-      throw new ApiError(400, "VALIDATION_ERROR", "只支持 CSV、XLSX 或 XLS 文件");
+      throw new ApiError(400, "VALIDATION_ERROR", "只支持 CSV、XLSX、PNG、JPEG 或 WebP 文件");
     }
     if (upload.size > MAX_SEATING_IMPORT_BYTES) {
       throw new ApiError(400, "VALIDATION_ERROR", "座位文件不能超过 5 MB");
@@ -56,14 +59,34 @@ export async function POST(request: Request) {
 
     const rows = classroom?.seatRows ?? 7;
     const columns = classroom?.seatColumns ?? 8;
-    const preview = parseSeatingImportFile({
-      filename: fileName,
-      buffer: await upload.arrayBuffer(),
-      students,
-      rows,
-      columns,
-      environment: classroom?.seatingEnvironment,
-    });
+    const buffer = await upload.arrayBuffer();
+    if (sourceType === "IMAGE") {
+      const bytes = new Uint8Array(buffer);
+      const mime = detectSeatingImageMime(bytes);
+      if (!mime) {
+        throw new ApiError(400, "VALIDATION_ERROR", "文件内容不是有效的 PNG、JPEG 或 WebP 图片");
+      }
+      const ocr = await recognizeSeatingImage(bytes, mime);
+      const preview = parseSeatingOcrLines(ocr, students, {
+        sourceType: "IMAGE",
+        existingEnvironment: parseExistingEnvironment(classroom?.seatingEnvironment, rows, columns),
+      });
+      return { fileName, sourceType, ...preview };
+    }
+
+    let preview;
+    try {
+      preview = await parseSeatingImportFile({
+        filename: fileName,
+        buffer,
+        students,
+        rows,
+        columns,
+        environment: classroom?.seatingEnvironment,
+      });
+    } catch {
+      throw new ApiError(400, "VALIDATION_ERROR", "座位文件无法解析，请检查文件格式");
+    }
 
     return {
       fileName,

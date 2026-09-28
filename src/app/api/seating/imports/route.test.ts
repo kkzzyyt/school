@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
     student: { findMany: vi.fn() },
   },
   parseSeatingImportFile: vi.fn(),
+  recognizeSeatingImage: vi.fn(),
+  parseSeatingOcrLines: vi.fn(),
 }));
 
 vi.mock("@/server/auth/context", () => ({ requireAuthContext: mocks.requireAuthContext }));
@@ -15,12 +17,21 @@ vi.mock("@/server/auth/origin", () => ({ assertSameOrigin: mocks.assertSameOrigi
 vi.mock("@/server/db/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("@/server/services/seating-import", () => ({
   MAX_SEATING_IMPORT_BYTES: 5 * 1024 * 1024,
+  parseExistingEnvironment: vi.fn().mockReturnValue({ aisleAfterColumns: [], left: { windows: [], doorRows: [] }, right: { windows: [], doorRows: [] }, rear: { waterDispenser: null, airConditioner: null } }),
   getSeatingImportSourceType: (filename: string) => {
     const extension = filename.split(".").at(-1)?.toLowerCase();
-    return extension === "csv" ? "CSV" : extension === "xlsx" || extension === "xls" ? "XLSX" : null;
+    if (extension === "csv") return "CSV";
+    if (extension === "xlsx") return "XLSX";
+    if (["png", "jpg", "jpeg", "webp"].includes(extension ?? "")) return "IMAGE";
+    return null;
   },
   parseSeatingImportFile: mocks.parseSeatingImportFile,
 }));
+vi.mock("@/server/services/seating-ocr", () => ({
+  detectSeatingImageMime: (bytes: Uint8Array) => bytes[0] === 137 ? "image/png" : null,
+  recognizeSeatingImage: mocks.recognizeSeatingImage,
+}));
+vi.mock("@/domain/seating-ocr", () => ({ parseSeatingOcrLines: mocks.parseSeatingOcrLines }));
 
 import { POST } from "./route";
 
@@ -134,5 +145,42 @@ describe("POST /api/seating/imports", () => {
 
     expect(response.status).toBe(400);
     expect(body).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
+  });
+
+  it("recognizes a PNG through the loopback OCR service and returns the seat preview", async () => {
+    const request = uploadRequest("placeholder", "seat.png");
+    vi.spyOn(request, "formData").mockResolvedValue({
+      get: (name: string) => name === "file" ? {
+        name: "seat.png",
+        size: 8,
+        arrayBuffer: async () => Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
+      } : null,
+    } as unknown as FormData);
+    mocks.recognizeSeatingImage.mockResolvedValue({ width: 400, height: 300, lines: [] });
+    mocks.parseSeatingOcrLines.mockReturnValue({
+      draft: { rows: 1, columns: 1, assignments: [{ studentId: "s-1", row: 1, column: 1 }], issues: [] },
+      matches: [],
+      issues: [],
+      stats: { matched: 1, unmatched: 0, duplicate: 0, empty: 0, totalCells: 1 },
+    });
+
+    const response = await POST(request);
+    const body = await responseBody(response);
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({
+      sourceType: "IMAGE",
+      draft: { assignments: [{ studentId: "s-1", row: 1, column: 1 }] },
+    });
+    expect(mocks.recognizeSeatingImage).toHaveBeenCalledWith(expect.any(Uint8Array), "image/png");
+  });
+
+  it("rejects a renamed non-image before contacting the OCR service", async () => {
+    const response = await POST(uploadRequest("this is not a PNG", "seat.png"));
+    const body = await responseBody(response);
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ success: false, error: { code: "VALIDATION_ERROR" } });
+    expect(mocks.recognizeSeatingImage).not.toHaveBeenCalled();
   });
 });
